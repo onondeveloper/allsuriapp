@@ -1,0 +1,24 @@
+// Application-level settings for the Runner target.
+//
+// This may be replaced with something auto-generated from metadata (e.g., pubspec.yaml) in the
+// future. If not, the values below would default to using the project name when this becomes a
+// 'flutter create' template.
+
+#include "../../Flutter/Flutter-Debug.xcconfig"
+#include "../../Flutter/Flutter-Release.xcconfig"
+#include "../../Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
+#include "../../Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
+#include "../../Pods/Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"
+
+PRODUCT_NAME = allsuriapp
+PRODUCT_BUNDLE_IDENTIFIER = com.example.allsuriapp
+MACOSX_DEPLOYMENT_TARGET = 11.0
+
+// The application's name. Displayed in the menu bar and dock.
+PRODUCT_NAME = allsuriapp
+
+// The application's bundle identifier
+PRODUCT_BUNDLE_IDENTIFIER = com.example.allsuriapp
+
+// The copyright displayed in the application information window
+PRODUCT_COPYRIGHT = Copyright © 2024 com.example. All rights reserved.
