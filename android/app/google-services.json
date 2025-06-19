@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "234616150584",
+    "project_id": "allsuri",
+    "storage_bucket": "allsuri.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234616150584:android:22b274511662cc865964cd",
+        "android_client_info": {
+          "package_name": "com.ononcompany.allsuri"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3X9b9m7M0nEdJs_qjZzK0WA1uuvNIQgI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

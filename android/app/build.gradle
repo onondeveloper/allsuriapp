@@ -2,6 +2,7 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"  // Add the Google services Gradle plugin
 }
 
 def localProperties = new Properties()
@@ -41,14 +42,12 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId "com.example.allsuriapp"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
-        minSdkVersion 21 // 카카오 SDK 요구사항
+        minSdkVersion 21 // Required for Kakao SDK and Firebase
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        multiDexEnabled true  // Add this line to support multidex
         manifestPlaceholders = [
             'kakaoCustomSchemePrefix': 'kakao'
         ]

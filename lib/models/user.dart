@@ -25,7 +25,7 @@ class User {
     DateTime? createdAt,
     this.lastLoginAt,
     this.isActive = true,
-  }) : this.createdAt = createdAt ?? DateTime.now();
+  }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
     return {
@@ -59,6 +59,36 @@ class User {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'email': email,
+    'name': name,
+    'role': role.value,
+    'businessName': businessName,
+    'businessLicense': businessLicense,
+    'phoneNumber': phoneNumber,
+    'address': address,
+    'createdAt': createdAt.toIso8601String(),
+    'lastLoginAt': lastLoginAt?.toIso8601String(),
+    'isActive': isActive,
+  };
+
+  factory User.fromJson(Map<String, dynamic> json) => User(
+    id: json['id'] as String,
+    email: json['email'] as String,
+    name: json['name'] as String,
+    role: UserRole.fromValue(json['role'] as String),
+    businessName: json['businessName'] as String?,
+    businessLicense: json['businessLicense'] as String?,
+    phoneNumber: json['phoneNumber'] as String?,
+    address: json['address'] as String?,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    lastLoginAt: json['lastLoginAt'] != null 
+        ? DateTime.parse(json['lastLoginAt'] as String)
+        : null,
+    isActive: json['isActive'] as bool? ?? true,
+  );
+
   User copyWith({
     String? id,
     String? email,
@@ -86,4 +116,4 @@ class User {
       isActive: isActive ?? this.isActive,
     );
   }
-} 
+}

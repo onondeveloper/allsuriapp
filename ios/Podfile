@@ -29,8 +29,22 @@ flutter_ios_podfile_setup
 
 target 'Runner' do
   use_frameworks!
+  use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  # Add the Firebase pod for Google Analytics
+  pod 'FirebaseAnalytics'
+
+  # For Analytics without IDFA collection capability, use this pod instead
+  # pod 'Firebase/AnalyticsWithoutAdIdSupport'
+
+  # Add the pods for any other Firebase products you want to use in your app
+  # For example, to use Firebase Authentication and Cloud Firestore
+  pod 'FirebaseAuth'
+  pod 'FirebaseFirestore'
+  pod 'FirebaseStorage'
+
   target 'RunnerTests' do
     inherit! :search_paths
   end
@@ -39,5 +53,16 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    
+    # Start of the permission-related options
+    target.build_configurations.each do |config|
+      # You can enable the permissions needed here
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+        'PERMISSION_PHOTOS=1',
+        'PERMISSION_CAMERA=1',
+        'PERMISSION_MICROPHONE=1',
+      ]
+    end
   end
 end
