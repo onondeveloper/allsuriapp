@@ -115,4 +115,34 @@ class Order {
       selectedEstimateId: selectedEstimateId ?? this.selectedEstimateId,
     );
   }
-} 
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'customerId': customerId,
+    'title': title,
+    'description': description,
+    'address': address,
+    'visitDate': visitDate.toIso8601String(),
+    'status': status,
+    'createdAt': createdAt.toIso8601String(),
+    'images': images,
+    'estimatedPrice': estimatedPrice,
+    'technicianId': technicianId,
+    'selectedEstimateId': selectedEstimateId,
+  };
+
+  factory Order.fromJson(Map<String, dynamic> json) => Order(
+    id: json['id'] as String,
+    customerId: json['customerId'] as String,
+    title: json['title'] as String,
+    description: json['description'] as String,
+    address: json['address'] as String,
+    visitDate: DateTime.parse(json['visitDate'] as String),
+    status: json['status'] as String,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    images: List<String>.from(json['images'] as List),
+    estimatedPrice: (json['estimatedPrice'] as num).toDouble(),
+    technicianId: json['technicianId'] as String?,
+    selectedEstimateId: json['selectedEstimateId'] as String?,
+  );
+}

@@ -1,15 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../models/order.dart';
-import '../services/order_service.dart';
-import '../services/auth_service.dart';
+import '../services/firebase_service.dart';
 
 class OrderProvider with ChangeNotifier {
-  final OrderService _orderService;
+  final FirebaseService _firebaseService;
   List<Order> _orders = [];
   bool _isLoading = false;
   String? _error;
 
-  OrderProvider(this._orderService);
+  OrderProvider(this._firebaseService);
 
   List<Order> get orders => _orders;
   bool get isLoading => _isLoading;
@@ -21,10 +20,11 @@ class OrderProvider with ChangeNotifier {
     notifyListeners();
     
     try {
+      final allOrders = await _firebaseService.getOrders();
       if (customerId != null) {
-        _orders = await _orderService.getOrdersByCustomer(customerId);
+        _orders = allOrders.where((order) => order.customerId == customerId).toList();
       } else {
-        _orders = await _orderService.getAllOrders();
+        _orders = allOrders;
       }
       print('Loaded ${_orders.length} orders');
     } catch (e) {
@@ -37,53 +37,55 @@ class OrderProvider with ChangeNotifier {
   }
 
   Future<void> addOrder(Order order) async {
-    print('OrderProvider.addOrder called with order: ${order.title}');
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
     try {
-      await _orderService.createOrder(order);
-      print('OrderService.createOrder completed');
-      await loadOrders(); // 목록 새로고침
-      print('OrderProvider.loadOrders completed');
+      await _firebaseService.createOrder(order);
+      await loadOrders(customerId: order.customerId);
       print('Order added successfully');
     } catch (e) {
       _error = e.toString();
       print('Error adding order: $e');
-      notifyListeners();
-      throw e;
     }
+
+    _isLoading = false;
+    notifyListeners();
   }
 
-  Future<void> updateOrder(Order order) async {
+  Future<void> updateOrderStatus(String orderId, String status) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
     try {
-      await _orderService.updateOrder(order);
-      await loadOrders(); // 목록 새로고침
-      print('Order updated successfully');
+      final index = _orders.indexWhere((o) => o.id == orderId);
+      if (index != -1) {
+        final updatedOrder = Order(
+          id: _orders[index].id,
+          customerId: _orders[index].customerId,
+          title: _orders[index].title,
+          description: _orders[index].description,
+          address: _orders[index].address,
+          visitDate: _orders[index].visitDate,
+          status: status,
+          createdAt: _orders[index].createdAt,
+          images: _orders[index].images,
+          estimatedPrice: _orders[index].estimatedPrice,
+          technicianId: _orders[index].technicianId,
+          selectedEstimateId: _orders[index].selectedEstimateId,
+        );
+        
+        await _firebaseService.createOrder(updatedOrder); // This will overwrite the existing document
+        _orders[index] = updatedOrder;
+      }
     } catch (e) {
       _error = e.toString();
-      print('Error updating order: $e');
-      notifyListeners();
-      throw e;
+      print('Error updating order status: $e');
     }
-  }
 
-  Future<void> deleteOrder(String orderId) async {
-    try {
-      await _orderService.deleteOrder(orderId);
-      await loadOrders(); // 목록 새로고침
-      print('Order deleted successfully');
-    } catch (e) {
-      _error = e.toString();
-      print('Error deleting order: $e');
-      notifyListeners();
-      throw e;
-    }
+    _isLoading = false;
+    notifyListeners();
   }
-
-  Future<List<Order>> getPendingOrders() async {
-    try {
-      return await _orderService.getPendingOrders();
-    } catch (e) {
-      print('Error getting pending orders: $e');
-      return [];
-    }
-  }
-} 
+}

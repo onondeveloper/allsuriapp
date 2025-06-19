@@ -42,32 +42,28 @@ class Estimate {
   );
 
   // JSON 직렬화
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'order_id': orderId,
-      'technician_id': technicianId,
-      'price': price,
-      'description': description,
-      'estimated_days': estimatedDays,
-      'status': status,
-      'created_at': createdAt.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'orderId': orderId,
+    'technicianId': technicianId,
+    'price': price,
+    'description': description,
+    'estimatedDays': estimatedDays,
+    'status': status,
+    'createdAt': createdAt.toIso8601String(),
+  };
 
   // JSON 역직렬화
-  factory Estimate.fromJson(Map<String, dynamic> json) {
-    return Estimate(
-      id: json['id'],
-      orderId: json['order_id'],
-      technicianId: json['technician_id'],
-      price: json['price'].toDouble(),
-      description: json['description'],
-      estimatedDays: json['estimated_days'] ?? 1,
-      status: json['status'] ?? 'PENDING',
-      createdAt: DateTime.parse(json['created_at']),
-    );
-  }
+  factory Estimate.fromJson(Map<String, dynamic> json) => Estimate(
+    id: json['id'] as String,
+    orderId: json['orderId'] as String,
+    technicianId: json['technicianId'] as String,
+    price: (json['price'] as num).toDouble(),
+    description: json['description'] as String,
+    estimatedDays: json['estimatedDays'] as int? ?? 1,
+    status: json['status'] as String? ?? 'PENDING',
+    createdAt: DateTime.parse(json['createdAt'] as String),
+  );
 
   // 복사본 생성 with 메서드
   Estimate copyWith({
@@ -91,4 +87,4 @@ class Estimate {
       createdAt: createdAt ?? this.createdAt,
     );
   }
-} 
+}
