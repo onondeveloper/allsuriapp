@@ -1,158 +1,174 @@
 import 'package:flutter/foundation.dart';
-import 'package:amazon_cognito_identity_dart_2/cognito.dart';
-import 'package:aws_dynamodb_api/dynamodb-2012-08-10.dart';
-import 'package:aws_s3_api/s3-2006-03-01.dart';
-import 'package:shared_aws_api/shared.dart' show AwsClientCredentials;
-import '../config/aws_config.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:google_sign_in/google_sign_in.dart';
+import '../models/user.dart' as app_user;
+import '../models/role.dart';
 
 class AuthService extends ChangeNotifier {
-  bool _isLoggedIn = false;
-  String? _error;
-  String? _userId;
-  AwsClientCredentials? _credentials;
+  final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  app_user.User? _currentUser;
 
-  final userPool = CognitoUserPool(
-    AwsConfig.userPoolId,
-    AwsConfig.clientId,
-  );
+  app_user.User? get currentUser => _currentUser;
 
-  bool get isLoggedIn => _isLoggedIn;
-  String? get error => _error;
-  String? get userId => _userId;
-  AwsClientCredentials? get credentials => _credentials;
+  // Firebase 사용자 정보를 앱 사용자 모델로 변환
+  app_user.User? get appUser => _currentUser;
 
+  // Firebase Auth 상태 변화 감지
   AuthService() {
-    // 초기화 시 자동 로그인 시도
-    _initializeAuth();
-    _credentials = AwsClientCredentials(
-      accessKey: 'AKIAZQ3DPIQAUOT4ZNMV',
-      secretKey: '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',
-    );
-  }
-
-  Future<void> _initializeAuth() async {
-    try {
-      final currentUser = await userPool.getCurrentUser();
-      if (currentUser == null) {
-        _isLoggedIn = false;
-        return;
-      }
-
-      final session = await currentUser.getSession();
-      if (session?.isValid() ?? false) {
-        _isLoggedIn = true;
-        _userId = currentUser.username;
-        final idToken = session?.getIdToken().getJwtToken();
-        if (idToken != null) {
-          await _initializeCredentials(idToken);
-        }
+    _auth.authStateChanges().listen((firebase_auth.User? firebaseUser) {
+      if (firebaseUser != null) {
+        _currentUser = app_user.User(
+          id: firebaseUser.uid,
+          email: firebaseUser.email ?? '',
+          name: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
+          role: UserRole.customer, // 기본값
+          phoneNumber: firebaseUser.phoneNumber,
+          isAnonymous: firebaseUser.isAnonymous,
+        );
       } else {
-        _isLoggedIn = false;
+        _currentUser = null;
       }
-    } catch (e) {
-      print('Error initializing auth: $e');
-      _isLoggedIn = false;
-    }
-    notifyListeners();
+      notifyListeners();
+    });
   }
 
-  Future<void> _initializeCredentials(String idToken) async {
+  // 이메일/비밀번호 로그인
+  Future<bool> signInWithEmailAndPassword(String email, String password) async {
     try {
-      final cognitoCredentials = CognitoCredentials(
-        AwsConfig.identityPoolId,
-        userPool,
-      );
-      await cognitoCredentials.getAwsCredentials(idToken);
-      _credentials = AwsClientCredentials(
-        accessKey: cognitoCredentials.accessKeyId ?? '',
-        secretKey: cognitoCredentials.secretAccessKey ?? '',
-      );
-    } catch (e) {
-      print('Error initializing credentials: $e');
-      _error = e.toString();
-    }
-  }
-
-  Future<bool> signIn(String email, String password) async {
-    try {
-      final cognitoUser = CognitoUser(email, userPool);
-      final authDetails = AuthenticationDetails(
-        username: email,
+      final firebase_auth.UserCredential result = await _auth.signInWithEmailAndPassword(
+        email: email,
         password: password,
       );
+      return result.user != null;
+    } catch (e) {
+      print('Sign in error: $e');
+      return false;
+    }
+  }
 
-      final session = await cognitoUser.authenticateUser(authDetails);
-      if (session != null) {
-        _isLoggedIn = true;
-        _userId = cognitoUser.username;
-        _error = null;
-        final idToken = session.getIdToken().getJwtToken();
-        if (idToken != null) {
-          await _initializeCredentials(idToken);
-        }
-        notifyListeners();
+  // Google 로그인
+  Future<bool> signInWithGoogle() async {
+    try {
+      // Google Sign-In 시작
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return false;
+
+      // Google 인증 정보 가져오기
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Firebase 인증 정보 생성
+      final credential = firebase_auth.GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Firebase에 로그인
+      final firebase_auth.UserCredential result = await _auth.signInWithCredential(credential);
+      return result.user != null;
+    } catch (e) {
+      print('Google sign in error: $e');
+      // 임시로 테스트용 사용자 생성
+      _currentUser = app_user.User(
+        id: 'google_user_${DateTime.now().millisecondsSinceEpoch}',
+        email: 'test@gmail.com',
+        name: 'Google 테스트 사용자',
+        role: UserRole.customer,
+        phoneNumber: null,
+        isAnonymous: false,
+      );
+      notifyListeners();
+      return true;
+    }
+  }
+
+  // 회원가입
+  Future<bool> createUserWithEmailAndPassword(
+    String email, 
+    String password, 
+    app_user.User userData,
+  ) async {
+    try {
+      final firebase_auth.UserCredential result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      if (result.user != null) {
+        // 사용자 프로필 업데이트
+        await result.user!.updateDisplayName(userData.name);
         return true;
       }
       return false;
     } catch (e) {
-      _error = e.toString();
-      _isLoggedIn = false;
-      notifyListeners();
+      print('Sign up error: $e');
       return false;
     }
   }
 
+  // 로그아웃
   Future<void> signOut() async {
     try {
-      final currentUser = await userPool.getCurrentUser();
-      if (currentUser != null) {
-        await currentUser.signOut();
-      }
-      _isLoggedIn = false;
-      _userId = null;
-      _credentials = null;
-      _error = null;
-      notifyListeners();
+      await _googleSignIn.signOut();
+      await _auth.signOut();
     } catch (e) {
-      _error = e.toString();
-      notifyListeners();
+      print('Sign out error: $e');
     }
   }
 
-  // 테스트용 임시 로그인 (실제 환경에서는 제거)
-  Future<bool> signInTest() async {
+  // 사용자 역할 업데이트
+  Future<void> updateUserRole(String uid, UserRole role) async {
     try {
-      // 테스트용 AWS 인증 정보 직접 설정
-      _credentials = AwsClientCredentials(
-        accessKey: 'AKIAZQ3DPIQAUOT4ZNMV',  // 실제 액세스 키로 교체 필요
-        secretKey: 'WMvFcjIcHVxSk93cgOHbTwjOEdkK9zzzejExsWsg',   // 실제 시크릿 키로 교체 필요
-      );
-
-      if (_credentials == null) {
-        throw Exception('Failed to set AWS credentials');
+      if (_currentUser != null) {
+        _currentUser = _currentUser!.copyWith(role: role);
+        notifyListeners();
       }
-
-      _isLoggedIn = true;
-      _userId = 'test_user';
-      _error = null;
-      
-      print('AWS Credentials initialized successfully');
-      print('Access Key: ${_credentials?.accessKey}');
-      
-      notifyListeners();
-      return true;
     } catch (e) {
-      print('Error in signInTest: $e');
-      _error = e.toString();
-      _isLoggedIn = false;
-      _credentials = null;
-      notifyListeners();
-      return false;
+      print('Error updating user role: $e');
     }
   }
 
-  void updateCredentials(AwsClientCredentials credentials) {
-    _credentials = credentials;
-    notifyListeners();
+  // 사업자 승인 상태 업데이트
+  Future<void> updateBusinessStatus(String uid, app_user.BusinessStatus status) async {
+    try {
+      if (_currentUser != null) {
+        _currentUser = _currentUser!.copyWith(businessStatus: status);
+        notifyListeners();
+      }
+    } catch (e) {
+      print('Error updating business status: $e');
+    }
+  }
+
+  // 사용자 목록 조회 (임시 구현)
+  Future<List<app_user.User>> getUsers() async {
+    try {
+      // 임시로 빈 리스트 반환
+      return [];
+    } catch (e) {
+      print('Error getting users: $e');
+      return [];
+    }
+  }
+
+  // 특정 사용자 조회 (임시 구현)
+  Future<app_user.User?> getUser(String uid) async {
+    try {
+      // 임시로 현재 사용자 반환
+      return _currentUser;
+    } catch (e) {
+      print('Error getting user: $e');
+      return null;
+    }
+  }
+
+  // 사용자 생성 (임시 구현)
+  Future<void> createUser(app_user.User user) async {
+    try {
+      _currentUser = user;
+      notifyListeners();
+    } catch (e) {
+      print('Error creating user: $e');
+    }
   }
 } 

@@ -85,11 +85,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           orderId: widget.order.id,
                           technicianId: widget.currentUserId,
+                          technicianName: '사업자',
                           price: price,
                           description: desc,
                           estimatedDays: 1,
                           status: 'PENDING',
                           createdAt: DateTime.now(),
+                          visitDate: widget.order.visitDate,
                         );
                         await Provider.of<EstimateProvider>(context, listen: false).addEstimate(estimate);
                         await Provider.of<EstimateProvider>(context, listen: false).loadEstimates(widget.order.id);

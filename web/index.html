@@ -18,29 +18,51 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="올수리 - 수리 서비스 플랫폼">
 
   <!-- iOS meta tags & icons -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="allsuriapp">
+  <meta name="apple-mobile-web-app-title" content="올수리">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>allsuriapp</title>
+  <title>올수리</title>
   <link rel="manifest" href="manifest.json">
 
   <script>
     // The value below is injected by flutter build, do not touch.
     const serviceWorkerVersion = null;
   </script>
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+  
   <!-- This script adds the flutter initialization JS code -->
   <script src="flutter.js" defer></script>
+
+  <meta name="google-signin-client_id" content="387428566489-a429cl5hbj8pkr0fjuru534npk185e2c.apps.googleusercontent.com">
 </head>
 <body>
   <script>
+    // Firebase 설정 (실제 프로젝트 설정으로 교체 필요)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBh_u32eUulkCQ0bd9WoLg5nbOwQrrPzcY",
+      authDomain: "allsuri.firebaseapp.com",
+      projectId: "allsuri",
+      storageBucket: "allsuri.firebasestorage.app",
+      messagingSenderId: "234616150584",
+      appId: "1:234616150584:web:d981e50a68ad9e355964cd",
+    };
+
+    // Firebase 초기화
+    firebase.initializeApp(firebaseConfig);
+    
     window.addEventListener('load', function(ev) {
       // Download main.dart.js
       _flutter.loader.loadEntrypoint({

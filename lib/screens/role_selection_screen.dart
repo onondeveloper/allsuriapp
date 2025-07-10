@@ -48,9 +48,13 @@ class RoleSelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('역할 선택'),
         centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -58,18 +62,46 @@ class RoleSelectionScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // 앱 로고
+              Center(
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.3),
+                        spreadRadius: 2,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      fit: BoxFit.contain,
+                      width: 80,
+                      height: 80,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
               const Text(
                 '시작하기 전에 역할을 선택해주세요',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
               _buildRoleCard(
                 context,
-                UserRole.admin,
-                '관리자',
-                '사용자와 견적을 관리하고 시스템을 운영합니다',
-                Icons.admin_panel_settings,
+                UserRole.customer,
+                '고객',
+                '견적을 요청하고 사업자의 견적을 검토합니다',
+                Icons.person,
               ),
               _buildRoleCard(
                 context,
@@ -80,10 +112,10 @@ class RoleSelectionScreen extends StatelessWidget {
               ),
               _buildRoleCard(
                 context,
-                UserRole.customer,
-                '일반 사용자',
-                '견적을 요청하고 사업자의 견적을 검토합니다',
-                Icons.person,
+                UserRole.admin,
+                '관리자',
+                '사용자와 견적을 관리하고 시스템을 운영합니다',
+                Icons.admin_panel_settings,
               ),
             ],
           ),

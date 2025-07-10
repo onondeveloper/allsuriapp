@@ -1,24 +1,18 @@
+import 'package:allsuriapp/services/services.dart';
 import 'package:flutter/material.dart';
 import '../models/order.dart';
 import '../models/estimate.dart';
-import '../services/estimate_service.dart';
-import '../services/order_service.dart';
 import '../widgets/estimate_list_item.dart';
-import '../services/auth_service.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/estimate_provider.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final Order order;
-  final AuthService authService;
-  final OrderService orderService;
 
   const OrderDetailScreen({
     Key? key,
     required this.order,
-    required this.authService,
-    required this.orderService,
   }) : super(key: key);
 
   @override
@@ -31,15 +25,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _isLoading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _estimateService = EstimateService(widget.authService);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _estimateService = Provider.of<EstimateService>(context, listen: false);
     _loadEstimates();
   }
 
   Future<void> _loadEstimates() async {
     try {
-      final estimates = await _estimateService.listEstimatesForOrder(widget.order.id);
+      final estimates =
+          await _estimateService.listEstimatesForOrder(widget.order.id);
       setState(() {
         _estimates = estimates;
         _isLoading = false;
@@ -169,7 +164,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               padding: EdgeInsets.all(32.0),
               child: Column(
                 children: [
-                  Icon(Icons.description_outlined, size: 64, color: Colors.grey),
+                  Icon(Icons.description_outlined,
+                      size: 64, color: Colors.grey),
                   SizedBox(height: 16),
                   Text(
                     '아직 제안된 견적이 없습니다.',
@@ -187,7 +183,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             itemBuilder: (context, index) {
               return EstimateListItem(
                 estimate: _estimates[index],
-                isSelected: widget.order.selectedEstimateId == _estimates[index].id,
+                isSelected:
+                    widget.order.selectedEstimateId == _estimates[index].id,
                 onSelect: () => _selectEstimate(_estimates[index]),
               );
             },
@@ -227,6 +224,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Future<void> _selectEstimate(Estimate estimate) async {
+    final orderService = Provider.of<OrderService>(context, listen: false);
     try {
       // 사용자 확인
       final confirmed = await showDialog<bool>(
@@ -237,9 +235,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('다음 견적을 선택하시겠습니까?'),
+              const Text('다음 견적을 선택하시겠습니까?'),
               const SizedBox(height: 16),
-              Text('금액: ${NumberFormat.currency(locale: 'ko_KR', symbol: '₩').format(estimate.price)}'),
+              Text(
+                  '금액: ${NumberFormat.currency(locale: 'ko_KR', symbol: '₩').format(estimate.price)}'),
               Text('예상 기간: ${estimate.estimatedDays}일'),
             ],
           ),
@@ -256,36 +255,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         ),
       );
 
-      if (confirmed != true) return;
-
-      setState(() => _isLoading = true);
-
-      // 1. 선택된 견적의 상태를 SELECTED로 변경
-      await _estimateService.updateEstimateStatus(estimate.id, 'SELECTED');
-
-      // 2. 다른 견적들의 상태를 REJECTED로 변경
-      final otherEstimates = _estimates.where((e) => e.id != estimate.id);
-      for (final otherEstimate in otherEstimates) {
-        await _estimateService.updateEstimateStatus(otherEstimate.id, 'REJECTED');
-      }
-
-      // 3. 주문 상태 업데이트
-      final updatedOrder = widget.order.copyWith(
-        status: 'IN_PROGRESS',
-        selectedEstimateId: estimate.id,
-        estimatedPrice: estimate.price,
-        technicianId: estimate.technicianId,
-      );
-
-      await widget.orderService.updateOrder(updatedOrder);
-
-      // 4. 견적 목록 새로고침
-      await _loadEstimates();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('견적이 선택되었습니다.')),
-        );
+      if (confirmed == true) {
+        // await orderService.selectEstimateForOrder(widget.order.id, estimate.id);
+        // await _loadEstimates(); // 상태 다시 로드
+        // if (mounted) {
+        //   ScaffoldMessenger.of(context).showSnackBar(
+        //     const SnackBar(content: Text('견적이 선택되었습니다.')),
+        //   );
+        // }
       }
     } catch (e) {
       print('Error selecting estimate: $e');
@@ -300,4 +277,4 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       }
     }
   }
-} 
+}

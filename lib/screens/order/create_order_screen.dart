@@ -3,6 +3,8 @@ import '../../models/order.dart';
 import '../../services/order_service.dart';
 import 'package:provider/provider.dart';
 import '../../providers/order_provider.dart';
+import '../../providers/user_provider.dart';
+import '../../widgets/common_app_bar.dart';
 
 class CreateOrderScreen extends StatefulWidget {
   final String customerId;
@@ -21,15 +23,21 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _budgetController = TextEditingController();
   DateTime _visitDate = DateTime.now();
-  List<String> _images = [];
+  final List<String> _images = [];
   bool _isLoading = false;
+  String _selectedCategory = '';
+  List<String> _selectedImages = [];
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
     _addressController.dispose();
+    _locationController.dispose();
+    _budgetController.dispose();
     super.dispose();
   }
 
@@ -38,7 +46,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     print('Title: "${_titleController.text}"');
     print('Description: "${_descriptionController.text}"');
     print('Address: "${_addressController.text}"');
-    
+
     if (_formKey.currentState == null) {
       print('Form key current state is null');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -49,7 +57,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       );
       return;
     }
-    
+
     if (!_formKey.currentState!.validate()) {
       print('Form validation failed');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -68,24 +76,28 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
     try {
       print('Creating order with customerId: ${widget.customerId}');
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
       final order = Order(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        customerId: widget.customerId,
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
-        address: _addressController.text.trim(),
+        category: _selectedCategory,
+        address: _addressController.text,
         visitDate: _visitDate,
         status: Order.STATUS_PENDING,
         createdAt: DateTime.now(),
-        images: _images,
-        estimatedPrice: 0.0,
+        estimatedPrice: double.tryParse(_budgetController.text) ?? 0.0,
+        customerId: userProvider.currentUser?.id ?? '',
+        customerName: userProvider.currentUser?.name ?? '',
+        customerPhone: userProvider.currentUser?.phoneNumber ?? '',
+        images: _selectedImages,
       );
 
       print('Order created: ${order.title}');
-      
+
       final orderProvider = Provider.of<OrderProvider>(context, listen: false);
       print('OrderProvider accessed successfully');
-      
+
       await orderProvider.addOrder(order);
       print('Order added to provider successfully');
 
@@ -120,8 +132,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('견적 요청하기'),
+      appBar: CommonAppBar(
+        title: '견적 요청하기',
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -189,7 +201,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                           context: context,
                           initialDate: _visitDate,
                           firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(const Duration(days: 30)),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 30)),
                         );
                         if (date != null) {
                           setState(() {
@@ -226,7 +239,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         ),
                         child: const Text(
                           '견적 요청하기',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
                         ),
                       ),
                     ),
@@ -236,4 +252,4 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
             ),
     );
   }
-} 
+}

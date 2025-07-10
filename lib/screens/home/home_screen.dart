@@ -1,179 +1,416 @@
+import 'package:allsuriapp/services/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/order_provider.dart';
-// import '../../providers/auth_provider.dart'; // 인증 기능을 사용하지 않으므로 주석 처리
-import '../../models/order.dart';
 import '../../models/role.dart';
 import '../order/create_order_screen.dart';
 import '../order/my_orders_page.dart';
-import '../order/order_detail_screen.dart';
 import '../chat/chat_list_page.dart';
 import '../profile/profile_screen.dart';
+import '../../widgets/admin_dashboard.dart';
+import '../../widgets/business_dashboard.dart';
+import '../../widgets/customer_dashboard.dart';
+import '../customer/create_request_screen.dart';
+import '../auth/login_screen.dart';
+import '../auth/signup_page.dart';
+import '../../models/user.dart';
+import '../../providers/user_provider.dart';
+import '../../services/auth_service.dart';
+import '../../widgets/login_required_dialog.dart';
+import '../settings/notification_settings_screen.dart';
+import '../admin/user_management_screen.dart';
+import '../business/estimate_requests_screen.dart';
+import '../../widgets/common_app_bar.dart';
+import '../../utils/responsive_utils.dart';
+import 'package:go_router/go_router.dart';
 
 class HomeScreen extends StatefulWidget {
-  final UserRole userRole;
-  const HomeScreen({Key? key, required this.userRole}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-  late String _currentUserId;
-  late String _currentUserRole;
-
   @override
-  void initState() {
-    super.initState();
-    _currentUserRole = widget.userRole.toString().split('.').last;
-    _currentUserId = 'user_${DateTime.now().millisecondsSinceEpoch}'; // 임시 ID 생성
-    // 주문 목록 로드
-    context.read<OrderProvider>().loadOrders(customerId: _currentUserId);
+  Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final currentUser = userProvider.currentUser;
+    
+    // URL 경로에 따라 역할 결정
+    final path = GoRouterState.of(context).uri.path;
+    UserRole role;
+    
+    if (path.startsWith('/admin')) {
+      role = UserRole.admin;
+    } else if (path.startsWith('/business')) {
+      role = UserRole.business;
+    } else {
+      role = UserRole.customer;
+    }
+
+    // 테스트용 사용자가 없으면 생성
+    if (currentUser == null) {
+      final testUser = User(
+        id: 'test_${role.name}_${DateTime.now().millisecondsSinceEpoch}',
+        email: 'test_${role.name}@example.com',
+        name: '테스트 ${_getRoleDisplayName(role)}',
+        role: role,
+        phoneNumber: '010-1234-5678',
+      );
+      
+      // 비동기로 사용자 설정
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        userProvider.setCurrentUser(testUser);
+      });
+      
+      return Scaffold(
+        appBar: CommonAppBar(
+          title: '${_getRoleDisplayName(role)} 홈',
+          showBackButton: false,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: CommonAppBar(
+        title: '${_getRoleDisplayName(role)} 홈',
+        showBackButton: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications),
+            onPressed: () => context.go('/notifications'),
+            tooltip: '알림',
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              userProvider.clearCurrentUser();
+              context.go('/');
+            },
+          ),
+        ],
+      ),
+      body: _buildHomeContent(context, currentUser, role),
+    );
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  Widget _buildBody() {
-    switch (_selectedIndex) {
-      case 0:
-        return _buildHomeContent();
-      case 1:
-        return MyOrdersPage(
-          currentUserId: _currentUserId,
-          currentUserRole: _currentUserRole,
-        );
-      case 2:
-        return const ChatListPage();
-      case 3:
-        return const ProfileScreen();
-      default:
-        return _buildHomeContent();
+  Widget _buildHomeContent(BuildContext context, User user, UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return _buildAdminHome(context, user);
+      case UserRole.business:
+        return _buildBusinessHome(context, user);
+      case UserRole.customer:
+        return _buildCustomerHome(context, user);
     }
   }
 
-  Widget _buildHomeContent() {
-    return Consumer<OrderProvider>(
-      builder: (context, orderProvider, child) {
-        if (orderProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (orderProvider.error != null) {
-          return Center(child: Text('에러: ${orderProvider.error}'));
-        }
-
-        if (orderProvider.orders.isEmpty) {
-          return const Center(child: Text('주문이 없습니다.'));
-        }
-
-        return RefreshIndicator(
-          onRefresh: () => context.read<OrderProvider>().loadOrders(customerId: _currentUserId),
-          child: ListView.builder(
-            itemCount: orderProvider.orders.length,
-            itemBuilder: (context, index) {
-              final order = orderProvider.orders[index];
-              return _buildOrderCard(order);
-            },
+  Widget _buildCustomerHome(BuildContext context, User user) {
+    return SingleChildScrollView(
+      padding: ResponsiveUtils.getResponsivePadding(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildUserWelcomeCard(user),
+          const SizedBox(height: 20),
+          Text(
+            '서비스 이용',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF222B45),
+            ),
           ),
-        );
-      },
+          const SizedBox(height: 12),
+          _buildCustomerActions(context, user),
+        ],
+      ),
     );
   }
 
-  Widget _buildOrderCard(Order order) {
+  Widget _buildBusinessHome(BuildContext context, User user) {
+    return const BusinessDashboard();
+  }
+
+  Widget _buildAdminHome(BuildContext context, User user) {
+    return const AdminDashboard();
+  }
+
+  Widget _buildUserWelcomeCard(User user) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ListTile(
-        title: Text(order.title),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(order.description),
-            const SizedBox(height: 4),
-            Text('주소: ${order.address}'),
-            Text('상태: ${order.status}'),
-          ],
+      child: Container(
+        padding: const EdgeInsets.all(24.0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF4F8CFF),
+              const Color(0xFF00C6AE),
+            ],
+          ),
         ),
-        trailing: Text('${order.estimatedPrice.toStringAsFixed(0)}원'),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OrderDetailScreen(
-                order: order,
-                currentUserId: _currentUserId,
-                currentUserRole: _currentUserRole,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
-          );
-        },
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '안녕하세요, ${user.name}님!',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _getRoleDisplayName(user.role),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('올수리'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CreateOrderScreen(
-                    customerId: _currentUserId,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: _buildBody(),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: '홈',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.list),
-            label: '내 주문',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
-            label: '채팅',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: '프로필',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Theme.of(context).primaryColor,
-        onTap: _onItemTapped,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CreateOrderScreen(customerId: _currentUserId),
+  Widget _buildCustomerActions(BuildContext context, User user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: ResponsiveUtils.getResponsiveGridCrossAxisCount(context),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: ResponsiveUtils.isLandscape(context) ? 2.0 : 1.8,
+          children: [
+            _buildActionCard(
+              context,
+              Icons.add,
+              '견적 요청',
+              () => context.go('/customer/create-request'),
             ),
-          );
-        },
-        child: const Icon(Icons.add),
-        tooltip: '견적 추가',
+            _buildActionCard(
+              context,
+              Icons.history,
+              '내 견적',
+              () => context.go('/customer/my-estimates'),
+            ),
+            _buildActionCard(
+              context,
+              Icons.chat,
+              '채팅',
+              () => context.go('/chat'),
+            ),
+            _buildActionCard(
+              context,
+              Icons.person,
+              '프로필',
+              () => context.go('/profile'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBusinessActions(BuildContext context, User user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '사업자 서비스',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: ResponsiveUtils.getResponsiveGridCrossAxisCount(context),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: ResponsiveUtils.isLandscape(context) ? 2.0 : 1.8,
+          children: [
+            _buildActionCard(
+              context,
+              Icons.list_alt,
+              '견적 요청 목록',
+              () => context.go('/business/requests'),
+            ),
+            _buildActionCard(
+              context,
+              Icons.history,
+              '내 견적',
+              () => context.go('/business/my-estimates'),
+            ),
+            _buildActionCard(
+              context,
+              Icons.chat,
+              '채팅',
+              () => context.go('/chat'),
+            ),
+            _buildActionCard(
+              context,
+              Icons.person,
+              '프로필',
+              () => context.go('/profile'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdminActions(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '관리자 서비스',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: ResponsiveUtils.getResponsiveGridCrossAxisCount(context),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: ResponsiveUtils.isLandscape(context) ? 2.0 : 1.8,
+          children: [
+            _buildActionCard(
+              context,
+              Icons.people,
+              '사용자 관리',
+              () => context.go('/admin/users'),
+            ),
+            _buildActionCard(
+              context,
+              Icons.settings,
+              '시스템 설정',
+              () => context.go('/settings'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionCard(
+    BuildContext context,
+    IconData icon,
+    String title,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(24.0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                const Color(0xFFF8F9FB),
+              ],
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4F8CFF).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: const Color(0xFF4F8CFF),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF222B45),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
-} 
+
+  String _getRoleDisplayName(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return '관리자';
+      case UserRole.business:
+        return '사업자';
+      case UserRole.customer:
+        return '고객';
+    }
+  }
+
+  Color _getRoleColor(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return Colors.red;
+      case UserRole.business:
+        return Colors.orange;
+      case UserRole.customer:
+        return Colors.blue;
+    }
+  }
+}
