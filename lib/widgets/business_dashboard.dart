@@ -1,23 +1,24 @@
+import 'package:allsuriapp/services/services.dart';
 import 'package:flutter/material.dart';
-import '../screens/create_estimate_screen.dart';
+import 'package:provider/provider.dart';
 import '../screens/business/estimate_requests_screen.dart';
 import '../screens/business/transfer_estimate_screen.dart';
 import '../screens/business/estimate_management_screen.dart';
-import '../services/auth_service.dart';
-import '../models/order.dart';
+import '../screens/business/my_estimates_screen.dart';
+import '../screens/business/business_profile_screen.dart';
+import '../screens/business/transferred_estimates_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class BusinessDashboard extends StatelessWidget {
-  final AuthService authService;
-  final String technicianId;
-
   const BusinessDashboard({
     Key? key,
-    required this.authService,
-    required this.technicianId,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final technicianId = authService.currentUser?.id ?? '';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -25,34 +26,15 @@ class BusinessDashboard extends StatelessWidget {
         children: [
           _buildSection(
             context,
-            '견적 관리',
+            '견적 요청 관리',
             [
               _buildActionCard(
                 context,
-                '견적 요청 목록',
-                '고객의 견적 요청을 확인합니다',
                 Icons.list_alt,
+                '견적 요청 목록',
+                '고객이 올린 견적 요청을 확인하고 견적을 작성합니다',
                 () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const EstimateRequestsScreen(),
-                    ),
-                  );
-                },
-              ),
-              _buildActionCard(
-                context,
-                '견적 이관',
-                '다른 사업자에게 견적을 이관합니다',
-                Icons.swap_horiz,
-                () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TransferEstimateScreen(),
-                    ),
-                  );
+                  context.push('/business/estimate-requests');
                 },
               ),
             ],
@@ -60,67 +42,100 @@ class BusinessDashboard extends StatelessWidget {
           const SizedBox(height: 24),
           _buildSection(
             context,
-            '내 견적',
+            '내 견적 관리',
             [
               _buildActionCard(
                 context,
-                '내 견적 관리',
-                '제출한 견적을 수정/삭제하고 관리합니다',
-                Icons.manage_accounts,
+                Icons.assignment,
+                '내 견적 목록',
+                '제출한 견적을 상태별로 확인합니다',
                 () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EstimateManagementScreen(
-                        authService: authService,
-                        technicianId: technicianId,
-                      ),
-                    ),
-                  );
+                  context.push('/business/my-estimates');
                 },
               ),
               _buildActionCard(
                 context,
-                '진행중인 견적',
-                '현재 진행 중인 견적을 관리합니다',
-                Icons.pending_actions,
+                Icons.swap_horiz,
+                '견적 이관 하기',
+                '다른 사업자에게 견적을 이관합니다',
                 () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EstimateManagementScreen(
-                        authService: authService,
-                        technicianId: technicianId,
-                      ),
-                    ),
-                  );
+                  context.push('/business/transfer-estimate');
                 },
               ),
               _buildActionCard(
                 context,
-                '완료된 견적',
-                '완료된 견적 내역을 확인합니다',
-                Icons.done_all,
+                Icons.transfer_within_a_station,
+                '이관한 견적',
+                '다른 사업자에게 이관한 견적을 확인합니다',
                 () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EstimateManagementScreen(
-                        authService: authService,
-                        technicianId: technicianId,
-                      ),
-                    ),
-                  );
+                  context.push('/business/transferred-estimates');
                 },
               ),
             ],
+          ),
+          const SizedBox(height: 24),
+          _buildSection(
+            context,
+            '프로필 관리',
+            [
+              _buildActionCard(
+                context,
+                Icons.person,
+                '프로필 편집',
+                '사업자 정보, 활동 지역, 전문 분야를 설정합니다',
+                () {
+                  context.push('/business/profile');
+                },
+              ),
+
+            ],
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[600], size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '사업자 가이드',
+                      style: TextStyle(
+                        color: Colors.blue[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '• 견적 요청 목록: 고객이 올린 견적 요청을 확인하고 견적을 작성할 수 있습니다.\n'
+                  '• 이관한 견적: 다른 사업자에게 이관한 견적을 확인할 수 있습니다.\n'
+                  '• 프로필 편집: 활동 지역과 전문 분야를 설정할 수 있습니다.',
+                  style: TextStyle(
+                    color: Colors.blue[700],
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSection(BuildContext context, String title, List<Widget> children) {
+  Widget _buildSection(
+      BuildContext context, String title, List<Widget> children) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -145,35 +160,71 @@ class BusinessDashboard extends StatelessWidget {
 
   Widget _buildActionCard(
     BuildContext context,
-    String title,
-    String description,
     IconData icon,
+    String title,
+    String subtitle,
     VoidCallback onTap,
   ) {
     return Card(
-      elevation: 2,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          height: 160, // 고정 높이 설정
+          padding: const EdgeInsets.all(20.0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                const Color(0xFFF8F9FB),
+              ],
+            ),
+          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 32, color: Theme.of(context).primaryColor),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C6AE).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: const Color(0xFF00C6AE),
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                description,
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF222B45),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -181,4 +232,4 @@ class BusinessDashboard extends StatelessWidget {
       ),
     );
   }
-} 
+}

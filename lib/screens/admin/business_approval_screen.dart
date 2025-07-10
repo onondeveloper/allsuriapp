@@ -209,8 +209,8 @@ class _BusinessApprovalScreenState extends State<BusinessApprovalScreen>
           children: [
             Text('${business.businessName}을(를) 거절하시겠습니까?'),
             const SizedBox(height: 16),
-            TextField(
-              decoration: const InputDecoration(
+            const TextField(
+              decoration: InputDecoration(
                 labelText: '거절 사유',
                 border: OutlineInputBorder(),
               ),
@@ -234,4 +234,4 @@ class _BusinessApprovalScreenState extends State<BusinessApprovalScreen>
       ),
     );
   }
-} 
+}

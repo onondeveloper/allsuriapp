@@ -24,13 +24,14 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.example.allsuriapp"
-    compileSdk flutter.compileSdkVersion
+    namespace "com.ononcompany.allsuri"
+    compileSdk 35
     ndkVersion flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -42,8 +43,8 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.allsuriapp"
-        minSdkVersion 21 // Required for Kakao SDK and Firebase
+        applicationId "com.ononcompany.allsuri"
+        minSdkVersion 23
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
@@ -66,4 +67,6 @@ flutter {
     source '../..'
 }
 
-dependencies {}
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+}

@@ -1,18 +1,11 @@
+import 'package:allsuriapp/services/services.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/order.dart';
-import '../services/order_service.dart';
-import '../services/auth_service.dart';
 
 class CreateOrderScreen extends StatefulWidget {
-  final String customerId;
-  final AuthService authService;
-  final OrderService orderService;
-
   const CreateOrderScreen({
     Key? key,
-    required this.customerId,
-    required this.authService,
-    required this.orderService,
   }) : super(key: key);
 
   @override
@@ -25,7 +18,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
   DateTime? _selectedDate;
-  List<String> _selectedImages = [];
+  final List<String> _selectedImages = [];
   bool _isSubmitting = false;
 
   @override
@@ -58,8 +51,16 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final orderService = Provider.of<OrderService>(context, listen: false);
+      final customerId = authService.currentUser?.uid;
+
+      if (customerId == null) {
+        throw Exception('User not logged in');
+      }
+
       final order = Order(
-        customerId: widget.customerId,
+        customerId: customerId,
         title: _titleController.text,
         description: _descriptionController.text,
         address: _addressController.text,
@@ -68,7 +69,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         images: _selectedImages,
       );
 
-      await widget.orderService.createOrder(order);
+      await orderService.createOrder(order);
       if (mounted) {
         Navigator.of(context).pop(true);
       }
@@ -181,4 +182,4 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       ),
     );
   }
-} 
+}

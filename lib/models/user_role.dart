@@ -1,14 +1,16 @@
 enum UserRole {
-  customer('customer'),
-  pro('pro');
+  customer,
+  pro;
 
-  final String value;
-  const UserRole(this.value);
-
-  static UserRole fromValue(String value) {
-    return UserRole.values.firstWhere(
-      (role) => role.value == value,
-      orElse: () => throw ArgumentError('Invalid role value: $value'),
-    );
+  static UserRole fromString(String value) {
+    switch (value.toLowerCase()) {
+      case 'pro':
+        return UserRole.pro;
+      case 'customer':
+      default:
+        return UserRole.customer;
+    }
   }
+
+  String toString() => name;
 }

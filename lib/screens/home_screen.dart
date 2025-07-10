@@ -4,6 +4,7 @@ import '../widgets/admin_dashboard.dart';
 import '../widgets/business_dashboard.dart';
 import '../widgets/customer_dashboard.dart';
 import '../services/auth_service.dart';
+import 'package:go_router/go_router.dart';
 
 class HomeScreen extends StatelessWidget {
   final UserRole userRole;
@@ -29,13 +30,7 @@ class HomeScreen extends StatelessWidget {
       case UserRole.admin:
         return const AdminDashboard();
       case UserRole.business:
-        // 테스트용 dummy authService, technicianId
-        final dummyAuthService = AuthService();
-        final dummyTechnicianId = 'tech_${DateTime.now().millisecondsSinceEpoch}';
-        return BusinessDashboard(
-          authService: dummyAuthService,
-          technicianId: dummyTechnicianId,
-        );
+        return const BusinessDashboard();
       case UserRole.customer:
         return const CustomerDashboard();
     }
@@ -57,7 +52,7 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
-              Navigator.pushReplacementNamed(context, '/');
+              context.go('/');
             },
           ),
         ],

@@ -4,6 +4,7 @@ import '../order/my_orders_page.dart';
 import '../chat/chat_list_page.dart';
 import '../profile/profile_screen.dart';
 import '../order/post_order_page.dart';
+import 'package:go_router/go_router.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -66,10 +67,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const PostOrderPage()),
-          );
+          context.push('/orders');
         },
         child: const Icon(Icons.add),
       ),

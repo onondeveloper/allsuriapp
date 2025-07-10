@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/customer/create_request_screen.dart';
 import '../screens/customer/request_list_screen.dart';
+import '../screens/customer/my_estimates_screen.dart';
 
 class CustomerDashboard extends StatelessWidget {
   const CustomerDashboard({Key? key}) : super(key: key);
@@ -18,9 +19,9 @@ class CustomerDashboard extends StatelessWidget {
             [
               _buildActionCard(
                 context,
+                Icons.add_circle,
                 '새 견적 요청',
                 '새로운 수리 견적을 요청합니다',
-                Icons.add_circle,
                 () {
                   Navigator.push(
                     context,
@@ -32,9 +33,9 @@ class CustomerDashboard extends StatelessWidget {
               ),
               _buildActionCard(
                 context,
+                Icons.list_alt,
                 '견적 요청 목록',
                 '내가 요청한 견적 목록을 확인합니다',
-                Icons.list_alt,
                 () {
                   Navigator.push(
                     context,
@@ -49,27 +50,27 @@ class CustomerDashboard extends StatelessWidget {
           const SizedBox(height: 24),
           _buildSection(
             context,
-            '진행중인 수리',
+            '내 견적',
             [
               _buildActionCard(
                 context,
-                '작업 현황',
-                '진행중인 수리 작업의 현황을 확인합니다',
-                Icons.build,
+                Icons.assignment,
+                '내 견적 목록',
+                '받은 견적들을 확인하고 낙찰합니다',
                 () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const RequestListScreen(),
+                      builder: (context) => const CustomerMyEstimatesScreen(),
                     ),
                   );
                 },
               ),
               _buildActionCard(
                 context,
-                '완료된 수리',
-                '완료된 수리 내역을 확인합니다',
-                Icons.done_all,
+                Icons.build,
+                '진행중인 수리',
+                '진행중인 수리 작업의 현황을 확인합니다',
                 () {
                   Navigator.push(
                     context,
@@ -88,18 +89,18 @@ class CustomerDashboard extends StatelessWidget {
             [
               _buildActionCard(
                 context,
+                Icons.person,
                 '프로필 관리',
                 '내 프로필 정보를 관리합니다',
-                Icons.person,
                 () {
                   // TODO: Implement profile management screen
                 },
               ),
               _buildActionCard(
                 context,
+                Icons.notifications,
                 '알림 설정',
                 '알림 설정을 관리합니다',
-                Icons.notifications,
                 () {
                   // TODO: Implement notification settings screen
                 },
@@ -136,35 +137,57 @@ class CustomerDashboard extends StatelessWidget {
 
   Widget _buildActionCard(
     BuildContext context,
-    String title,
-    String description,
     IconData icon,
+    String title,
+    String subtitle,
     VoidCallback onTap,
   ) {
     return Card(
-      elevation: 2,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(24.0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                const Color(0xFFF8F9FB),
+              ],
+            ),
+          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 32, color: Theme.of(context).primaryColor),
-              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4F8CFF).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: const Color(0xFF4F8CFF),
+                ),
+              ),
+              const SizedBox(height: 16),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF222B45),
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
-                description,
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                subtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600],
+                ),
               ),
             ],
           ),

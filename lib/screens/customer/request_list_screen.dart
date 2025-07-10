@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/order.dart';
+import '../../models/order.dart' as app_models;
 import '../../models/estimate.dart';
-import '../../providers/order_provider.dart';
-import '../../providers/estimate_provider.dart';
+import '../../services/services.dart';
+import '../../widgets/common_app_bar.dart';
+import '../../utils/responsive_utils.dart';
 import '../create_estimate_screen.dart';
 
 class RequestListScreen extends StatefulWidget {
@@ -14,18 +15,52 @@ class RequestListScreen extends StatefulWidget {
 }
 
 class _RequestListScreenState extends State<RequestListScreen> {
+  late OrderService _orderService;
+  late EstimateService _estimateService;
+  List<app_models.Order> _requests = [];
+  bool _isLoading = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _orderService = Provider.of<OrderService>(context, listen: false);
+    _estimateService = Provider.of<EstimateService>(context, listen: false);
+    _loadRequests();
+  }
+
   @override
   void initState() {
     super.initState();
-    // 주문 목록 로드
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-      final estimateProvider = Provider.of<EstimateProvider>(context, listen: false);
-      await orderProvider.loadOrders(customerId: 'customer_123'); // 임시 고객 ID
-      // 주문 목록이 로드된 후, 각 주문의 견적을 모두 불러옴
-      for (final order in orderProvider.orders) {
-        await estimateProvider.loadEstimatesForOrder(order.id);
+    _loadOrders();
+  }
+
+  Future<void> _loadOrders() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _orderService.fetchOrders();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('데이터 로드 실패: $e')),
+        );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _requests = _orderService.orders;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _loadRequests() {
+    // 실제 요청 목록 로딩 로직 구현
+    setState(() {
+      // 예시: 로딩 상태 표시 등
     });
   }
 
@@ -33,422 +68,161 @@ class _RequestListScreenState extends State<RequestListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('견적 요청 목록'),
+        title: const Text('내 견적 요청'),
         centerTitle: true,
-      ),
-      body: Consumer2<OrderProvider, EstimateProvider>(
-        builder: (context, orderProvider, estimateProvider, child) {
-          if (orderProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (orderProvider.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('오류: ${orderProvider.error}'),
-                  ElevatedButton(
-                    onPressed: () => orderProvider.loadOrders(customerId: 'customer_123'),
-                    child: const Text('다시 시도'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          if (orderProvider.orders.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    '견적 요청이 없습니다',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '새로운 견적 요청을 만들어보세요',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            itemCount: orderProvider.orders.length,
-            itemBuilder: (context, index) {
-              final order = orderProvider.orders[index];
-              final isOrderCompleted = order.status == Order.STATUS_COMPLETED;
-              return _buildOrderCard(context, order, isOrderCompleted: isOrderCompleted);
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildOrderCard(BuildContext context, Order order, {bool isOrderCompleted = false}) {
-    return Card(
-      margin: const EdgeInsets.all(8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    order.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                _buildStatusChip(order.status),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              order.description,
-              style: const TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(order.address),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text('방문일: ${order.visitDate.toString().split(' ')[0]}'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.access_time, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text('요청일: ${order.formattedDate}'),
-              ],
-            ),
-            
-            // 견적 현황 표시
-            if (order.status == Order.STATUS_ESTIMATING || order.status == Order.STATUS_IN_PROGRESS)
-              _buildEstimateStatus(context, order),
-            
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    _showOrderDetail(context, order);
-                  },
-                  child: const Text('상세보기'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    _showBidListModal(context, order);
-                  },
-                  child: const Text('입찰 내역'),
-                ),
-                if (order.status == Order.STATUS_ESTIMATING && !isOrderCompleted)
-                  ...[
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        _showEstimates(context, order);
-                      },
-                      child: const Text('견적 확인'),
-                    ),
-                  ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEstimateStatus(BuildContext context, Order order) {
-    return Consumer<EstimateProvider>(
-      builder: (context, estimateProvider, child) {
-        // 해당 주문의 견적 개수 확인
-        final estimates = estimateProvider.estimates.where((e) => e.orderId == order.id).toList();
-        final pendingEstimates = estimates.where((e) => e.status == 'PENDING').length;
-        Estimate? selectedEstimate;
-        try {
-          selectedEstimate = estimates.firstWhere((e) => e.status == 'SELECTED');
-        } catch (_) {
-          selectedEstimate = null;
-        }
-
-        return Container(
-          margin: const EdgeInsets.only(top: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.withOpacity(0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.assessment, size: 16, color: Colors.blue),
-                  const SizedBox(width: 4),
-                  Text(
-                    '견적 현황',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              if (selectedEstimate != null) ...[
-                Text('✅ 선택된 견적: ${selectedEstimate.price.toStringAsFixed(0)}원'),
-                Text('작업 기간: ${selectedEstimate.estimatedDays}일'),
-              ] else if (pendingEstimates > 0) ...[
-                Text('📋 $pendingEstimates개의 견적이 도착했습니다'),
-                Text('견적 확인 버튼을 눌러서 확인해보세요'),
-              ] else ...[
-                Text('⏳ 사업자들의 견적을 기다리는 중입니다'),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showOrderDetail(BuildContext context, Order order) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(order.title),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('상세 설명: ${order.description}'),
-              const SizedBox(height: 8),
-              Text('주소: ${order.address}'),
-              const SizedBox(height: 8),
-              Text('방문일: ${order.visitDate.toString().split(' ')[0]}'),
-              const SizedBox(height: 8),
-              Text('상태: ${_getStatusText(order.status)}'),
-              const SizedBox(height: 8),
-              Text('요청일: ${order.formattedDate}'),
-            ],
-          ),
-        ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('닫기'),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadRequests,
           ),
         ],
       ),
-    );
-  }
-
-  void _showEstimates(BuildContext context, Order order) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => EstimateListScreen(order: order),
-      ),
-    );
-  }
-
-  void _showBidListModal(BuildContext context, Order order) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return Consumer2<EstimateProvider, OrderProvider>(
-          builder: (context, estimateProvider, orderProvider, child) {
-            final estimates = estimateProvider.estimates.where((e) => e.orderId == order.id).toList();
-            Estimate? selectedEstimate;
-            try {
-              selectedEstimate = estimates.firstWhere((e) => e.status == 'SELECTED');
-            } catch (_) {
-              selectedEstimate = null;
-            }
-            final isOrderCompleted = order.status == Order.STATUS_COMPLETED;
-            return Padding(
-              padding: MediaQuery.of(context).viewInsets,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.gavel, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Text('입찰 내역', style: Theme.of(context).textTheme.titleLarge),
-                        if (isOrderCompleted)
-                          Container(
-                            margin: const EdgeInsets.only(left: 12),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _requests.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.description_outlined,
+                          size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        '견적 요청 내역이 없습니다.',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _requests.length,
+                  padding: const EdgeInsets.all(16),
+                  itemBuilder: (context, index) {
+                    final request = _requests[index];
+                    final estimates = _estimateService.estimates
+                        .where((e) => e.orderId == request.id)
+                        .toList();
+                    
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            title: Row(
+                              children: [
+                                Expanded(child: Text(request.title)),
+                                _buildStatusChip(request.status),
+                              ],
                             ),
-                            child: const Text('입찰 완료', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    if (estimates.isEmpty)
-                      const Center(child: Text('아직 입찰이 없습니다.'))
-                    else
-                      ...estimates.map((estimate) {
-                        final isSelected = estimate.status == 'SELECTED';
-                        final isRejected = estimate.status == 'REJECTED';
-                        final canAccept = !isOrderCompleted && selectedEstimate == null && estimate.status == 'PENDING';
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
+                            subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Text(
+                                  request.description,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    Icon(Icons.account_circle, color: Colors.blue.shade700),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      estimate.technicianId,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        request.address,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
+                                      ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    _buildStatusBadge(estimate.status),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-                                Text('견적 금액: ${estimate.price.toStringAsFixed(0)}원', style: const TextStyle(fontSize: 16)),
                                 const SizedBox(height: 4),
-                                Text('설명: ${estimate.description}'),
-                                const SizedBox(height: 4),
-                                Text('예상 작업 기간: ${estimate.estimatedDays}일'),
-                                const SizedBox(height: 4),
-                                Text('제출일: ${estimate.createdAt.toString().split(' ')[0]}'),
-                                if (canAccept) ...[
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () async {
-                                        final confirmed = await showDialog<bool>(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: const Text('입찰 선택'),
-                                            content: Text(
-                                              '${estimate.price.toStringAsFixed(0)}원의 입찰을 선택하시겠습니까?\n\n선택 후에는 취소할 수 없습니다.',
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.of(context).pop(false),
-                                                child: const Text('취소'),
-                                              ),
-                                              ElevatedButton(
-                                                onPressed: () => Navigator.of(context).pop(true),
-                                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                                                child: const Text('선택'),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                        if (confirmed == true) {
-                                          final estimateProvider = Provider.of<EstimateProvider>(context, listen: false);
-                                          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-                                          await estimateProvider.acceptEstimate(estimate.id);
-                                          // 주문 상태를 COMPLETED로 변경
-                                          final updatedOrder = order.copyWith(status: Order.STATUS_COMPLETED);
-                                          await orderProvider.updateOrder(updatedOrder);
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(
-                                                content: Text('입찰이 성공적으로 선택되었습니다'),
-                                                backgroundColor: Colors.green,
-                                              ),
-                                            );
-                                            Navigator.of(context).pop(); // 모달 닫기
-                                          }
-                                        }
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green,
-                                        foregroundColor: Colors.white,
+                                Row(
+                                  children: [
+                                    Icon(Icons.assignment, size: 16, color: Colors.grey[600]),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '견적 ${estimates.length}개',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 12,
                                       ),
-                                      child: const Text('이 입찰 선택'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '요청일: ${request.formattedDate}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                if (request.isAwarded)
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '낙찰 완료',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.green[700],
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                ] else if (isSelected) ...[
-                                  const SizedBox(height: 12),
-                                  const Text('이 입찰이 선택되었습니다.', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                                ] else if (isRejected) ...[
-                                  const SizedBox(height: 12),
-                                  const Text('다른 입찰이 선택되어 거절되었습니다.', style: TextStyle(color: Colors.red)),
-                                ],
                               ],
                             ),
                           ),
-                        );
-                      }).toList(),
-                  ],
+                          OverflowBar(
+                            children: [
+                              TextButton(
+                                onPressed: () => _showRequestDetails(request, estimates),
+                                child: const Text('상세 보기'),
+                              ),
+                              if (estimates.isNotEmpty && !request.isAwarded)
+                                ElevatedButton(
+                                  onPressed: () => _showEstimates(request, estimates),
+                                  child: const Text('견적 보기'),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 
   Widget _buildStatusChip(String status) {
     Color color;
     String text;
-
+    
     switch (status) {
-      case Order.STATUS_PENDING:
+      case 'pending':
         color = Colors.orange;
-        text = '견적 대기';
+        text = '대기중';
         break;
-      case Order.STATUS_ESTIMATING:
+      case 'in_progress':
         color = Colors.blue;
-        text = '견적 진행중';
+        text = '진행중';
         break;
-      case Order.STATUS_IN_PROGRESS:
+      case 'completed':
         color = Colors.green;
-        text = '작업 진행중';
-        break;
-      case Order.STATUS_COMPLETED:
-        color = Colors.grey;
         text = '완료';
+        break;
+      case 'cancelled':
+        color = Colors.red;
+        text = '취소';
         break;
       default:
         color = Colors.grey;
@@ -473,349 +247,191 @@ class _RequestListScreenState extends State<RequestListScreen> {
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    Color color;
-    String text;
-    switch (status) {
-      case 'PENDING':
-        color = Colors.orange;
-        text = '대기중';
-        break;
-      case 'SELECTED':
-        color = Colors.green;
-        text = '선택됨';
-        break;
-      case 'REJECTED':
-        color = Colors.red;
-        text = '거절됨';
-        break;
-      default:
-        color = Colors.grey;
-        text = status;
-    }
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case Order.STATUS_PENDING:
-        return '견적 대기';
-      case Order.STATUS_ESTIMATING:
-        return '견적 진행중';
-      case Order.STATUS_IN_PROGRESS:
-        return '작업 진행중';
-      case Order.STATUS_COMPLETED:
-        return '완료';
-      default:
-        return '알 수 없음';
-    }
-  }
-}
-
-// 견적 목록 화면
-class EstimateListScreen extends StatefulWidget {
-  final Order order;
-
-  const EstimateListScreen({Key? key, required this.order}) : super(key: key);
-
-  @override
-  State<EstimateListScreen> createState() => _EstimateListScreenState();
-}
-
-class _EstimateListScreenState extends State<EstimateListScreen> {
-  @override
-  void initState() {
-    super.initState();
-    // 해당 주문의 견적 목록 로드
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final estimateProvider = Provider.of<EstimateProvider>(context, listen: false);
-      estimateProvider.loadEstimatesForOrder(widget.order.id);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 예시: 실제로는 Provider, 로그인 정보 등에서 역할을 판별해야 함
-    final bool isBusinessUser = true; // 실제 구현 시 사업자 여부로 변경
-    final String technicianId = '사업자 A'; // 실제 구현 시 로그인 사업자 ID로 변경
-    final authService = null; // 실제 구현 시 authService 인스턴스 전달
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.order.title} - 견적 목록'),
-        centerTitle: true,
-      ),
-      body: Consumer<EstimateProvider>(
-        builder: (context, estimateProvider, child) {
-          if (estimateProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final estimates = estimateProvider.estimates
-              .where((e) => e.orderId == widget.order.id)
-              .toList();
-
-          if (estimates.isEmpty) {
-            return Column(
-              children: [
-                if (isBusinessUser)
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CreateEstimateScreen(
-                                order: widget.order,
-                                authService: authService,
-                                technicianId: technicianId,
-                              ),
-                            ),
-                          );
-                          if (result == true) {
-                            Provider.of<EstimateProvider>(context, listen: false)
-                                .loadEstimatesForOrder(widget.order.id);
-                          }
-                        },
-                        child: const Text('견적 제안하기'),
-                      ),
-                    ),
-                  ),
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.assessment_outlined, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          '아직 견적이 없습니다',
-                          style: TextStyle(fontSize: 18, color: Colors.grey),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          '사업자들이 견적을 제출할 때까지 기다려주세요',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
-
-          // 이미 선택된 견적이 있는지 확인
-          Estimate? selectedEstimate;
-          try {
-            selectedEstimate = estimates.firstWhere((e) => e.status == 'SELECTED');
-          } catch (_) {
-            selectedEstimate = null;
-          }
-
-          return Column(
-            children: [
-              if (isBusinessUser)
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CreateEstimateScreen(
-                              order: widget.order,
-                              authService: authService,
-                              technicianId: technicianId,
-                            ),
-                          ),
-                        );
-                        if (result == true) {
-                          Provider.of<EstimateProvider>(context, listen: false)
-                              .loadEstimatesForOrder(widget.order.id);
-                        }
-                      },
-                      child: const Text('견적 제안하기'),
-                    ),
-                  ),
-                ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: estimates.length,
-                  padding: const EdgeInsets.all(16),
-                  itemBuilder: (context, index) {
-                    final estimate = estimates[index];
-                    final isSelected = estimate.status == 'SELECTED';
-                    final isRejected = estimate.status == 'REJECTED';
-                    final canAccept = selectedEstimate == null && estimate.status == 'PENDING';
-                    return Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Colors.green.withOpacity(0.1)
-                              : isRejected
-                                  ? Colors.red.withOpacity(0.05)
-                                  : Colors.grey.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected
-                                ? Colors.green
-                                : isRejected
-                                    ? Colors.red
-                                    : Colors.grey.shade300,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.account_circle, color: Colors.blue.shade700),
-                                const SizedBox(width: 8),
-                                Text(
-                                  estimate.technicianId,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                ),
-                                const SizedBox(width: 8),
-                                _buildStatusChip(estimate.status),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text('견적 금액: ${estimate.price.toStringAsFixed(0)}원', style: const TextStyle(fontSize: 16)),
-                            const SizedBox(height: 4),
-                            Text('설명: ${estimate.description}'),
-                            const SizedBox(height: 4),
-                            Text('예상 작업 기간: ${estimate.estimatedDays}일'),
-                            const SizedBox(height: 4),
-                            Text('제출일: ${estimate.createdAt.toString().split(' ')[0]}'),
-                            if (canAccept) ...[
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: () => _acceptEstimate(context, estimate),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('이 견적 선택'),
-                                ),
-                              ),
-                            ] else if (isSelected) ...[
-                              const SizedBox(height: 12),
-                              const Text('이 견적이 선택되었습니다.', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                            ] else if (isRejected) ...[
-                              const SizedBox(height: 12),
-                              const Text('다른 견적이 선택되어 거절되었습니다.', style: TextStyle(color: Colors.red)),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(String status) {
-    Color color;
-    String text;
-    switch (status) {
-      case 'PENDING':
-        color = Colors.orange;
-        text = '대기중';
-        break;
-      case 'SELECTED':
-        color = Colors.green;
-        text = '선택됨';
-        break;
-      case 'REJECTED':
-        color = Colors.red;
-        text = '거절됨';
-        break;
-      default:
-        color = Colors.grey;
-        text = status;
-    }
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Future<void> _acceptEstimate(BuildContext context, Estimate estimate) async {
-    final confirmed = await showDialog<bool>(
+  void _showRequestDetails(app_models.Order request, List<Estimate> estimates) {
+    showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('견적 선택'),
-        content: Text(
-          '${estimate.price.toStringAsFixed(0)}원의 견적을 선택하시겠습니까?\n\n수락 후에는 취소할 수 없습니다.',
+        title: Text(request.title),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('설명: ${request.description}'),
+              const SizedBox(height: 8),
+              Text('주소: ${request.address}'),
+              const SizedBox(height: 8),
+              Text('방문 희망일: ${request.visitDate.toString().split(' ')[0]}'),
+              const SizedBox(height: 8),
+              Text('요청일: ${request.createdAt.toString().split('.')[0]}'),
+              const SizedBox(height: 8),
+              Text('견적 수: ${estimates.length}개'),
+              if (request.images.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('첨부 사진: ${request.images.length}장'),
+              ],
+              if (request.isAwarded && request.awardedEstimateId != null) ...[
+                const SizedBox(height: 8),
+                Text('낙찰일: ${request.awardedAt?.toString().split('.')[0] ?? 'N/A'}'),
+              ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('취소'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('선택'),
+          if (estimates.isNotEmpty && !request.isAwarded)
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showEstimates(request, estimates);
+              },
+              child: const Text('견적 보기'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showEstimates(app_models.Order request, List<Estimate> estimates) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${request.title} - 견적 목록'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: ListView.builder(
+            itemCount: estimates.length,
+            itemBuilder: (context, index) {
+              final estimate = estimates[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text('${estimate.price.toStringAsFixed(0)}원'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(estimate.description),
+                      const SizedBox(height: 4),
+                      Text('예상 작업 기간: ${estimate.estimatedDays}일'),
+                      Text('견적일: ${estimate.createdAt.toString().split('.')[0]}'),
+                    ],
+                  ),
+                  trailing: request.isAwarded && estimate.id == request.awardedEstimateId
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '낙찰됨',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
+                      : null,
+                  onTap: () => _showEstimateDetail(request, estimate),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
           ),
         ],
       ),
     );
+  }
 
-    if (confirmed == true) {
-      try {
-        final estimateProvider = Provider.of<EstimateProvider>(context, listen: false);
-        await estimateProvider.acceptEstimate(estimate.id);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('견적이 성공적으로 선택되었습니다'),
-              backgroundColor: Colors.green,
+  void _showEstimateDetail(app_models.Order request, Estimate estimate) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('견적 상세'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('견적 금액: ${estimate.price.toStringAsFixed(0)}원'),
+            const SizedBox(height: 8),
+            Text('작업 설명: ${estimate.description}'),
+            const SizedBox(height: 8),
+            Text('예상 작업 기간: ${estimate.estimatedDays}일'),
+            const SizedBox(height: 8),
+            Text('견적일: ${estimate.createdAt.toString().split('.')[0]}'),
+            if (request.isAwarded && estimate.id == request.awardedEstimateId) ...[
+              const SizedBox(height: 8),
+              Text('낙찰일: ${estimate.awardedAt?.toString().split('.')[0] ?? 'N/A'}'),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+          if (!request.isAwarded)
+            ElevatedButton(
+              onPressed: () => _awardEstimate(request, estimate.id),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('이 견적으로 낙찰'),
             ),
-          );
+        ],
+      ),
+    );
+  }
+
+  Future<void> _awardEstimate(app_models.Order request, String estimateId) async {
+    try {
+      final awardedOrder = request.copyWith(
+        isAwarded: true,
+        awardedAt: DateTime.now(),
+        awardedEstimateId: estimateId,
+      );
+      
+      setState(() {
+        final index = _requests.indexWhere((o) => o.id == request.id);
+        if (index != -1) {
+          _requests[index] = awardedOrder;
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('견적 선택 중 오류가 발생했습니다: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      });
+      
+      if (mounted) {
+        Navigator.pop(context);
+        Navigator.pop(context);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('견적이 성공적으로 수락되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        await _orderService.updateOrder(awardedOrder);
+        _loadOrders();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('견적 수락 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
-} 
+}

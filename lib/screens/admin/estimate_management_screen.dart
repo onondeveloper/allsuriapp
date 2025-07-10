@@ -21,6 +21,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
       createdAt: DateTime.now(),
       images: [],
       estimatedPrice: 0.0,
+      customerName: '홍길동',
     ),
     Order(
       id: '2',
@@ -33,6 +34,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
       createdAt: DateTime.now(),
       images: [],
       estimatedPrice: 0.0,
+      customerName: '김철수',
     ),
     Order(
       id: '3',
@@ -45,6 +47,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
       createdAt: DateTime.now(),
       images: [],
       estimatedPrice: 0.0,
+      customerName: '이영희',
     ),
   ];
 
