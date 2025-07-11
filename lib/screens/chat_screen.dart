@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
+import '../models/user.dart';
+import '../providers/user_provider.dart';
+import '../services/api_service.dart';
+import '../widgets/common_app_bar.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatRoomId;
-  final String chatRoomTitle;
+  final String? chatRoomTitle;
 
   const ChatScreen({
     Key? key,
     required this.chatRoomId,
-    required this.chatRoomTitle,
+    this.chatRoomTitle,
   }) : super(key: key);
 
   @override
@@ -18,8 +21,9 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
-  final List<ChatMessage> _messages = [];
+  List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
+  bool _isSending = false;
 
   @override
   void initState() {
@@ -33,33 +37,13 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      // 임시 메시지 데이터
-      await Future.delayed(const Duration(milliseconds: 500));
-      
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final messages = await apiService.getMessages(widget.chatRoomId);
       setState(() {
-        _messages.addAll([
-          ChatMessage(
-            id: '1',
-            text: '안녕하세요! 견적 요청해주셔서 감사합니다.',
-            isFromMe: false,
-            timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-          ),
-          ChatMessage(
-            id: '2',
-            text: '네, 언제 방문 가능하신가요?',
-            isFromMe: true,
-            timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
-          ),
-          ChatMessage(
-            id: '3',
-            text: '오늘 오후 2시에 방문 가능합니다.',
-            isFromMe: false,
-            timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
-          ),
-        ]);
+        _messages = messages;
       });
     } catch (e) {
-      print('Error loading messages: $e');
+      print('메시지 로드 오류: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -70,41 +54,34 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
-    final message = ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      text: _messageController.text.trim(),
-      isFromMe: true,
-      timestamp: DateTime.now(),
-    );
-
     setState(() {
-      _messages.add(message);
+      _isSending = true;
     });
 
-    _messageController.clear();
-
-    // 임시 응답 시뮬레이션
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        final response = ChatMessage(
-          id: (DateTime.now().millisecondsSinceEpoch + 1).toString(),
-          text: '메시지를 확인했습니다. 곧 답변드리겠습니다.',
-          isFromMe: false,
-          timestamp: DateTime.now(),
-        );
-        setState(() {
-          _messages.add(response);
-        });
-      }
-    });
+    try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      await apiService.sendMessage(widget.chatRoomId, _messageController.text.trim());
+      
+      // 메시지 전송 후 메시지 목록 다시 로드
+      await _loadMessages();
+      
+      _messageController.clear();
+    } catch (e) {
+      print('메시지 전송 오류: $e');
+    } finally {
+      setState(() {
+        _isSending = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.chatRoomTitle),
-        elevation: 1,
+      appBar: CommonAppBar(
+        title: widget.chatRoomTitle ?? '채팅',
+        showBackButton: true,
+        showHomeButton: false,
       ),
       body: Column(
         children: [
@@ -117,6 +94,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.all(16),
+                        reverse: true,
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {
                           final message = _messages[index];
@@ -130,15 +108,17 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
+  Widget _buildMessageBubble(Map<String, dynamic> message) {
+    final isFromMe = message['isFromMe'] as bool;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
-        mainAxisAlignment: message.isFromMe
+        mainAxisAlignment: isFromMe
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
         children: [
-          if (!message.isFromMe) ...[
+          if (!isFromMe) ...[
             CircleAvatar(
               radius: 16,
               backgroundColor: Colors.blue[100],
@@ -157,19 +137,32 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: message.isFromMe ? Colors.blue[600] : Colors.grey[200],
+                color: isFromMe ? Colors.blue[600] : Colors.grey[200],
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Text(
-                message.text,
-                style: TextStyle(
-                  color: message.isFromMe ? Colors.white : Colors.black87,
-                  fontSize: 14,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message['text'],
+                    style: TextStyle(
+                      color: isFromMe ? Colors.white : Colors.black87,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatTimestamp(message['timestamp']),
+                    style: TextStyle(
+                      color: isFromMe ? Colors.white70 : Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          if (message.isFromMe) ...[
+          if (isFromMe) ...[
             const SizedBox(width: 8),
             CircleAvatar(
               radius: 16,
@@ -218,12 +211,19 @@ class _ChatScreenState extends State<ChatScreen> {
               maxLines: null,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _sendMessage(),
+              enabled: !_isSending,
             ),
           ),
           const SizedBox(width: 8),
           IconButton(
-            onPressed: _sendMessage,
-            icon: const Icon(Icons.send),
+            onPressed: _isSending ? null : _sendMessage,
+            icon: _isSending
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send),
             color: Colors.blue[600],
           ),
         ],
@@ -231,23 +231,24 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}일 전';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}시간 전';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}분 전';
+    } else {
+      return '방금 전';
+    }
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
     super.dispose();
   }
-}
-
-class ChatMessage {
-  final String id;
-  final String text;
-  final bool isFromMe;
-  final DateTime timestamp;
-
-  ChatMessage({
-    required this.id,
-    required this.text,
-    required this.isFromMe,
-    required this.timestamp,
-  });
 }

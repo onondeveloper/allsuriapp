@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/user.dart';
 import '../../models/role.dart';
+import '../../services/auth_service.dart';
+import '../../providers/user_provider.dart';
 
 class BusinessApprovalScreen extends StatefulWidget {
   const BusinessApprovalScreen({Key? key}) : super(key: key);
@@ -12,41 +15,40 @@ class BusinessApprovalScreen extends StatefulWidget {
 class _BusinessApprovalScreenState extends State<BusinessApprovalScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  // TODO: Replace with actual data from backend
-  final List<User> _pendingBusinesses = [
-    User(
-      id: '4',
-      email: 'pending@example.com',
-      name: '신청자1',
-      role: UserRole.business,
-      businessName: '올수리 서비스2',
-      businessLicense: '123-45-67891',
-      isActive: false,
-    ),
-  ];
-
-  final List<User> _approvedBusinesses = [
-    User(
-      id: '2',
-      email: 'business@example.com',
-      name: '사업자1',
-      role: UserRole.business,
-      businessName: '올수리 서비스',
-      businessLicense: '123-45-67890',
-    ),
-  ];
+  List<User> _pendingBusinesses = [];
+  List<User> _approvedBusinesses = [];
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadBusinesses();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadBusinesses() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // TODO: Firebase에서 사업자 목록 가져오기
+      // 현재는 빈 목록으로 초기화
+      _pendingBusinesses = [];
+      _approvedBusinesses = [];
+    } catch (e) {
+      print('사업자 목록 로드 오류: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override

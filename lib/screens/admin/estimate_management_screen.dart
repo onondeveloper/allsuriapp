@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../services/order_service.dart';
 import '../../models/order.dart';
 
 class EstimateManagementScreen extends StatefulWidget {
@@ -9,49 +11,42 @@ class EstimateManagementScreen extends StatefulWidget {
 }
 
 class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
-  final List<Order> _orders = [
-    Order(
-      id: '1',
-      customerId: 'test_user_1',
-      title: '배관 수리 요청',
-      description: '주방 배관에서 물이 새고 있습니다.',
-      address: '서울시 강남구',
-      visitDate: DateTime.now(),
-      status: Order.STATUS_PENDING,
-      createdAt: DateTime.now(),
-      images: [],
-      estimatedPrice: 0.0,
-      customerName: '홍길동',
-    ),
-    Order(
-      id: '2',
-      customerId: 'test_user_1',
-      title: '전기 수리 요청',
-      description: '콘센트에서 불이 나고 있습니다.',
-      address: '서울시 서초구',
-      visitDate: DateTime.now(),
-      status: Order.STATUS_ESTIMATING,
-      createdAt: DateTime.now(),
-      images: [],
-      estimatedPrice: 0.0,
-      customerName: '김철수',
-    ),
-    Order(
-      id: '3',
-      customerId: 'test_user_1',
-      title: '에어컨 수리 요청',
-      description: '에어컨이 작동하지 않습니다.',
-      address: '서울시 송파구',
-      visitDate: DateTime.now(),
-      status: Order.STATUS_IN_PROGRESS,
-      createdAt: DateTime.now(),
-      images: [],
-      estimatedPrice: 0.0,
-      customerName: '이영희',
-    ),
-  ];
-
+  List<Order> _orders = [];
+  bool _isLoading = false;
   String _selectedStatus = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrders();
+  }
+
+  Future<void> _loadOrders() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final orderService = Provider.of<OrderService>(context, listen: false);
+      await orderService.loadOrders();
+      setState(() {
+        _orders = orderService.orders;
+      });
+    } catch (e) {
+      print('주문 로드 오류: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<Order> get filteredOrders {
+    if (_selectedStatus == 'all') {
+      return _orders;
+    }
+    return _orders.where((order) => order.status == _selectedStatus).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,12 +71,9 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: _orders.length,
+              itemCount: filteredOrders.length,
               itemBuilder: (context, index) {
-                final order = _orders[index];
-                if (_selectedStatus != 'all' && order.status != _selectedStatus) {
-                  return const SizedBox.shrink();
-                }
+                final order = filteredOrders[index];
                 return _buildOrderCard(order);
               },
             ),

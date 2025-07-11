@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../providers/user_provider.dart';
-import '../models/role.dart';
+import '../services/auth_service.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -47,40 +45,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
               onPressed: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  // 현재 경로를 확인하여 적절한 홈 화면으로 이동
-                  final currentPath = GoRouterState.of(context).uri.path;
-                  
-                  if (currentPath.startsWith('/customer')) {
-                    context.go('/customer');
-                  } else if (currentPath.startsWith('/business')) {
-                    context.go('/business');
-                  } else if (currentPath.startsWith('/admin')) {
-                    context.go('/admin');
-                  } else {
-                    // 기본적으로 사용자 역할에 따라 이동
-                    final userProvider = Provider.of<UserProvider>(context, listen: false);
-                    final user = userProvider.currentUser;
-                    if (user != null) {
-                      switch (user.role) {
-                        case UserRole.admin:
-                          context.go('/admin');
-                          break;
-                        case UserRole.business:
-                          context.go('/business');
-                          break;
-                        case UserRole.customer:
-                        default:
-                          context.go('/customer');
-                          break;
-                      }
-                    } else {
-                      context.go('/');
-                    }
-                  }
-                }
+                Navigator.of(context).pop();
               },
             )
           : null,
@@ -100,24 +65,9 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
             onPressed: () {
-              final userProvider = Provider.of<UserProvider>(context, listen: false);
-              final user = userProvider.currentUser;
-              if (user != null) {
-                switch (user.role) {
-                  case UserRole.admin:
-                    context.go('/admin');
-                    break;
-                  case UserRole.business:
-                    context.go('/business');
-                    break;
-                  case UserRole.customer:
-                  default:
-                    context.go('/customer');
-                    break;
-                }
-              } else {
-                context.go('/');
-              }
+              // 홈 버튼 클릭 시 로그아웃
+              final authService = Provider.of<AuthService>(context, listen: false);
+              authService.signOut();
             },
           ),
         if (actions != null) ...actions!,

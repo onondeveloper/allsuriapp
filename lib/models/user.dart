@@ -203,202 +203,100 @@ class EquipmentCategories {
 
 class User {
   final String id;
-  final String? email;  // 익명 사용자는 이메일이 없을 수 있음
+  final String email;
   final String name;
-  final UserRole role;
-  final String? businessName; // For business users
-  final String? businessLicense; // For business users
-  final String? businessNumber; // 사업자 번호
-  final BusinessStatus businessStatus;
+  final String role;
   final String? phoneNumber;
-  final String? address;
-  final List<String> serviceAreas; // 활동 지역 (최대 5개)
-  final List<String> specialties; // 전문 분야
   final DateTime createdAt;
-  final DateTime? lastLoginAt;
-  final bool isActive;
-  final bool isAnonymous; // 익명 사용자 여부
-  final String status; // pending, approved, rejected
+  final bool isAnonymous;
+  final String? businessStatus;
+  final String? businessName;
+  final String? businessNumber;
+  final String? address;
+  final List<String> serviceAreas;
+  final List<String> specialties;
 
   User({
     required this.id,
-    this.email,
+    required this.email,
     required this.name,
     required this.role,
-    this.businessName,
-    this.businessLicense,
-    this.businessNumber,
-    this.businessStatus = BusinessStatus.pending,
     this.phoneNumber,
+    required this.createdAt,
+    this.isAnonymous = false,
+    this.businessStatus,
+    this.businessName,
+    this.businessNumber,
     this.address,
     this.serviceAreas = const [],
     this.specialties = const [],
-    DateTime? createdAt,
-    this.lastLoginAt,
-    this.isActive = true,
-    this.isAnonymous = false,
-    this.status = 'pending',
-  }) : createdAt = createdAt ?? DateTime.now();
+  });
+
+  factory User.fromMap(Map<String, dynamic> map) {
+    return User(
+      id: map['id'] ?? '',
+      email: map['email'] ?? '',
+      name: map['name'] ?? '',
+      role: map['role'] ?? 'customer',
+      phoneNumber: map['phoneNumber'],
+      createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+      isAnonymous: map['isAnonymous'] ?? false,
+      businessStatus: map['businessStatus'],
+      businessName: map['businessName'],
+      businessNumber: map['businessNumber'],
+      address: map['address'],
+      serviceAreas: List<String>.from(map['serviceAreas'] ?? const []),
+      specialties: List<String>.from(map['specialties'] ?? const []),
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'email': email,
       'name': name,
-      'role': role.value,
-      'businessName': businessName,
-      'businessLicense': businessLicense,
-      'businessNumber': businessNumber,
-      'businessStatus': businessStatus.name,
+      'role': role,
       'phoneNumber': phoneNumber,
+      'createdAt': createdAt.toIso8601String(),
+      'isAnonymous': isAnonymous,
+      'businessStatus': businessStatus,
+      'businessName': businessName,
+      'businessNumber': businessNumber,
       'address': address,
       'serviceAreas': serviceAreas,
       'specialties': specialties,
-      'createdAt': createdAt.toIso8601String(),
-      'lastLoginAt': lastLoginAt?.toIso8601String(),
-      'isActive': isActive,
-      'isAnonymous': isAnonymous,
-      'status': status,
     };
   }
-
-  factory User.fromMap(Map<String, dynamic> map) {
-    return User(
-      id: map['id'] ?? '',
-      email: map['email'],
-      name: map['name'] ?? '',
-      role: UserRole.values.firstWhere(
-        (e) => e.value == map['role'],
-        orElse: () => UserRole.customer,
-      ),
-      businessName: map['businessName'],
-      businessLicense: map['businessLicense'],
-      businessNumber: map['businessNumber'],
-      businessStatus: BusinessStatus.values.firstWhere(
-        (e) => e.name == map['businessStatus'],
-        orElse: () => BusinessStatus.pending,
-      ),
-      phoneNumber: map['phoneNumber'],
-      address: map['address'],
-      serviceAreas: List<String>.from(map['serviceAreas'] ?? []),
-      specialties: List<String>.from(map['specialties'] ?? []),
-      createdAt: DateTime.parse(map['createdAt'] ?? ''),
-      lastLoginAt: map['lastLoginAt'] != null
-          ? DateTime.parse(map['lastLoginAt'])
-          : null,
-      isActive: map['isActive'] ?? true,
-      isAnonymous: map['isAnonymous'] ?? false,
-      status: map['status'] ?? 'pending',
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'email': email,
-        'name': name,
-        'role': role.toString(),
-        'businessName': businessName,
-        'businessLicense': businessLicense,
-        'businessNumber': businessNumber,
-        'businessStatus': businessStatus.name,
-        'phoneNumber': phoneNumber,
-        'address': address,
-        'serviceAreas': serviceAreas,
-        'specialties': specialties,
-        'createdAt': createdAt.toIso8601String(),
-        'lastLoginAt': lastLoginAt?.toIso8601String(),
-        'isActive': isActive,
-        'isAnonymous': isAnonymous,
-        'status': status,
-      };
-
-  factory User.fromJson(Map<String, dynamic> json) => User(
-        id: json['id'] as String,
-        email: json['email'] as String?,
-        name: json['name'] as String,
-        role: UserRole.fromString(json['role'] as String),
-        businessName: json['businessName'] as String?,
-        businessLicense: json['businessLicense'] as String?,
-        businessNumber: json['businessNumber'] as String?,
-        businessStatus: BusinessStatus.values.firstWhere((e) => e.name == json['businessStatus']),
-        phoneNumber: json['phoneNumber'] as String?,
-        address: json['address'] as String?,
-        serviceAreas: List<String>.from(json['serviceAreas'] ?? []),
-        specialties: List<String>.from(json['specialties'] ?? []),
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        lastLoginAt: json['lastLoginAt'] != null
-            ? DateTime.parse(json['lastLoginAt'] as String)
-            : null,
-        isActive: json['isActive'] as bool? ?? true,
-        isAnonymous: json['isAnonymous'] as bool? ?? false,
-        status: json['status'] as String? ?? 'pending',
-      );
 
   User copyWith({
     String? id,
     String? email,
     String? name,
-    UserRole? role,
-    String? businessName,
-    String? businessLicense,
-    String? businessNumber,
-    BusinessStatus? businessStatus,
+    String? role,
     String? phoneNumber,
+    DateTime? createdAt,
+    bool? isAnonymous,
+    String? businessStatus,
+    String? businessName,
+    String? businessNumber,
     String? address,
     List<String>? serviceAreas,
     List<String>? specialties,
-    DateTime? createdAt,
-    DateTime? lastLoginAt,
-    bool? isActive,
-    bool? isAnonymous,
-    String? status,
   }) {
     return User(
       id: id ?? this.id,
       email: email ?? this.email,
       name: name ?? this.name,
       role: role ?? this.role,
-      businessName: businessName ?? this.businessName,
-      businessLicense: businessLicense ?? this.businessLicense,
-      businessNumber: businessNumber ?? this.businessNumber,
-      businessStatus: businessStatus ?? this.businessStatus,
       phoneNumber: phoneNumber ?? this.phoneNumber,
+      createdAt: createdAt ?? this.createdAt,
+      isAnonymous: isAnonymous ?? this.isAnonymous,
+      businessStatus: businessStatus ?? this.businessStatus,
+      businessName: businessName ?? this.businessName,
+      businessNumber: businessNumber ?? this.businessNumber,
       address: address ?? this.address,
       serviceAreas: serviceAreas ?? this.serviceAreas,
       specialties: specialties ?? this.specialties,
-      createdAt: createdAt ?? this.createdAt,
-      lastLoginAt: lastLoginAt ?? this.lastLoginAt,
-      isActive: isActive ?? this.isActive,
-      isAnonymous: isAnonymous ?? this.isAnonymous,
-      status: status ?? this.status,
     );
-  }
-
-  // 익명 사용자 생성 팩토리
-  factory User.anonymous({
-    required String name,
-    required String phoneNumber,
-    String? address,
-  }) {
-    return User(
-      id: 'anon_${DateTime.now().millisecondsSinceEpoch}',
-      name: name,
-      role: UserRole.customer,
-      phoneNumber: phoneNumber,
-      address: address,
-      isAnonymous: true,
-    );
-  }
-
-  // 사업자 승인 여부 확인
-  bool get isApprovedBusiness => 
-      role == UserRole.business && businessStatus == BusinessStatus.approved;
-
-  // 표시용 이름 (사업자의 경우 사업자명, 일반 사용자의 경우 이름)
-  String get displayName {
-    if (role == UserRole.business && businessName != null && businessName!.isNotEmpty) {
-      return businessName!;
-    }
-    return name;
   }
 }

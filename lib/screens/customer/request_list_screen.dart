@@ -26,12 +26,13 @@ class _RequestListScreenState extends State<RequestListScreen> {
     _orderService = Provider.of<OrderService>(context, listen: false);
     _estimateService = Provider.of<EstimateService>(context, listen: false);
     _loadRequests();
+    _loadOrders(); // 여기서 호출
   }
 
   @override
   void initState() {
     super.initState();
-    _loadOrders();
+    // _loadOrders() 호출 제거 - didChangeDependencies에서 처리
   }
 
   Future<void> _loadOrders() async {

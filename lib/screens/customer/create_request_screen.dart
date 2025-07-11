@@ -13,12 +13,9 @@ import '../../widgets/common_app_bar.dart';
 // import '../../services/storage_service.dart';
 
 class CreateRequestScreen extends StatefulWidget {
-  final bool requiresAuth;
+  final app_models.Order? editingOrder;
   
-  const CreateRequestScreen({
-    Key? key,
-    this.requiresAuth = false,
-  }) : super(key: key);
+  const CreateRequestScreen({Key? key, this.editingOrder}) : super(key: key);
 
   @override
   State<CreateRequestScreen> createState() => _CreateRequestScreenState();
@@ -33,13 +30,32 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
+  String _selectedCategory = '누수';
+  DateTime? _selectedDate;
   List<String> _imageUrls = [];
   bool _isLoading = false;
-  String _selectedCategory = app_models.Order.CATEGORIES.first; // 기본값 설정
 
-  // final ApiService _apiService = ApiService();
-  // final StorageService _storageService = StorageService();
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now().add(const Duration(days: 1));
+    
+    // 수정 모드인 경우 기존 데이터 로드
+    if (widget.editingOrder != null) {
+      _loadOrderData();
+    }
+  }
+
+  void _loadOrderData() {
+    final order = widget.editingOrder!;
+    _titleController.text = order.title;
+    _descriptionController.text = order.description;
+    _addressController.text = order.address;
+    _nameController.text = order.customerName;
+    _phoneController.text = order.customerPhone;
+    _selectedCategory = order.category;
+    _selectedDate = order.visitDate;
+  }
 
   @override
   void dispose() {
@@ -95,89 +111,98 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         phoneNumber = _phoneController.text;
         customerName = _nameController.text.trim();
         
-        // 익명 사용자 생성
-        await userProvider.createAnonymousUser(phoneNumber, customerName);
-        print('익명 사용자 생성: $customerName, $phoneNumber');
+        // 익명 사용자 생성 (수정 모드가 아닌 경우에만)
+        if (widget.editingOrder == null) {
+          await userProvider.createAnonymousUser(phoneNumber, customerName);
+          print('익명 사용자 생성: $customerName, $phoneNumber');
+        }
       }
       
       // 전화번호 정규화
       final normalizedPhone = _normalizePhoneNumber(phoneNumber);
       print('최종 정규화된 전화번호: $normalizedPhone');
       
-      final order = app_models.Order(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        customerId: currentUser?.id, // 로그인한 사용자 ID 저장
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        address: _addressController.text.trim(),
-        visitDate: _selectedDate ?? DateTime.now(),
-        status: 'pending',
-        createdAt: DateTime.now(),
-        images: [],
-        estimatedPrice: 0.0,
-        technicianId: null,
-        selectedEstimateId: null,
-        category: _selectedCategory,
-        customerName: customerName,
-        customerPhone: normalizedPhone, // 정규화된 전화번호 저장
-        customerEmail: currentUser?.email,
-        isAnonymous: currentUser == null,
-        isAwarded: false,
-        awardedAt: null,
-        awardedEstimateId: null,
-      );
-
-      print('견적 요청 데이터: ${order.toMap()}');
-      print('Firestore 연결 테스트 시작...');
-
-      final orderService = context.read<OrderService>();
+      final orderService = Provider.of<OrderService>(context, listen: false);
       
-      // Firestore 연결 테스트
-      try {
-        await orderService.createOrder(order);
-        print('✅ Firestore 저장 성공!');
-      } catch (e) {
-        print('❌ Firestore 저장 실패: $e');
-        throw e;
-      }
-
-      // 푸시 알림 전송 (사업자들에게)
-      try {
-        final messagingService = MessagingService();
-        await messagingService.sendNewRequestNotification(order);
-        print('✅ 푸시 알림 전송 성공');
-      } catch (e) {
-        print('⚠️ 푸시 알림 전송 실패 (무시): $e');
-      }
-
-      print('견적 요청이 성공적으로 제출되었습니다');
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('견적 요청이 성공적으로 제출되었습니다'),
-            backgroundColor: Colors.green,
-          ),
+      if (widget.editingOrder != null) {
+        // 수정 모드
+        final updatedOrder = widget.editingOrder!.copyWith(
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          address: _addressController.text.trim(),
+          visitDate: _selectedDate ?? DateTime.now(),
+          category: _selectedCategory,
+          customerName: customerName,
+          customerPhone: normalizedPhone,
         );
         
-        // 네비게이션 수정
-        print('홈으로 이동 시도...');
-        try {
-          context.go('/customer');
-          print('✅ context.go 성공');
-        } catch (e) {
-          print('❌ context.go 실패: $e');
-          // 대안 네비게이션
-          Navigator.of(context).popUntil((route) => route.isFirst);
-          print('✅ Navigator.popUntil 성공');
+        await orderService.updateOrder(updatedOrder);
+        print('✅ 견적 요청 수정 성공!');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('견적 요청이 성공적으로 수정되었습니다'),
+              backgroundColor: Colors.green,
+            ),
+          );
         }
+      } else {
+        // 새 견적 요청 생성
+        final order = app_models.Order(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          customerId: currentUser?.id,
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          address: _addressController.text.trim(),
+          visitDate: _selectedDate ?? DateTime.now(),
+          status: 'pending',
+          createdAt: DateTime.now(),
+          images: [],
+          estimatedPrice: 0.0,
+          technicianId: null,
+          selectedEstimateId: null,
+          category: _selectedCategory,
+          customerName: customerName,
+          customerPhone: normalizedPhone,
+          customerEmail: currentUser?.email,
+          isAnonymous: currentUser == null,
+          isAwarded: false,
+          awardedAt: null,
+          awardedEstimateId: null,
+        );
+
+        await orderService.createOrder(order);
+        print('✅ 견적 요청 생성 성공!');
+        
+        // 푸시 알림 전송 (사업자들에게)
+        try {
+          final messagingService = MessagingService();
+          await messagingService.sendNewRequestNotification(order);
+          print('✅ 푸시 알림 전송 성공');
+        } catch (e) {
+          print('⚠️ 푸시 알림 전송 실패 (무시): $e');
+        }
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('견적 요청이 성공적으로 제출되었습니다'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+      
+      if (mounted) {
+        Navigator.of(context).pop();
       }
     } catch (e) {
       print('견적 요청 제출 중 오류 발생: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('견적 요청 제출 중 오류가 발생했습니다: $e'),
+            content: Text('견적 요청 ${widget.editingOrder != null ? '수정' : '제출'} 중 오류가 발생했습니다: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -213,7 +238,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     
     return Scaffold(
       appBar: CommonAppBar(
-        title: '견적 요청',
+        title: widget.editingOrder != null ? '견적 요청 수정' : '견적 요청',
         showBackButton: true,
         showHomeButton: true,
       ),
@@ -347,43 +372,22 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 // 전화번호 입력 (테스트용 버튼 포함)
                 Row(
                   children: [
+                    const SizedBox(width: 12),
                     Expanded(
                       child: TextFormField(
                         controller: _phoneController,
                         decoration: const InputDecoration(
                           labelText: '전화번호 *',
-                          border: OutlineInputBorder(),
                           hintText: '010-1234-5678',
+                          border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.phone,
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
+                          if (value == null || value.isEmpty) {
                             return '전화번호를 입력해주세요';
                           }
                           return null;
                         },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // 테스트용 전화번호 버튼
-                    ElevatedButton(
-                      onPressed: () {
-                        _phoneController.text = '010-1234-5678';
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('테스트용 전화번호가 입력되었습니다: 010-1234-5678'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                      ),
-                      child: const Text(
-                        '테스트\n번호',
-                        style: TextStyle(fontSize: 12),
-                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
@@ -426,17 +430,20 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 const SizedBox(height: 24),
                 
                 // 제출 버튼
-                ElevatedButton(
+                FilledButton(
                   onPressed: _isLoading ? null : _submitRequest,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          '견적 요청 제출',
-                          style: TextStyle(fontSize: 16, color: Colors.white),
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          widget.editingOrder != null ? '견적 요청 수정' : '견적 요청 제출',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                 ),
               ],
@@ -607,7 +614,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               leading: const Icon(Icons.calendar_today),
               title: const Text('방문 희망 날짜'),
               subtitle: Text(
-                '${_selectedDate.year}년 ${_selectedDate.month}월 ${_selectedDate.day}일',
+                _selectedDate != null 
+                    ? '${_selectedDate!.year}년 ${_selectedDate!.month}월 ${_selectedDate!.day}일'
+                    : '날짜를 선택해주세요',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: _selectDate,
@@ -738,7 +747,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime.now().add(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );

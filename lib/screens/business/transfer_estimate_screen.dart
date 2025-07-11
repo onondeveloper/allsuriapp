@@ -1,191 +1,99 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
-import '../../models/order.dart';
-import '../../models/user.dart';
-import '../../models/role.dart';
-import '../../providers/order_provider.dart';
-import '../../providers/user_provider.dart';
-import '../order/create_order_screen.dart';
 import '../../models/estimate.dart';
-import '../../services/services.dart';
-import '../../widgets/common_app_bar.dart';
-import '../../utils/responsive_utils.dart';
-import 'package:go_router/go_router.dart';
+import '../../services/auth_service.dart';
+import '../../services/estimate_service.dart';
 
 class TransferEstimateScreen extends StatefulWidget {
   final Estimate estimate;
   
   const TransferEstimateScreen({
-    Key? key,
+    super.key,
     required this.estimate,
-  }) : super(key: key);
+  });
 
   @override
   State<TransferEstimateScreen> createState() => _TransferEstimateScreenState();
 }
 
 class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
-  final _searchController = TextEditingController();
-  List<User> _searchResults = [];
-  List<User> _allBusinessUsers = [];
-  bool _isLoading = false;
-  bool _isSearching = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadBusinessUsers();
-  }
+  final _formKey = GlobalKey<FormState>();
+  final _businessNameController = TextEditingController();
+  final _phoneNumberController = TextEditingController();
+  final _reasonController = TextEditingController();
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _businessNameController.dispose();
+    _phoneNumberController.dispose();
+    _reasonController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadBusinessUsers() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      await userProvider.loadBusinessUsers();
-      _allBusinessUsers = userProvider.businessUsers;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('사업자 목록을 불러오는 중 오류가 발생했습니다: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+  Future<void> _transferEstimate() async {
+    if (_businessNameController.text.trim().isEmpty) {
+      _showError('상호명을 입력해주세요');
+      return;
     }
-  }
-
-  void _searchBusinessUsers(String query) {
-    if (query.trim().isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _isSearching = false;
-      });
+    if (_phoneNumberController.text.trim().isEmpty) {
+      _showError('전화번호를 입력해주세요');
       return;
     }
 
-    setState(() {
-      _isSearching = true;
-      _searchResults = _allBusinessUsers.where((user) {
-        final searchQuery = query.toLowerCase();
-        return user.name.toLowerCase().contains(searchQuery) ||
-               (user.businessName?.toLowerCase().contains(searchQuery) ?? false) ||
-               (user.phoneNumber?.contains(searchQuery) ?? false);
-      }).toList();
-    });
-  }
+    setState(() => _isSubmitting = true);
 
-  Future<void> _transferEstimate(User targetBusiness) async {
     try {
-      setState(() {
-        _isLoading = true;
-      });
-
       final estimateService = Provider.of<EstimateService>(context, listen: false);
       
-      // 이관 견적 생성
-      final transferEstimate = Estimate(
-        id: 'TRANSFER_${DateTime.now().millisecondsSinceEpoch}',
-        orderId: widget.estimate.orderId,
-        technicianId: targetBusiness.id,
-        technicianName: targetBusiness.displayName,
-        price: widget.estimate.price,
-        description: widget.estimate.description,
-        estimatedDays: widget.estimate.estimatedDays,
-        status: Estimate.STATUS_PENDING,
-        createdAt: DateTime.now(),
-        visitDate: widget.estimate.visitDate,
-        customerName: widget.estimate.customerName,
-        customerPhone: widget.estimate.customerPhone,
-        address: widget.estimate.address,
-        isTransferEstimate: true,
-        isAwarded: false,
-        awardedAt: null,
-        awardedBy: null,
+      // 견적 이관 처리
+      await estimateService.transferEstimate(
+        estimateId: widget.estimate.id,
+        newBusinessName: _businessNameController.text.trim(),
+        newPhoneNumber: _phoneNumberController.text.trim(),
+        reason: _reasonController.text.trim(),
+        transferredBy: Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '',
       );
 
-      await estimateService.createEstimate(transferEstimate);
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${targetBusiness.displayName}에게 견적을 이관했습니다.'),
-            backgroundColor: Colors.green,
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('견적 이관 완료'),
+            content: const Text('견적이 성공적으로 이관되었습니다.'),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () {
+                  Navigator.pop(context); // 다이얼로그 닫기
+                  Navigator.pop(context); // 화면 닫기
+                },
+                child: const Text('확인'),
+              ),
+            ],
           ),
         );
-        context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('견적 이관 중 오류가 발생했습니다: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showError('견적 이관 중 오류가 발생했습니다: $e');
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isSubmitting = false);
       }
     }
   }
 
-  void _showTransferConfirmation(User targetBusiness) {
-    showDialog(
+  void _showError(String message) {
+    showCupertinoDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('견적 이관 확인'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${targetBusiness.displayName}에게 견적을 이관하시겠습니까?'),
-            const SizedBox(height: 16),
-            Text('견적 금액: ${widget.estimate.price.toStringAsFixed(0)}원'),
-            const SizedBox(height: 8),
-            Text('설명: ${widget.estimate.description}'),
-            const SizedBox(height: 16),
-            const Text(
-              '※ 이관된 견적은 수수료가 발생할 수 있습니다.',
-              style: TextStyle(
-                color: Colors.orange,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('오류'),
+        content: Text(message),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _transferEstimate(targetBusiness);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4F8CFF),
-            ),
-            child: const Text('이관하기'),
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
           ),
         ],
       ),
@@ -194,138 +102,156 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: CommonAppBar(
-        title: '견적 이관하기',
-        showBackButton: true,
-        showHomeButton: true,
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text('견적 이관'),
       ),
-      body: Column(
-        children: [
-          // 검색 영역
-          Container(
-            padding: const EdgeInsets.all(16),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 견적 정보 표시
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '이관할 견적 정보',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: CupertinoColors.label,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '고객: ${widget.estimate.customerName}',
+                        style: const TextStyle(color: CupertinoColors.secondaryLabel),
+                      ),
+                      Text(
+                        '장비: ${widget.estimate.equipmentType}',
+                        style: const TextStyle(color: CupertinoColors.secondaryLabel),
+                      ),
+                      Text(
+                        '견적 금액: ${widget.estimate.amount.toStringAsFixed(0)}원',
+                        style: const TextStyle(color: CupertinoColors.secondaryLabel),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                
                 const Text(
-                  '사업자 검색',
+                  '이관할 사업자 정보',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF222B45),
+                    color: CupertinoColors.label,
                   ),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: '사업자명, 상호명, 전화번호로 검색',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              _searchBusinessUsers('');
-                            },
-                          )
-                        : null,
+                const SizedBox(height: 16),
+                
+                CupertinoTextField(
+                  controller: _businessNameController,
+                  placeholder: '상호명을 입력해주세요',
+                  decoration: BoxDecoration(
+                    border: Border.all(color: CupertinoColors.separator),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  onChanged: _searchBusinessUsers,
+                ),
+                const SizedBox(height: 16),
+                
+                CupertinoTextField(
+                  controller: _phoneNumberController,
+                  placeholder: '전화번호를 입력해주세요 (예: 010-1234-5678)',
+                  decoration: BoxDecoration(
+                    border: Border.all(color: CupertinoColors.separator),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                CupertinoTextField(
+                  controller: _reasonController,
+                  placeholder: '이관 사유 (선택사항)',
+                  decoration: BoxDecoration(
+                    border: Border.all(color: CupertinoColors.separator),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 32),
+                
+                SizedBox(
+                  width: double.infinity,
+                  child: CupertinoButton.filled(
+                    onPressed: _isSubmitting ? null : _transferEstimate,
+                    child: _isSubmitting
+                        ? const CupertinoActivityIndicator()
+                        : const Text(
+                            '견적 이관하기',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemYellow.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: CupertinoColors.systemYellow.withOpacity(0.3),
+                    ),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.exclamationmark_triangle,
+                            color: CupertinoColors.systemYellow,
+                            size: 16,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            '주의사항',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: CupertinoColors.systemYellow,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '• 견적 이관은 되돌릴 수 없습니다.\n'
+                        '• 이관된 견적은 해당 사업자가 처리하게 됩니다.\n'
+                        '• 고객에게 이관 사실이 자동으로 알림됩니다.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: CupertinoColors.systemYellow,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-
-          // 검색 결과 또는 전체 사업자 목록
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildBusinessList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBusinessList() {
-    final displayList = _isSearching ? _searchResults : _allBusinessUsers;
-    
-    if (displayList.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _isSearching ? Icons.search_off : Icons.business,
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _isSearching ? '검색 결과가 없습니다.' : '등록된 사업자가 없습니다.',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
         ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: displayList.length,
-      itemBuilder: (context, index) {
-        final business = displayList[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            leading: CircleAvatar(
-              backgroundColor: const Color(0xFF4F8CFF).withOpacity(0.1),
-              child: Icon(
-                Icons.business,
-                color: const Color(0xFF4F8CFF),
-              ),
-            ),
-            title: Text(
-              business.displayName,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (business.phoneNumber != null) ...[
-                  Text('전화번호: ${business.phoneNumber}'),
-                  const SizedBox(height: 4),
-                ],
-                if (business.serviceAreas.isNotEmpty) ...[
-                  Text('활동지역: ${business.serviceAreas.join(', ')}'),
-                  const SizedBox(height: 4),
-                ],
-                if (business.specialties.isNotEmpty) ...[
-                  Text('전문분야: ${business.specialties.join(', ')}'),
-                ],
-              ],
-            ),
-            trailing: ElevatedButton(
-              onPressed: () => _showTransferConfirmation(business),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4F8CFF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
-              child: const Text('이관하기'),
-            ),
-          ),
-        );
-      },
+      ),
     );
   }
 }

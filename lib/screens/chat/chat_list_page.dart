@@ -1,101 +1,140 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../models/user.dart';
-import '../../providers/user_provider.dart';
-import '../../widgets/login_required_dialog.dart';
-import '../../widgets/common_app_bar.dart';
+import '../../services/auth_service.dart';
+import '../../services/api_service.dart';
 import '../chat_screen.dart';
-import 'package:go_router/go_router.dart';
 
-class ChatListPage extends StatelessWidget {
-  const ChatListPage({Key? key}) : super(key: key);
+class ChatListPage extends StatefulWidget {
+  const ChatListPage({super.key});
+
+  @override
+  State<ChatListPage> createState() => _ChatListPageState();
+}
+
+class _ChatListPageState extends State<ChatListPage> {
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _chatRooms = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChatRooms();
+  }
+
+  Future<void> _loadChatRooms() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final chatRooms = await apiService.getChatRooms();
+      setState(() {
+        _chatRooms = chatRooms;
+      });
+    } catch (e) {
+      print('채팅방 로드 오류: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<UserProvider>(
-      builder: (context, userProvider, child) {
-        final user = userProvider.currentUser;
+    return Consumer<AuthService>(
+      builder: (context, authService, child) {
+        final user = authService.currentUser;
         
-        // 로그인하지 않은 사용자에게 로그인 요구
-        if (user == null || user.isAnonymous) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            LoginRequiredDialog.showChatLoginRequired(context);
-          });
-          
-          return Scaffold(
-            appBar: CommonAppBar(
-              title: '채팅',
-              showBackButton: true,
-              showHomeButton: true,
+        // 로그인하지 않은 사용자에게 안내
+        if (user == null) {
+          return CupertinoPageScaffold(
+            navigationBar: const CupertinoNavigationBar(
+              middle: Text('채팅'),
             ),
-            body: const Center(
-              child: Text('로그인이 필요한 기능입니다.'),
+            child: SafeArea(
+              child: _buildLoginGuide(context),
             ),
           );
         }
 
-        return Scaffold(
-          appBar: CommonAppBar(
-            title: '채팅',
-            showBackButton: true,
-            showHomeButton: true,
+        return CupertinoPageScaffold(
+          navigationBar: const CupertinoNavigationBar(
+            middle: Text('채팅'),
           ),
-          body: _buildChatList(context, user),
+          child: SafeArea(
+            child: _buildChatList(context),
+          ),
         );
       },
     );
   }
 
-  Widget _buildChatList(BuildContext context, User user) {
-    // 임시 채팅 목록 데이터
-    final chatRooms = [
-      {
-        'id': '1',
-        'title': '에어컨 수리 견적',
-        'lastMessage': '견적서를 보내드렸습니다.',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 5)),
-        'unreadCount': 1,
-      },
-      {
-        'id': '2',
-        'title': '배관 수리 견적',
-        'lastMessage': '언제 방문 가능하신가요?',
-        'timestamp': DateTime.now().subtract(const Duration(hours: 2)),
-        'unreadCount': 0,
-      },
-      {
-        'id': '3',
-        'title': '전기공사 견적',
-        'lastMessage': '감사합니다.',
-        'timestamp': DateTime.now().subtract(const Duration(days: 1)),
-        'unreadCount': 0,
-      },
-    ];
+  Widget _buildLoginGuide(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            CupertinoIcons.chat_bubble_2,
+            size: 80,
+            color: CupertinoColors.systemGrey,
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            '채팅을 사용하려면\n로그인하세요',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              color: CupertinoColors.systemGrey,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 32),
+          CupertinoButton.filled(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              '로그인',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    if (chatRooms.isEmpty) {
-      return const Center(
+  Widget _buildChatList(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CupertinoActivityIndicator());
+    }
+
+    if (_chatRooms.isEmpty) {
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.chat_bubble_outline,
+            const Icon(
+              CupertinoIcons.chat_bubble_2,
               size: 64,
-              color: Colors.grey,
+              color: CupertinoColors.systemGrey,
             ),
-            SizedBox(height: 16),
-            Text(
+            const SizedBox(height: 16),
+            const Text(
               '아직 채팅방이 없습니다',
               style: TextStyle(
                 fontSize: 18,
-                color: Colors.grey,
+                color: CupertinoColors.systemGrey,
               ),
             ),
-            SizedBox(height: 8),
-            Text(
+            const SizedBox(height: 8),
+            const Text(
               '견적 요청을 하면 업체와 채팅할 수 있습니다',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey,
+                color: CupertinoColors.systemGrey2,
               ),
             ),
           ],
@@ -103,105 +142,125 @@ class ChatListPage extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      itemCount: chatRooms.length,
-      itemBuilder: (context, index) {
-        final chatRoom = chatRooms[index];
-        return _buildChatItem(context, chatRoom);
-      },
+    return CupertinoScrollbar(
+      child: CustomScrollView(
+        slivers: [
+          CupertinoSliverRefreshControl(
+            onRefresh: _loadChatRooms,
+          ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final chatRoom = _chatRooms[index];
+                return _buildChatItem(context, chatRoom);
+              },
+              childCount: _chatRooms.length,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildChatItem(BuildContext context, Map<String, dynamic> chatRoom) {
-    return Card(
-      child: InkWell(
-        onTap: () => context.push('/chat'),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16.0),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: Colors.white,
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () {
+        Navigator.push(
+          context,
+          CupertinoPageRoute(
+            builder: (context) => ChatScreen(chatRoomId: chatRoom['id']),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4F8CFF).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.chat_bubble_outline,
-                  color: const Color(0xFF4F8CFF),
-                  size: 24,
-                ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: CupertinoColors.systemBackground,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: CupertinoColors.separator,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemBlue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(25),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      chatRoom['title'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF222B45),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      chatRoom['lastMessage'] ?? '메시지가 없습니다',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+              child: const Icon(
+                CupertinoIcons.building_2_fill,
+                color: CupertinoColors.systemBlue,
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _formatTime(chatRoom['timestamp']),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
+                    chatRoom['title'],
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: CupertinoColors.label,
                     ),
                   ),
-                  if (chatRoom['unreadCount'] > 0) ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF6B6B),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        chatRoom['unreadCount'].toString(),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    chatRoom['lastMessage'],
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: CupertinoColors.secondaryLabel,
                     ),
-                  ],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
-            ],
-          ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _formatTimestamp(chatRoom['timestamp']),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                ),
+                if (chatRoom['unreadCount'] > 0) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemRed,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      chatRoom['unreadCount'].toString(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: CupertinoColors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  String _formatTime(DateTime timestamp) {
+  String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
 
