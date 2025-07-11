@@ -210,17 +210,9 @@ class LoginRequiredDialog extends StatelessWidget {
       final success = await authService.signInWithGoogle();
       
       if (success && context.mounted) {
-        // 로그인 성공 시 선택된 역할로 사용자 생성
+        // 로그인 성공 시 사용자 정보 업데이트
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-        final testUser = User(
-          id: 'test_${role.name}_${DateTime.now().millisecondsSinceEpoch}',
-          email: 'test_${role.name}@example.com',
-          name: '테스트 ${_getRoleDisplayName(role)}',
-          role: role,
-          phoneNumber: '010-1234-5678',
-        );
-        
-        await userProvider.setCurrentUser(testUser);
+        await userProvider.refreshCurrentUser();
         
         // 역할에 따라 해당 페이지로 이동
         if (context.mounted) {

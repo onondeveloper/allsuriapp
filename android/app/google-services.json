@@ -12,7 +12,20 @@
           "package_name": "com.ononcompany.allsuri"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "234616150584-0m134dtut05q6g8d08vhscuc749965s2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ononcompany.allsuri",
+            "certificate_hash": "b69b235b27dc7076acdcd88e5aea75d6317b9534"
+          }
+        },
+        {
+          "client_id": "234616150584-llab0lh60i0197l268tob9pea93o4gor.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB3X9b9m7M0nEdJs_qjZzK0WA1uuvNIQgI"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "234616150584-llab0lh60i0197l268tob9pea93o4gor.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "234616150584-prqr3cgnjlhpq7629j5ib42p9vi2o9hr.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "ononcompany"
+              }
+            }
+          ]
         }
       }
     }

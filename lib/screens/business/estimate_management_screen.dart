@@ -1,9 +1,13 @@
-import 'package:allsuriapp/services/services.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/estimate.dart';
-import '../create_estimate_screen.dart';
+import '../../providers/estimate_provider.dart';
+import '../../services/estimate_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/chat_service.dart';
+import '../../services/anonymous_service.dart';
+import '../../widgets/common_app_bar.dart';
 
 class EstimateManagementScreen extends StatefulWidget {
   const EstimateManagementScreen({
@@ -118,6 +122,45 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('견적 상태 업데이트 중 오류가 발생했습니다: $e')),
         );
+      }
+    }
+  }
+
+  Future<void> _awardEstimate(Estimate estimate) async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      // 견적 승인 처리
+      await _estimateService.awardEstimate(estimate.id);
+      
+      // 채팅방 활성화
+      final chatService = ChatService(AnonymousService());
+      await chatService.activateChatRoom(estimate.id, estimate.businessId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('견적이 승인되었습니다. 채팅이 활성화되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('견적 승인 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -368,7 +411,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
             onPressed: () async {
               try {
                 final updatedEstimate = estimate.copyWith(
-                  price: double.parse(priceController.text),
+                  amount: double.parse(priceController.text),
                   description: descriptionController.text,
                   estimatedDays: int.parse(daysController.text),
                 );

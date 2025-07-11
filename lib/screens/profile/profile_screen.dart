@@ -1,49 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user.dart';
-import '../../models/role.dart';
-import '../../providers/user_provider.dart';
-import '../../widgets/login_required_dialog.dart';
-import '../../widgets/common_app_bar.dart';
-import '../settings/notification_settings_screen.dart';
-import 'package:go_router/go_router.dart';
+import '../../services/auth_service.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<UserProvider>(
-      builder: (context, userProvider, child) {
-        final user = userProvider.currentUser;
+    return Consumer<AuthService>(
+      builder: (context, authService, child) {
+        final user = authService.currentUser;
         
-        // 로그인하지 않은 사용자에게 로그인 요구
-        if (user == null || user.isAnonymous) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            LoginRequiredDialog.showProfileLoginRequired(context);
-          });
-          
+        // 로그인하지 않은 사용자에게 안내
+        if (user == null) {
           return Scaffold(
-            appBar: CommonAppBar(
-              title: '프로필',
-              showBackButton: true,
-              showHomeButton: true,
+            appBar: AppBar(
+              title: const Text('프로필'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
-            body: const Center(
-              child: Text('로그인이 필요한 기능입니다.'),
-            ),
+            body: _buildLoginGuide(context),
           );
         }
 
         return Scaffold(
-          appBar: CommonAppBar(
-            title: '프로필',
-            showBackButton: true,
-            showHomeButton: true,
+          appBar: AppBar(
+            title: const Text('프로필'),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
           body: _buildProfileContent(context, user),
         );
       },
+    );
+  }
+
+  Widget _buildLoginGuide(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.person_outline,
+            size: 80,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            '프로필을 보려면\n로그인하세요',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              '로그인',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -66,12 +101,12 @@ class ProfileScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24.0),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF4F8CFF),
-              const Color(0xFF00C6AE),
+              Color(0xFF4F8CFF),
+              Color(0xFF00C6AE),
             ],
           ),
         ),
@@ -130,20 +165,26 @@ class ProfileScreen extends StatelessWidget {
           context,
           Icons.settings,
           '설정',
-          () => context.push('/settings'),
+          () {
+            // 설정 화면으로 이동
+          },
         ),
         _buildActionTile(
           context,
           Icons.notifications,
           '알림 설정',
-          () => context.push('/notification-settings'),
+          () {
+            // 알림 설정 화면으로 이동
+          },
         ),
-        if (user.role == UserRole.business)
+        if (user.role == 'business')
           _buildActionTile(
             context,
             Icons.business,
             '사업자 관리',
-            () => context.push('/business/profile'),
+            () {
+              // 사업자 관리 화면으로 이동
+            },
           ),
         _buildActionTile(
           context,
@@ -195,19 +236,17 @@ class ProfileScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: isDestructive
-                        ? const Color(0xFFFF6B6B)
-                        : const Color(0xFF222B45),
+                    color: Color(0xFF222B45),
                   ),
                 ),
               ),
-              Icon(
+              const Icon(
                 Icons.arrow_forward_ios,
                 size: 16,
-                color: Colors.grey[400],
+                color: Color(0xFF222B45),
               ),
             ],
           ),
@@ -216,74 +255,41 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Color _getRoleColor(UserRole role) {
+  String _getRoleDisplayName(String role) {
     switch (role) {
-      case UserRole.admin:
-        return Colors.red;
-      case UserRole.business:
-        return Colors.orange;
-      case UserRole.customer:
-        return Colors.blue;
-    }
-  }
-
-  String _getRoleDisplayName(UserRole role) {
-    switch (role) {
-      case UserRole.admin:
+      case 'admin':
         return '관리자';
-      case UserRole.business:
+      case 'business':
         return '사업자';
-      case UserRole.customer:
+      case 'customer':
         return '고객';
-    }
-  }
-
-  Color _getBusinessStatusColor(BusinessStatus status) {
-    switch (status) {
-      case BusinessStatus.pending:
-        return Colors.orange;
-      case BusinessStatus.approved:
-        return Colors.green;
-      case BusinessStatus.rejected:
-        return Colors.red;
-    }
-  }
-
-  String _getBusinessStatusDisplayName(BusinessStatus status) {
-    switch (status) {
-      case BusinessStatus.pending:
-        return '승인 대기중';
-      case BusinessStatus.approved:
-        return '승인됨';
-      case BusinessStatus.rejected:
-        return '승인 거부됨';
+      default:
+        return '사용자';
     }
   }
 
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('로그아웃'),
-        content: const Text('정말 로그아웃하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // 로그아웃 처리
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('로그아웃'),
+          content: const Text('정말 로그아웃하시겠습니까?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('취소'),
             ),
-            child: const Text('로그아웃'),
-          ),
-        ],
-      ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Provider.of<AuthService>(context, listen: false).signOut();
+              },
+              child: const Text('로그아웃'),
+            ),
+          ],
+        );
+      },
     );
   }
 } 

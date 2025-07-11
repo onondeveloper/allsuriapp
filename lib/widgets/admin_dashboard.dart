@@ -734,52 +734,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           DataColumn(label: Text('생성일')),
           DataColumn(label: Text('액션')),
         ],
-        rows: [
-          DataRow(cells: [
-            const DataCell(Text('EST-001')),
-            const DataCell(Text('김고객')),
-            const DataCell(Text('인테리어업체')),
-            const DataCell(Text('인테리어')),
-            const DataCell(Text('₩2,500,000')),
-            const DataCell(Text('진행 중')),
-            const DataCell(Text('2024-01-15')),
-            DataCell(Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.visibility, size: 16),
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 16),
-                  onPressed: () {},
-                ),
-              ],
-            )),
-          ]),
-          DataRow(cells: [
-            const DataCell(Text('EST-002')),
-            const DataCell(Text('이고객')),
-            const DataCell(Text('리모델링업체')),
-            const DataCell(Text('리모델링')),
-            const DataCell(Text('₩5,000,000')),
-            const DataCell(Text('완료')),
-            const DataCell(Text('2024-01-14')),
-            DataCell(Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.visibility, size: 16),
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 16),
-                  onPressed: () {},
-                ),
-              ],
-            )),
-          ]),
-        ],
+        rows: [], // 실제 데이터는 Firebase에서 가져오도록 수정 필요
       ),
     );
   }

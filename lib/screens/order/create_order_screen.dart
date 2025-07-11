@@ -1,18 +1,12 @@
-import 'package:flutter/material.dart';
-import '../../models/order.dart';
-import '../../services/order_service.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import '../../models/order.dart' as app_models;
+import '../../services/auth_service.dart';
 import '../../providers/order_provider.dart';
-import '../../providers/user_provider.dart';
-import '../../widgets/common_app_bar.dart';
+import '../customer/customer_dashboard.dart';
 
 class CreateOrderScreen extends StatefulWidget {
-  final String customerId;
-
-  const CreateOrderScreen({
-    Key? key,
-    required this.customerId,
-  }) : super(key: key);
+  const CreateOrderScreen({super.key});
 
   @override
   State<CreateOrderScreen> createState() => _CreateOrderScreenState();
@@ -20,236 +14,214 @@ class CreateOrderScreen extends StatefulWidget {
 
 class _CreateOrderScreenState extends State<CreateOrderScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
+  final _equipmentTypeController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
-  final _locationController = TextEditingController();
-  final _budgetController = TextEditingController();
-  DateTime _visitDate = DateTime.now();
-  final List<String> _images = [];
-  bool _isLoading = false;
-  String _selectedCategory = '';
-  List<String> _selectedImages = [];
+  final _visitDateController = TextEditingController();
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
-    _titleController.dispose();
+    _equipmentTypeController.dispose();
     _descriptionController.dispose();
     _addressController.dispose();
-    _locationController.dispose();
-    _budgetController.dispose();
+    _visitDateController.dispose();
     super.dispose();
   }
 
   Future<void> _submitOrder() async {
-    print('_submitOrder called');
-    print('Title: "${_titleController.text}"');
-    print('Description: "${_descriptionController.text}"');
-    print('Address: "${_addressController.text}"');
-
-    if (_formKey.currentState == null) {
-      print('Form key current state is null');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('폼 상태에 문제가 있습니다.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    // 직접 값 검증
+    if (_equipmentTypeController.text.trim().isEmpty) {
+      _showError('장비 유형을 입력해주세요');
+      return;
+    }
+    if (_descriptionController.text.trim().isEmpty) {
+      _showError('문제 설명을 입력해주세요');
+      return;
+    }
+    if (_addressController.text.trim().isEmpty) {
+      _showError('주소를 입력해주세요');
+      return;
+    }
+    if (_visitDateController.text.trim().isEmpty) {
+      _showError('방문 희망일을 입력해주세요');
+      return;
+    }
+    try {
+      DateTime.parse(_visitDateController.text.trim());
+    } catch (e) {
+      _showError('올바른 날짜 형식을 입력해주세요 (YYYY-MM-DD)');
       return;
     }
 
-    if (!_formKey.currentState!.validate()) {
-      print('Form validation failed');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('모든 필수 항목을 입력해주세요.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    print('Form validation passed');
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isSubmitting = true);
 
     try {
-      print('Creating order with customerId: ${widget.customerId}');
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final order = Order(
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      
+      final user = authService.currentUser;
+      if (user == null) {
+        throw Exception('사용자 정보를 찾을 수 없습니다.');
+      }
+
+      final order = app_models.Order(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: _titleController.text.trim(),
+        customerId: user.id,
+        title: _equipmentTypeController.text.trim(),
         description: _descriptionController.text.trim(),
-        category: _selectedCategory,
-        address: _addressController.text,
-        visitDate: _visitDate,
-        status: Order.STATUS_PENDING,
+        address: _addressController.text.trim(),
+        visitDate: DateTime.parse(_visitDateController.text),
+        status: app_models.Order.STATUS_PENDING,
         createdAt: DateTime.now(),
-        estimatedPrice: double.tryParse(_budgetController.text) ?? 0.0,
-        customerId: userProvider.currentUser?.id ?? '',
-        customerName: userProvider.currentUser?.name ?? '',
-        customerPhone: userProvider.currentUser?.phoneNumber ?? '',
-        images: _selectedImages,
+        category: _equipmentTypeController.text.trim(),
+        customerName: user.name,
+        customerPhone: user.phoneNumber ?? '',
       );
 
-      print('Order created: ${order.title}');
-
-      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-      print('OrderProvider accessed successfully');
-
       await orderProvider.addOrder(order);
-      print('Order added to provider successfully');
-
+      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('견적 요청이 성공적으로 생성되었습니다!'),
-            backgroundColor: Colors.green,
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('견적 요청 완료'),
+            content: const Text('견적 요청이 성공적으로 제출되었습니다!'),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () {
+                  Navigator.pop(context); // 다이얼로그 닫기
+                  // 고객 대시보드로 이동
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    CupertinoPageRoute(
+                      builder: (context) => const CustomerDashboard(),
+                    ),
+                    (route) => false,
+                  );
+                },
+                child: const Text('확인'),
+              ),
+            ],
           ),
         );
-        Navigator.pop(context);
       }
     } catch (e) {
-      print('Error creating order: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('주문 생성 중 오류가 발생했습니다: $e'),
-            backgroundColor: Colors.red,
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('오류'),
+            content: Text('견적 요청 제출 중 오류가 발생했습니다: $e'),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('확인'),
+              ),
+            ],
           ),
         );
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isSubmitting = false);
       }
     }
   }
 
+  void _showError(String message) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('입력 오류'),
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: CommonAppBar(
-        title: '견적 요청하기',
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text('견적 요청'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextFormField(
-                      controller: _titleController,
-                      decoration: const InputDecoration(
-                        labelText: '제목',
-                        hintText: '견적 요청 제목을 입력하세요',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '제목을 입력해주세요';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: '설명',
-                        hintText: '견적 요청에 대한 자세한 설명을 입력하세요',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 5,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '설명을 입력해주세요';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _addressController,
-                      decoration: const InputDecoration(
-                        labelText: '주소',
-                        hintText: '작업이 필요한 주소를 입력하세요',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '주소를 입력해주세요';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    ListTile(
-                      title: const Text('방문 희망일'),
-                      subtitle: Text(
-                        '${_visitDate.year}년 ${_visitDate.month}월 ${_visitDate.day}일',
-                      ),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: _visitDate,
-                          firstDate: DateTime.now(),
-                          lastDate:
-                              DateTime.now().add(const Duration(days: 30)),
-                        );
-                        if (date != null) {
-                          setState(() {
-                            _visitDate = date;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    // 테스트용 버튼
-                    ElevatedButton(
-                      onPressed: () {
-                        print('Test button pressed!');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('테스트 버튼이 눌렸습니다!')),
-                        );
-                      },
-                      child: const Text('테스트 버튼'),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          print('견적 요청하기 버튼이 눌렸습니다!');
-                          _submitOrder();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          '견적 요청하기',
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '견적 요청 정보',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: CupertinoColors.label,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 24),
+                CupertinoTextField(
+                  controller: _equipmentTypeController,
+                  placeholder: '예: 에어컨, 냉장고, 세탁기',
+                  decoration: BoxDecoration(
+                    border: Border.all(color: CupertinoColors.separator),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                CupertinoTextField(
+                  controller: _descriptionController,
+                  placeholder: '어떤 문제가 있는지 자세히 설명해주세요',
+                  decoration: BoxDecoration(
+                    border: Border.all(color: CupertinoColors.separator),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 16),
+                CupertinoTextField(
+                  controller: _addressController,
+                  placeholder: '방문할 주소를 입력해주세요',
+                  decoration: BoxDecoration(
+                    border: Border.all(color: CupertinoColors.separator),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                CupertinoTextField(
+                  controller: _visitDateController,
+                  placeholder: 'YYYY-MM-DD',
+                  decoration: BoxDecoration(
+                    border: Border.all(color: CupertinoColors.separator),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: CupertinoButton.filled(
+                    onPressed: _isSubmitting ? null : _submitOrder,
+                    child: _isSubmitting
+                        ? const CupertinoActivityIndicator()
+                        : const Text(
+                            '견적 요청 제출',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                ),
+              ],
             ),
+          ),
+        ),
+      ),
     );
   }
 }

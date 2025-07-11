@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/order.dart' as app_models;
 import '../../models/estimate.dart';
-import '../../services/services.dart';
-import '../../widgets/common_app_bar.dart';
-import '../../utils/responsive_utils.dart';
+import '../../services/order_service.dart';
+import '../../services/estimate_service.dart';
+import '../../services/auth_service.dart';
 import '../create_estimate_screen.dart';
 
 class EstimateRequestsScreen extends StatefulWidget {
-  const EstimateRequestsScreen({Key? key}) : super(key: key);
+  const EstimateRequestsScreen({super.key});
 
   @override
   State<EstimateRequestsScreen> createState() => _EstimateRequestsScreenState();
@@ -42,23 +42,22 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
   Future<void> _loadRequests() async {
     try {
       setState(() => _isLoading = true);
-      print('=== 견적 요청 목록 로딩 시작 ===');
       
-      await _orderService.fetchOrders();
-      print('주문 데이터 로드 완료. 총 주문 수: ${_orderService.orders.length}');
+      // 모든 주문 가져오기
+      final allOrders = await _orderService.getOrders();
       
-      final pendingOrders = _orderService.getPendingOrders();
-      print('대기 중인 견적 요청 수: ${pendingOrders.length}');
+      // 견적 요청 가능한 주문 필터링 (pending 상태이고 아직 채택되지 않은 것)
+      final availableOrders = allOrders.where((order) => 
+        order.status == 'pending' && !order.isAwarded
+      ).toList();
       
       setState(() {
-        _requests = pendingOrders;
-        _filteredRequests = _filterRequestsByCategory(pendingOrders);
+        _requests = availableOrders;
+        _filteredRequests = _filterRequestsByCategory(availableOrders);
         _isLoading = false;
       });
       
-      print('=== 견적 요청 목록 로딩 완료 ===');
     } catch (e) {
-      print('Error loading requests: $e');
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -73,7 +72,7 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
     if (_selectedCategory == 'all') {
       return requests;
     }
-    return requests.where((request) => request.category == _selectedCategory).toList();
+    return requests.where((request) => request.equipmentType == _selectedCategory).toList();
   }
 
   // 카테고리 필터 변경
@@ -87,8 +86,12 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CommonAppBar(
-        title: '견적 요청 목록',
+      appBar: AppBar(
+        title: const Text('견적 요청 목록'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -118,12 +121,13 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
                     children: [
                       _buildCategoryChip('all', '전체'),
                       const SizedBox(width: 8),
-                      ...app_models.Order.CATEGORIES.map((category) => 
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: _buildCategoryChip(category, category),
-                        ),
-                      ).toList(),
+                      _buildCategoryChip('에어컨', '에어컨'),
+                      const SizedBox(width: 8),
+                      _buildCategoryChip('냉장고', '냉장고'),
+                      const SizedBox(width: 8),
+                      _buildCategoryChip('세탁기', '세탁기'),
+                      const SizedBox(width: 8),
+                      _buildCategoryChip('기타', '기타'),
                     ],
                   ),
                 ),
@@ -148,11 +152,6 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
                                   ? '새로운 견적 요청이 없습니다.'
                                   : '$_selectedCategory 카테고리의 견적 요청이 없습니다.',
                               style: const TextStyle(fontSize: 16, color: Colors.grey),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '총 주문 수: ${_orderService.orders.length}',
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
@@ -207,230 +206,151 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
-        _onCategoryChanged(category);
+        if (selected) {
+          _onCategoryChanged(category);
+        }
       },
-      selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
-      checkmarkColor: Theme.of(context).primaryColor,
     );
   }
 
   Widget _buildRequestCard(app_models.Order request) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      child: Column(
-        children: [
-          ListTile(
-            title: Row(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Expanded(child: Text(request.title)),
-                if (request.isAnonymous)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '익명',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.orange[700],
-                        fontWeight: FontWeight.bold,
-                      ),
+                Expanded(
+                  child: Text(
+                    request.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-              ],
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  request.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        request.address,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.phone, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      request.maskedPhoneNumber,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                    if (request.isAnonymous && !request.isAwarded)
-                      const SizedBox(width: 8),
-                    if (request.isAnonymous && !request.isAwarded)
-                      Text(
-                        '(낙찰 후 공개)',
-                        style: TextStyle(
-                          color: Colors.orange[600],
-                          fontSize: 10,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '요청일: ${request.formattedDate}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (request.images.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(top: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '사진 ${request.images.length}장',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.blue[700],
-                      ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    '견적 대기',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
+                ),
               ],
             ),
-          ),
-          OverflowBar(
-            children: [
-              TextButton(
-                onPressed: () => _showRequestDetails(request),
-                child: const Text('상세 보기'),
+            const SizedBox(height: 12),
+            Text(
+              '카테고리: ${request.equipmentType}',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.blue,
+                fontWeight: FontWeight.w500,
               ),
-              ElevatedButton(
-                onPressed: () => _createEstimate(request),
-                child: const Text('견적 작성'),
-              ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              request.description,
+              style: const TextStyle(fontSize: 14),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    request.address,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  '방문일: ${request.visitDate.toString().split(' ')[0]}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.person, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  '${request.customerName} (${request.customerPhone})',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _showRequestDetail(request),
+                    child: const Text('상세보기'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _goToBidding(request),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('입찰하기'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _showRequestDetails(app_models.Order request) {
+  void _showRequestDetail(app_models.Order request) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Expanded(child: Text(request.title)),
-            if (request.isAnonymous)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '익명',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange[700],
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
-        ),
+        title: Text(request.title),
         content: SingleChildScrollView(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
+              Text('카테고리: ${request.equipmentType}'),
+              const SizedBox(height: 8),
               Text('설명: ${request.description}'),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Expanded(child: Text('주소: ${request.address}')),
-                ],
-              ),
+              Text('주소: ${request.address}'),
               const SizedBox(height: 8),
-              Text('방문 희망일: ${request.visitDate.toString().split(' ')[0]}'),
+              Text('방문일: ${request.visitDate.toString().split(' ')[0]}'),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.phone, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text('연락처: ${request.maskedPhoneNumber}'),
-                  if (request.isAnonymous && !request.isAwarded)
-                    const SizedBox(width: 8),
-                  if (request.isAnonymous && !request.isAwarded)
-                    Text(
-                      '(낙찰 후 공개)',
-                      style: TextStyle(
-                        color: Colors.orange[600],
-                        fontSize: 10,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                ],
-              ),
+              Text('고객: ${request.customerName}'),
               const SizedBox(height: 8),
-              Text('고객명: ${request.customerName}'),
+              Text('연락처: ${request.customerPhone}'),
               const SizedBox(height: 8),
               Text('요청일: ${request.createdAt.toString().split('.')[0]}'),
-              if (request.images.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('첨부 사진: ${request.images.length}장'),
-              ],
-              if (request.isAnonymous) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.orange[600], size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '익명 사용자입니다. 견적이 낙찰된 후에만 연락처가 공개됩니다.',
-                          style: TextStyle(
-                            color: Colors.orange[700],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -442,38 +362,29 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _createEstimate(request);
+              _goToBidding(request);
             },
-            child: const Text('견적 작성'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('입찰하기'),
           ),
         ],
       ),
     );
   }
 
-  void _createEstimate(app_models.Order request) {
-    final technicianId = _authService.currentUser?.id;
-
-    if (technicianId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인이 필요합니다.')),
-      );
-      return;
-    }
-
+  void _goToBidding(app_models.Order request) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CreateEstimateScreen(
-          order: request,
-          technicianId: technicianId,
-        ),
+        builder: (context) => CreateEstimateScreen(order: request),
       ),
-    ).then((result) {
-      // 견적 작성 완료 후 목록 새로고침
-      if (result == true) {
-        _loadRequests();
-      }
-    });
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }

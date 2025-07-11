@@ -1,174 +1,225 @@
 import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import '../models/user.dart' as app_user;
-import '../models/role.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/user.dart' as app_models;
 
 class AuthService extends ChangeNotifier {
-  final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
-  app_user.User? _currentUser;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  app_models.User? _currentUser;
+  bool _isLoading = false;
 
-  app_user.User? get currentUser => _currentUser;
+  app_models.User? get currentUser => _currentUser;
+  bool get isAuthenticated => _currentUser != null;
+  bool get isLoading => _isLoading;
 
-  // Firebase 사용자 정보를 앱 사용자 모델로 변환
-  app_user.User? get appUser => _currentUser;
-
-  // Firebase Auth 상태 변화 감지
   AuthService() {
-    _auth.authStateChanges().listen((firebase_auth.User? firebaseUser) {
-      if (firebaseUser != null) {
-        _currentUser = app_user.User(
-          id: firebaseUser.uid,
-          email: firebaseUser.email ?? '',
-          name: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
-          role: UserRole.customer, // 기본값
-          phoneNumber: firebaseUser.phoneNumber,
-          isAnonymous: firebaseUser.isAnonymous,
-        );
-      } else {
-        _currentUser = null;
-      }
-      notifyListeners();
-    });
+    _auth.authStateChanges().listen(_onAuthStateChanged);
   }
 
-  // 이메일/비밀번호 로그인
-  Future<bool> signInWithEmailAndPassword(String email, String password) async {
+  void _onAuthStateChanged(User? firebaseUser) async {
+    if (firebaseUser != null) {
+      await _loadUserData(firebaseUser.uid);
+    } else {
+      _currentUser = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadUserData(String uid) async {
     try {
-      final firebase_auth.UserCredential result = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      return result.user != null;
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        _currentUser = app_models.User.fromMap(doc.data()!);
+      } else {
+        // 사용자 데이터가 없으면 기본 사용자 생성
+        _currentUser = app_models.User(
+          id: uid,
+          name: '사용자',
+          email: _auth.currentUser?.email ?? '',
+          role: 'customer',
+          phoneNumber: _auth.currentUser?.phoneNumber,
+          createdAt: DateTime.now(),
+        );
+      }
     } catch (e) {
-      print('Sign in error: $e');
-      return false;
+      print('사용자 데이터 로드 오류: $e');
+      _currentUser = null;
     }
   }
 
-  // Google 로그인
-  Future<bool> signInWithGoogle() async {
+  Future<void> signInAnonymously() async {
     try {
+      _isLoading = true;
+      notifyListeners();
+      
+      final userCredential = await _auth.signInAnonymously();
+      final user = userCredential.user;
+      
+      if (user != null) {
+        // 익명 사용자 데이터 생성
+        final anonymousUser = app_models.User(
+          id: user.uid,
+          name: '고객',
+          email: '',
+          role: 'customer',
+          phoneNumber: null,
+          createdAt: DateTime.now(),
+        );
+        
+        try {
+          await _firestore.collection('users').doc(user.uid).set(anonymousUser.toMap());
+        } catch (e) {
+          print('사용자 데이터 저장 오류: $e');
+          // 데이터 저장 실패해도 로그인은 성공으로 처리
+        }
+        _currentUser = anonymousUser;
+      }
+    } catch (e) {
+      print('익명 로그인 오류: $e');
+      // 오류를 다시 던지지 않고 사용자에게 알림
+      _isLoading = false;
+      notifyListeners();
+      return;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
       // Google Sign-In 시작
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return false;
+      
+      if (googleUser == null) {
+        // 사용자가 로그인을 취소한 경우
+        print('Google 로그인이 취소되었습니다.');
+        return;
+      }
 
       // Google 인증 정보 가져오기
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
+      
       // Firebase 인증 정보 생성
-      final credential = firebase_auth.GoogleAuthProvider.credential(
+      final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
       // Firebase에 로그인
-      final firebase_auth.UserCredential result = await _auth.signInWithCredential(credential);
-      return result.user != null;
-    } catch (e) {
-      print('Google sign in error: $e');
-      // 임시로 테스트용 사용자 생성
-      _currentUser = app_user.User(
-        id: 'google_user_${DateTime.now().millisecondsSinceEpoch}',
-        email: 'test@gmail.com',
-        name: 'Google 테스트 사용자',
-        role: UserRole.customer,
-        phoneNumber: null,
-        isAnonymous: false,
-      );
-      notifyListeners();
-      return true;
-    }
-  }
-
-  // 회원가입
-  Future<bool> createUserWithEmailAndPassword(
-    String email, 
-    String password, 
-    app_user.User userData,
-  ) async {
-    try {
-      final firebase_auth.UserCredential result = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      final user = userCredential.user;
       
-      if (result.user != null) {
-        // 사용자 프로필 업데이트
-        await result.user!.updateDisplayName(userData.name);
-        return true;
+      if (user != null) {
+        // 사용자 정보 확인
+        final userDoc = await _firestore.collection('users').doc(user.uid).get();
+        
+        if (userDoc.exists) {
+          // 기존 사용자인 경우
+          final userData = userDoc.data() as Map<String, dynamic>;
+          _currentUser = app_models.User.fromMap(userData);
+        } else {
+          // 새로운 사용자인 경우 사업자로 등록
+          final businessUser = app_models.User(
+            id: user.uid,
+            name: user.displayName ?? '사업자',
+            email: user.email ?? '',
+            role: 'business',
+            phoneNumber: user.phoneNumber,
+            createdAt: DateTime.now(),
+          );
+          
+          try {
+            await _firestore.collection('users').doc(user.uid).set(businessUser.toMap());
+            _currentUser = businessUser;
+          } catch (e) {
+            print('사용자 데이터 저장 오류: $e');
+            // 데이터 저장 실패해도 로그인은 성공으로 처리
+            _currentUser = businessUser;
+          }
+        }
       }
-      return false;
     } catch (e) {
-      print('Sign up error: $e');
-      return false;
+      print('Google 로그인 오류: $e');
+      // 오류를 다시 던지지 않고 사용자에게 알림
+      if (e.toString().contains('network_error')) {
+        print('네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.');
+      } else if (e.toString().contains('sign_in_canceled')) {
+        print('로그인이 취소되었습니다.');
+      } else {
+        print('로그인 중 오류가 발생했습니다: $e');
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  // 로그아웃
+  Future<void> signInWithEmailAndPassword(String email, String password) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final userCredential = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final user = userCredential.user;
+      
+      if (user != null) {
+        await _loadUserData(user.uid);
+      }
+    } catch (e) {
+      print('이메일 로그인 오류: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> signOut() async {
     try {
+      _isLoading = true;
+      notifyListeners();
+      
       await _googleSignIn.signOut();
       await _auth.signOut();
+      _currentUser = null;
     } catch (e) {
-      print('Sign out error: $e');
-    }
-  }
-
-  // 사용자 역할 업데이트
-  Future<void> updateUserRole(String uid, UserRole role) async {
-    try {
-      if (_currentUser != null) {
-        _currentUser = _currentUser!.copyWith(role: role);
-        notifyListeners();
-      }
-    } catch (e) {
-      print('Error updating user role: $e');
-    }
-  }
-
-  // 사업자 승인 상태 업데이트
-  Future<void> updateBusinessStatus(String uid, app_user.BusinessStatus status) async {
-    try {
-      if (_currentUser != null) {
-        _currentUser = _currentUser!.copyWith(businessStatus: status);
-        notifyListeners();
-      }
-    } catch (e) {
-      print('Error updating business status: $e');
-    }
-  }
-
-  // 사용자 목록 조회 (임시 구현)
-  Future<List<app_user.User>> getUsers() async {
-    try {
-      // 임시로 빈 리스트 반환
-      return [];
-    } catch (e) {
-      print('Error getting users: $e');
-      return [];
-    }
-  }
-
-  // 특정 사용자 조회 (임시 구현)
-  Future<app_user.User?> getUser(String uid) async {
-    try {
-      // 임시로 현재 사용자 반환
-      return _currentUser;
-    } catch (e) {
-      print('Error getting user: $e');
-      return null;
-    }
-  }
-
-  // 사용자 생성 (임시 구현)
-  Future<void> createUser(app_user.User user) async {
-    try {
-      _currentUser = user;
+      print('로그아웃 오류: $e');
+    } finally {
+      _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> updateUserProfile({String? name, String? phoneNumber}) async {
+    if (_currentUser == null) return;
+    
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      final updatedUser = app_models.User(
+        id: _currentUser!.id,
+        name: name ?? _currentUser!.name,
+        email: _currentUser!.email,
+        role: _currentUser!.role,
+        phoneNumber: phoneNumber ?? _currentUser!.phoneNumber,
+        createdAt: _currentUser!.createdAt,
+      );
+      
+      await _firestore.collection('users').doc(_currentUser!.id).update(updatedUser.toMap());
+      _currentUser = updatedUser;
     } catch (e) {
-      print('Error creating user: $e');
+      print('프로필 업데이트 오류: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 } 

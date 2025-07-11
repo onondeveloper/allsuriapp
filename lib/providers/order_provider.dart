@@ -1,110 +1,55 @@
 import 'package:flutter/foundation.dart';
-import '../models/order.dart';
-import '../services/auth_service.dart';
-
-// Order 상태 상수
-const String STATUS_PENDING = 'pending';
-const String STATUS_IN_PROGRESS = 'in_progress';
-const String STATUS_COMPLETED = 'completed';
-const String STATUS_CANCELLED = 'cancelled';
+import '../models/order.dart' as app_models;
+import '../services/order_service.dart';
 
 class OrderProvider extends ChangeNotifier {
-  final AuthService _authService;
-  List<Order> _orders = [];
+  final OrderService _orderService;
+  List<app_models.Order> _orders = [];
   bool _isLoading = false;
-  String? _error;
 
-  OrderProvider(this._authService);
+  OrderProvider(this._orderService);
 
-  List<Order> get orders => _orders;
+  List<app_models.Order> get orders => _orders;
   bool get isLoading => _isLoading;
-  String? get error => _error;
 
-  Future<void> fetchOrders() async {
+  Future<void> fetchOrders({String? customerId, String? status}) async {
     _isLoading = true;
-    _error = null;
     notifyListeners();
 
     try {
-      // 임시 구현 - 기존 주문들을 유지하면서 새로운 주문들만 추가
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (_orders.isEmpty) {
-        _orders = [
-          Order(
-            id: '1',
-            title: '에어컨 수리',
-            description: '에어컨이 작동하지 않습니다.',
-            category: '에어컨',
-            address: '서울시 강남구',
-            visitDate: DateTime.now().add(const Duration(days: 1)),
-            status: STATUS_PENDING,
-            createdAt: DateTime.now().subtract(const Duration(days: 1)),
-            customerId: 'customer1',
-            customerName: '홍길동',
-            customerPhone: '010-1234-5678',
-            images: [],
-          ),
-        ];
-      }
+      _orders = await _orderService.getOrders(customerId: customerId, status: status);
     } catch (e) {
-      _error = e.toString();
+      // 에러 처리
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> createOrder(Order order) async {
+  Future<void> addOrder(app_models.Order order) async {
     try {
-      _orders.add(order);
-      notifyListeners();
+      await _orderService.createOrder(order);
+      await fetchOrders();
     } catch (e) {
-      _error = e.toString();
-      notifyListeners();
+      rethrow;
     }
   }
 
-  Future<void> addOrder(Order order) async {
+  Future<void> updateOrder(app_models.Order order) async {
     try {
-      print('Adding order: ${order.title} with customerId: ${order.customerId}');
-      _orders.add(order);
-      print('Total orders in provider: ${_orders.length}');
-      notifyListeners();
+      await _orderService.updateOrder(order);
+      await fetchOrders();
     } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> loadOrders() async {
-    await fetchOrders();
-  }
-
-  Future<void> updateOrder(Order order) async {
-    try {
-      final index = _orders.indexWhere((o) => o.id == order.id);
-      if (index != -1) {
-        _orders[index] = order;
-        notifyListeners();
-      }
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
+      rethrow;
     }
   }
 
   Future<void> deleteOrder(String orderId) async {
     try {
-      _orders.removeWhere((order) => order.id == orderId);
-      notifyListeners();
+      await _orderService.deleteOrder(orderId);
+      await fetchOrders();
     } catch (e) {
-      _error = e.toString();
-      notifyListeners();
+      rethrow;
     }
-  }
-
-  void clearError() {
-    _error = null;
-    notifyListeners();
   }
 }
