@@ -1,280 +1,152 @@
-import 'package:allsuriapp/services/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../screens/business/estimate_requests_screen.dart';
-import '../screens/business/transfer_estimate_screen.dart';
-import '../screens/business/estimate_management_screen.dart';
 import '../screens/business/my_estimates_screen.dart';
-import '../screens/business/business_profile_screen.dart';
-import '../screens/business/transferred_estimates_screen.dart';
+import '../screens/business/transfer_estimate_screen.dart';
+import '../screens/profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../screens/home/home_screen.dart';
+import '../widgets/bottom_navigation.dart';
 
-class BusinessDashboard extends StatelessWidget {
-  const BusinessDashboard({
-    Key? key,
-  }) : super(key: key);
+class BusinessDashboard extends StatefulWidget {
+  const BusinessDashboard({Key? key}) : super(key: key);
+
+  @override
+  State<BusinessDashboard> createState() => _BusinessDashboardState();
+}
+
+class _BusinessDashboardState extends State<BusinessDashboard> {
+  int _currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final technicianId = authService.currentUser?.id ?? '';
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('사업자 대시보드'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              // TODO: 알림 페이지로 이동
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('알림 기능 준비 중입니다')),
-              );
-            },
-            tooltip: '알림',
-          ),
-          IconButton(
-            icon: const Icon(Icons.home),
-            onPressed: () {
-              // 로그아웃 후 홈으로 이동
-              Provider.of<AuthService>(context, listen: false).signOut();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const HomeScreen(),
-                ),
-                (route) => false,
-              );
-            },
-            tooltip: '홈으로',
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildSection(
-              context,
-              '견적 요청 관리',
-              [
-                _buildActionCard(
-                  context,
-                  Icons.list_alt,
-                  '견적 요청 목록',
-                  '고객이 올린 견적 요청을 확인하고 견적을 작성합니다',
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const EstimateRequestsScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildSection(
-              context,
-              '내 견적 관리',
-              [
-                _buildActionCard(
-                  context,
-                  Icons.edit_note,
-                  '견적 관리',
-                  '견적을 수정하고 관리합니다',
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const EstimateManagementScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _buildActionCard(
-                  context,
-                  Icons.transfer_within_a_station,
-                  '이관한 견적',
-                  '다른 사업자에게 이관한 견적을 확인합니다',
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TransferredEstimatesScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildSection(
-              context,
-              '프로필 관리',
-              [
-                _buildActionCard(
-                  context,
-                  Icons.person,
-                  '프로필 편집',
-                  '사업자 정보, 활동 지역, 전문 분야를 설정합니다',
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const BusinessProfileScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-              ],
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.blue[600], size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        '사업자 가이드',
-                        style: TextStyle(
-                          color: Colors.blue[700],
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '• 견적 요청 목록: 고객이 올린 견적 요청을 확인하고 견적을 작성할 수 있습니다.\n'
-                    '• 이관한 견적: 다른 사업자에게 이관한 견적을 확인할 수 있습니다.\n'
-                    '• 프로필 편집: 활동 지역과 전문 분야를 설정할 수 있습니다.',
-                    style: TextStyle(
-                      color: Colors.blue[700],
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSection(
-      BuildContext context, String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        const SizedBox(height: 16),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          children: children,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionCard(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String subtitle,
-    VoidCallback onTap,
-  ) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          height: 160, // 고정 높이 설정
-          padding: const EdgeInsets.all(20.0),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white,
-                const Color(0xFFF8F9FB),
-              ],
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00C6AE).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  size: 24,
-                  color: const Color(0xFF00C6AE),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF222B45),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Expanded(
-                      child: Text(
-                        subtitle,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
+    return Consumer<AuthService>(
+      builder: (context, authService, child) {
+        final user = authService.currentUser;
+        final businessName = user?.name ?? "사업자";
+        
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('$businessName with 올수리'),
+            centerTitle: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.notifications),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('알림 기능 준비 중입니다')),
+                  );
+                },
+                tooltip: '알림',
               ),
             ],
           ),
-        ),
-      ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 환영 메시지
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.business,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '$businessName 님,\n올수리에 오신 것을 환영합니다!',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // 메뉴 그리드
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  children: [
+                    _buildMenuCard(
+                      context,
+                      '견적 확인하기',
+                      Icons.search,
+                      Colors.blue,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const EstimateRequestsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMenuCard(
+                      context,
+                      '내 견적 목록',
+                      Icons.list_alt,
+                      Colors.green,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const BusinessMyEstimatesScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMenuCard(
+                      context,
+                      '공사 만들기',
+                      Icons.construction,
+                      Colors.orange,
+                      () {
+                        // 공사 만들기 기능은 추후 구현
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('공사 만들기 기능 준비 중입니다')),
+                        );
+                      },
+                    ),
+                    _buildMenuCard(
+                      context,
+                      '채팅',
+                      Icons.chat,
+                      Colors.purple,
+                      () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('채팅 기능 준비 중입니다')),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 100), // 하단 네비게이션 공간
+              ],
+            ),
+          ),
+          bottomNavigationBar: BottomNavigation(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+          ),
+        );
+      },
     );
   }
 

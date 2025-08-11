@@ -1,150 +1,251 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../screens/customer/create_request_screen.dart';
-import '../screens/customer/request_list_screen.dart';
 import '../screens/customer/my_estimates_screen.dart';
 import '../services/auth_service.dart';
 import '../screens/home/home_screen.dart';
+import '../widgets/bottom_navigation.dart';
 
-class CustomerDashboard extends StatelessWidget {
+class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({Key? key}) : super(key: key);
+
+  @override
+  State<CustomerDashboard> createState() => _CustomerDashboardState();
+}
+
+class _CustomerDashboardState extends State<CustomerDashboard> {
+  int _currentIndex = 0;
+
+  // 카테고리 목록과 아이콘
+  final List<Map<String, dynamic>> _categories = [
+    {'name': '누수', 'icon': Icons.water_drop, 'color': Colors.blue},
+    {'name': '화장실', 'icon': Icons.wc, 'color': Colors.green},
+    {'name': '배관', 'icon': Icons.plumbing, 'color': Colors.orange},
+    {'name': '난방', 'icon': Icons.thermostat, 'color': Colors.red},
+    {'name': '주방', 'icon': Icons.kitchen, 'color': Colors.purple},
+    {'name': '리모델링', 'icon': Icons.home_repair_service, 'color': Colors.teal},
+    {'name': '기타', 'icon': Icons.build, 'color': Colors.grey},
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('고객 대시보드'),
+        title: const Text('올수리'),
         centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
-              // TODO: 알림 페이지로 이동
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('알림 기능 준비 중입니다')),
               );
             },
             tooltip: '알림',
           ),
-          IconButton(
-            icon: const Icon(Icons.home),
-            onPressed: () {
-              // 로그아웃 후 홈으로 이동
-              Provider.of<AuthService>(context, listen: false).signOut();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const HomeScreen(),
-                ),
-                (route) => false,
-              );
-            },
-            tooltip: '홈으로',
-          ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildSection(
-              context,
-              '견적 요청',
-              [
-                _buildActionCard(
-                  context,
-                  Icons.add_circle,
-                  '새 견적 요청',
-                  '새로운 수리 견적을 요청합니다',
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CreateRequestScreen(),
+            // 메인 견적 요청 버튼
+            Container(
+              margin: const EdgeInsets.all(16),
+              child: Card(
+                elevation: 4,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        child: Icon(
+                          Icons.add_circle,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
                       ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildSection(
-              context,
-              '내 견적',
-              [
-                _buildActionCard(
-                  context,
-                  Icons.assignment,
-                  '내 견적 목록',
-                  '받은 견적들을 확인하고 낙찰합니다',
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CustomerMyEstimatesScreen(),
+                      const SizedBox(height: 16),
+                      Text(
+                        '새 견적 요청',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
-                    );
-                  },
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CreateRequestScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            '견적 요청하기',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
+            
+            // 카테고리 섹션
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '서비스 카테고리',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1,
+                    ),
+                    itemCount: _categories.length,
+                    itemBuilder: (context, index) {
+                      final category = _categories[index];
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CreateRequestScreen(
+                                initialCategory: category['name'],
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: category['color'].withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: category['color'].withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                category['icon'],
+                                size: 32,
+                                color: category['color'],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                category['name'],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: category['color'],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            
             const SizedBox(height: 24),
-            _buildSection(
-              context,
-              '내 정보',
-              [
-                _buildActionCard(
-                  context,
-                  Icons.person,
-                  '프로필 관리',
-                  '내 프로필 정보를 관리합니다',
-                  () {
-                    // TODO: Implement profile management screen
-                  },
-                ),
-                _buildActionCard(
-                  context,
-                  Icons.notifications,
-                  '알림 설정',
-                  '알림 설정을 관리합니다',
-                  () {
-                    // TODO: Implement notification settings screen
-                  },
-                ),
-              ],
+            
+            // 빠른 메뉴 섹션
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '빠른 메뉴',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildQuickMenuCard(
+                          context,
+                          Icons.list_alt,
+                          '내 견적',
+                          '제출한 견적 확인',
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CustomerMyEstimatesScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildQuickMenuCard(
+                          context,
+                          Icons.chat,
+                          '채팅',
+                          '사업자와 대화',
+                          () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('채팅 기능 준비 중입니다')),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
+            
+            const SizedBox(height: 100), // 하단 네비게이션 공간
           ],
         ),
+      ),
+      bottomNavigationBar: BottomNavigation(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
       ),
     );
   }
 
-  Widget _buildSection(BuildContext context, String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        const SizedBox(height: 16),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.1, // 카드 높이 조정
-          children: children,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionCard(
+  Widget _buildQuickMenuCard(
     BuildContext context,
     IconData icon,
     String title,
@@ -155,38 +256,37 @@ class CustomerDashboard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color: Theme.of(context).colorScheme.secondaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
                   size: 24,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: Theme.of(context).colorScheme.onSecondaryContainer,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),

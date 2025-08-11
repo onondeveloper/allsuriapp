@@ -51,10 +51,18 @@ class HomeScreen extends StatelessWidget {
                       color: Theme.of(context).colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(24),
                     ),
-                    child: Icon(
-                      Icons.home_repair_service,
-                      size: 80,
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 80,
+                      height: 80,
+                      errorBuilder: (context, error, stackTrace) {
+                        // 로고 파일이 없는 경우 기본 아이콘 표시
+                        return Icon(
+                          Icons.home_repair_service,
+                          size: 80,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 32),
