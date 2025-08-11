@@ -54,6 +54,28 @@ class MyApp extends StatelessWidget {
             Theme.of(context).textTheme,
           ).apply(
             decorationColor: Colors.transparent,
+          ).copyWith(
+            // 모든 텍스트 스타일에서 밑줄 제거
+            displayLarge: GoogleFonts.openSans(decoration: TextDecoration.none),
+            displayMedium: GoogleFonts.openSans(decoration: TextDecoration.none),
+            displaySmall: GoogleFonts.openSans(decoration: TextDecoration.none),
+            headlineLarge: GoogleFonts.openSans(decoration: TextDecoration.none),
+            headlineMedium: GoogleFonts.openSans(decoration: TextDecoration.none),
+            headlineSmall: GoogleFonts.openSans(decoration: TextDecoration.none),
+            titleLarge: GoogleFonts.openSans(decoration: TextDecoration.none),
+            titleMedium: GoogleFonts.openSans(decoration: TextDecoration.none),
+            titleSmall: GoogleFonts.openSans(decoration: TextDecoration.none),
+            bodyLarge: GoogleFonts.openSans(decoration: TextDecoration.none),
+            bodyMedium: GoogleFonts.openSans(decoration: TextDecoration.none),
+            bodySmall: GoogleFonts.openSans(decoration: TextDecoration.none),
+            labelLarge: GoogleFonts.openSans(decoration: TextDecoration.none),
+            labelMedium: GoogleFonts.openSans(decoration: TextDecoration.none),
+            labelSmall: GoogleFonts.openSans(decoration: TextDecoration.none),
+          ),
+          // 텍스트 밑줄 제거
+          textSelectionTheme: const TextSelectionThemeData(
+            selectionColor: Colors.transparent,
+            selectionHandleColor: Colors.transparent,
           ),
           // Material Design 3 컴포넌트 스타일
           appBarTheme: const AppBarTheme(

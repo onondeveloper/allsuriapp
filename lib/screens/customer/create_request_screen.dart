@@ -14,8 +14,9 @@ import '../../widgets/common_app_bar.dart';
 
 class CreateRequestScreen extends StatefulWidget {
   final app_models.Order? editingOrder;
+  final String? initialCategory;
   
-  const CreateRequestScreen({Key? key, this.editingOrder}) : super(key: key);
+  const CreateRequestScreen({Key? key, this.editingOrder, this.initialCategory}) : super(key: key);
 
   @override
   State<CreateRequestScreen> createState() => _CreateRequestScreenState();
@@ -39,6 +40,11 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   void initState() {
     super.initState();
     _selectedDate = DateTime.now().add(const Duration(days: 1));
+    
+    // 초기 카테고리가 제공된 경우 설정
+    if (widget.initialCategory != null) {
+      _selectedCategory = widget.initialCategory!;
+    }
     
     // 수정 모드인 경우 기존 데이터 로드
     if (widget.editingOrder != null) {
