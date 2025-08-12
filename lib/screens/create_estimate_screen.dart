@@ -25,6 +25,7 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
   final _descriptionController = TextEditingController();
   final _estimatedDaysController = TextEditingController();
   bool _isSubmitting = false;
+  double _amountValue = 0.0;
 
   @override
   void dispose() {
@@ -224,11 +225,21 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                   controller: _amountController,
                   placeholder: '견적 금액 (원)',
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
+                    _ThousandsSeparatorInputFormatter(),
+                  ],
+                  onChanged: (v) {
+                    final parsed = double.tryParse(v.replaceAll(',', '')) ?? 0.0;
+                    setState(() => _amountValue = parsed);
+                  },
                   decoration: BoxDecoration(
                     border: Border.all(color: CupertinoColors.separator),
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
+                const SizedBox(height: 8),
+                _EstimateFeePreview(amount: _amountValue),
                 const SizedBox(height: 16),
                 
                 CupertinoTextField(
@@ -302,3 +313,58 @@ class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
     );
   }
 } 
+
+class _EstimateFeePreview extends StatelessWidget {
+  final double amount;
+  const _EstimateFeePreview({required this.amount});
+
+  String _format(double v) {
+    final s = v.toStringAsFixed(0);
+    return s.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final platform5 = amount * 0.05; // B2C 낙찰 시 플랫폼 수수료
+    final b2b5 = amount * 0.05;      // B2B 이관 시 원사업자 수수료
+    final platform3 = amount * 0.03; // B2B 이관 시 플랫폼 수수료
+
+    return Row(
+      children: [
+        _badge('B2C 5%', _format(platform5), CupertinoColors.systemBlue),
+        const SizedBox(width: 8),
+        _badge('B2B 5%', _format(b2b5), CupertinoColors.systemGreen),
+        const SizedBox(width: 8),
+        _badge('B2B 3%', _format(platform3), CupertinoColors.systemPurple),
+      ],
+    );
+  }
+
+  Widget _badge(String label, String amountStr, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+          ),
+          const SizedBox(width: 6),
+          Text('₩$amountStr', style: TextStyle(fontSize: 12, color: color)),
+        ],
+      ),
+    );
+  }
+}

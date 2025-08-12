@@ -1,24 +1,80 @@
 import 'package:flutter/foundation.dart';
-import '../models/user.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/user.dart' as app_models;
 import '../services/auth_service.dart';
 
 class UserProvider extends ChangeNotifier {
   AuthService? _authService;
-  User? _currentUser;
+  app_models.User? _currentUser;
   bool _isLoading = false;
+  final SupabaseClient _sb = Supabase.instance.client;
+
+  List<app_models.User> _businessUsers = [];
 
   UserProvider(this._authService) {
     _authService?.addListener(_onAuthChanged);
     _currentUser = _authService?.currentUser;
   }
 
-  User? get currentUser => _currentUser;
+  app_models.User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _currentUser != null;
+  List<app_models.User> get businessUsers => _businessUsers;
 
   void _onAuthChanged() {
     _currentUser = _authService?.currentUser;
     notifyListeners();
+  }
+
+  // Admin: Load business users
+  Future<void> loadBusinessUsers() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final rows = await _sb
+          .from('users')
+          .select()
+          .eq('role', 'business')
+          .order('createdAt', ascending: false);
+      _businessUsers = rows
+          .map((r) => app_models.User.fromMap(Map<String, dynamic>.from(r)))
+          .toList();
+    } catch (e) {
+      _businessUsers = [];
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Admin: Update business user status (pending/approved/rejected)
+  Future<void> updateUserStatus(String userId, String status) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _sb.from('users').update({'businessStatus': status}).eq('id', userId);
+      final idx = _businessUsers.indexWhere((u) => u.id == userId);
+      if (idx != -1) {
+        _businessUsers[idx] = _businessUsers[idx].copyWith(businessStatus: status);
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Admin: Soft delete business user — demote to customer and mark rejected
+  Future<void> deleteUser(String userId) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _sb.from('users').update({'role': 'customer', 'businessStatus': 'rejected'}).eq('id', userId);
+      _businessUsers.removeWhere((u) => u.id == userId);
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> signInWithEmailAndPassword(String email, String password) async {
@@ -110,7 +166,7 @@ class UserProvider extends ChangeNotifier {
   }
 
   // 현재 사용자 설정
-  Future<void> setCurrentUser(User user) async {
+  Future<void> setCurrentUser(app_models.User user) async {
     _isLoading = true;
     notifyListeners();
 

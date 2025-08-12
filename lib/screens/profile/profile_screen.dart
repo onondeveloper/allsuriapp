@@ -129,7 +129,9 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              user.name,
+              (user.role == 'business' && (user.businessName != null && user.businessName!.trim().isNotEmpty))
+                  ? user.businessName!
+                  : user.name,
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -143,13 +145,32 @@ class ProfileScreen extends StatelessWidget {
                 color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Text(
-                _getRoleDisplayName(user.role),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _getRoleDisplayName(user.role),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  if (user.role == 'business' && (user.businessName == null || user.businessName!.trim().isEmpty)) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        '상호명 미입력',
+                        style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w700),
+                      ),
+                    )
+                  ]
+                ],
               ),
             ),
           ],

@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/order.dart' as app_models;
 
 class OrderService extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
   List<app_models.Order> _orders = [];
   bool _isLoading = false;
 
@@ -33,21 +33,19 @@ class OrderService extends ChangeNotifier {
     _notifyListenersSafely();
 
     try {
-      Query query = _firestore.collection('orders');
-      
+      var query = _sb.from('orders').select();
+
       if (customerId != null) {
-        query = query.where('customerId', isEqualTo: customerId);
+        query = query.eq('customerId', customerId);
       }
-      
       if (status != null) {
-        query = query.where('status', isEqualTo: status);
+        query = query.eq('status', status);
       }
 
-      final snapshot = await query.get();
-      _orders = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return app_models.Order.fromMap(data);
-      }).toList();
+      final rows = await query.order('createdAt', ascending: false);
+      _orders = rows
+          .map((r) => app_models.Order.fromMap(Map<String, dynamic>.from(r)))
+          .toList();
     } catch (e) {
       print('주문 로드 오류: $e');
       _orders = [];
@@ -64,9 +62,13 @@ class OrderService extends ChangeNotifier {
 
   Future<app_models.Order?> getOrder(String orderId) async {
     try {
-      final doc = await _firestore.collection('orders').doc(orderId).get();
-      if (doc.exists) {
-        return app_models.Order.fromMap(doc.data()!);
+      final row = await _sb
+          .from('orders')
+          .select()
+          .eq('id', orderId)
+          .maybeSingle();
+      if (row != null) {
+        return app_models.Order.fromMap(Map<String, dynamic>.from(row));
       }
       return null;
     } catch (e) {
@@ -80,7 +82,7 @@ class OrderService extends ChangeNotifier {
     _notifyListenersSafely();
 
     try {
-      await _firestore.collection('orders').doc(order.id).set(order.toMap());
+      await _sb.from('orders').insert(order.toMap());
       _orders.add(order);
     } catch (e) {
       print('주문 생성 오류: $e');
@@ -96,7 +98,7 @@ class OrderService extends ChangeNotifier {
     _notifyListenersSafely();
 
     try {
-      await _firestore.collection('orders').doc(order.id).update(order.toMap());
+      await _sb.from('orders').update(order.toMap()).eq('id', order.id);
       final index = _orders.indexWhere((o) => o.id == order.id);
       if (index != -1) {
         _orders[index] = order;
@@ -115,7 +117,7 @@ class OrderService extends ChangeNotifier {
     _notifyListenersSafely();
 
     try {
-      await _firestore.collection('orders').doc(orderId).delete();
+      await _sb.from('orders').delete().eq('id', orderId);
       _orders.removeWhere((order) => order.id == orderId);
     } catch (e) {
       print('주문 삭제 오류: $e');

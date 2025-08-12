@@ -234,7 +234,7 @@ class _ChatListPageState extends State<ChatListPage> {
                     color: CupertinoColors.systemGrey,
                   ),
                 ),
-                if (chatRoom['unreadCount'] > 0) ...[
+                if ((chatRoom['unreadCount'] ?? 0) > 0) ...[
                   const SizedBox(height: 4),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -243,7 +243,7 @@ class _ChatListPageState extends State<ChatListPage> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      chatRoom['unreadCount'].toString(),
+                      (chatRoom['unreadCount'] ?? 0).toString(),
                       style: const TextStyle(
                         fontSize: 10,
                         color: CupertinoColors.white,

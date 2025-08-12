@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../screens/business/estimate_requests_screen.dart';
 import '../screens/business/my_estimates_screen.dart';
+import '../screens/business/create_job_screen.dart';
 import '../screens/business/transfer_estimate_screen.dart';
+import '../screens/notification/notification_screen.dart';
+import '../screens/business/job_management_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../screens/home/home_screen.dart';
 import '../widgets/bottom_navigation.dart';
 
@@ -23,21 +27,48 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
         final user = authService.currentUser;
-        final businessName = user?.name ?? "사업자";
+        final businessName = (user?.businessName != null && user!.businessName!.trim().isNotEmpty)
+            ? user.businessName!
+            : (user?.name ?? "사업자");
         
         return Scaffold(
           appBar: AppBar(
             title: Text('$businessName with 올수리'),
             centerTitle: true,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('알림 기능 준비 중입니다')),
+              FutureBuilder<int>(
+                future: NotificationService().getUnreadCount(user?.id ?? ''),
+                builder: (context, snapshot) {
+                  final unread = snapshot.data ?? 0;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.notifications),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const NotificationScreen()),
+                          );
+                        },
+                        tooltip: '알림',
+                      ),
+                      if (unread > 0)
+                        Positioned(
+                          right: 10,
+                          top: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                            child: Text(
+                              unread.toString(),
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                    ],
                   );
                 },
-                tooltip: '알림',
               ),
             ],
           ),
@@ -113,20 +144,25 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       Icons.construction,
                       Colors.orange,
                       () {
-                        // 공사 만들기 기능은 추후 구현
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('공사 만들기 기능 준비 중입니다')),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CreateJobScreen(),
+                          ),
                         );
                       },
                     ),
                     _buildMenuCard(
                       context,
-                      '채팅',
-                      Icons.chat,
-                      Colors.purple,
+                      '공사 관리',
+                      Icons.assignment_turned_in,
+                      Colors.teal,
                       () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('채팅 기능 준비 중입니다')),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const JobManagementScreen(),
+                          ),
                         );
                       },
                     ),

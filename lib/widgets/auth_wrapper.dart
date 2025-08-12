@@ -12,7 +12,7 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
-        if (authService.isLoggedIn) {
+         if (authService.isAuthenticated) {
           final user = authService.currentUser;
           
           // 사용자 역할에 따라 적절한 화면으로 이동

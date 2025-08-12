@@ -24,11 +24,19 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
   bool _isSending = false;
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollToEnd = false;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
+    _scrollController.addListener(() {
+      final atBottom = _scrollController.offset <= 100;
+      if (_showScrollToEnd == atBottom) {
+        setState(() => _showScrollToEnd = !atBottom);
+      }
+    });
   }
 
   Future<void> _loadMessages() async {
@@ -39,6 +47,8 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final apiService = Provider.of<ApiService>(context, listen: false);
       final messages = await apiService.getMessages(widget.chatRoomId);
+      // 읽음 처리
+      await apiService.markChatRead(widget.chatRoomId);
       setState(() {
         _messages = messages;
       });
@@ -86,21 +96,42 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _messages.isEmpty
-                    ? const Center(
-                        child: Text('아직 메시지가 없습니다.'),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        reverse: true,
-                        itemCount: _messages.length,
-                        itemBuilder: (context, index) {
-                          final message = _messages[index];
-                          return _buildMessageBubble(message);
-                        },
-                      ),
+            child: Stack(
+              children: [
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _messages.isEmpty
+                        ? const Center(child: Text('아직 메시지가 없습니다.'))
+                        : ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(16),
+                            reverse: true,
+                            itemCount: _messages.length,
+                            itemBuilder: (context, index) {
+                              final message = _messages[index];
+                              final showDateHeader = _shouldShowDateHeader(index);
+                              return Column(
+                                children: [
+                                  if (showDateHeader) _buildDateHeader(message['timestamp'] as DateTime),
+                                  _buildMessageBubble(message),
+                                ],
+                              );
+                            },
+                          ),
+                if (_showScrollToEnd)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: FloatingActionButton(
+                      mini: true,
+                      onPressed: () {
+                        _scrollController.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+                      },
+                      child: const Icon(Icons.keyboard_arrow_down),
+                    ),
+                  ),
+              ],
+            ),
           ),
           _buildMessageInput(),
         ],
@@ -244,6 +275,32 @@ class _ChatScreenState extends State<ChatScreen> {
     } else {
       return '방금 전';
     }
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+  bool _shouldShowDateHeader(int index) {
+    if (index == _messages.length - 1) return true; // reversed list
+    final current = _messages[index]['timestamp'] as DateTime;
+    final next = _messages[index + 1]['timestamp'] as DateTime;
+    return !_isSameDay(current, next);
+  }
+
+  Widget _buildDateHeader(DateTime date) {
+    final label = '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        ),
+      ),
+    );
   }
 
   @override

@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/estimate.dart';
 
 class EstimateService extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
   List<Estimate> _estimates = [];
   bool _isLoading = false;
 
@@ -27,21 +27,18 @@ class EstimateService extends ChangeNotifier {
     _notifyListenersSafely();
 
     try {
-      Query query = _firestore.collection('estimates');
-      
+      var query = _sb.from('estimates').select();
       if (businessId != null) {
-        query = query.where('businessId', isEqualTo: businessId);
+        query = query.eq('businessId', businessId);
       } else if (customerId != null) {
-        query = query.where('customerId', isEqualTo: customerId);
+        query = query.eq('customerId', customerId);
       } else if (orderId != null) {
-        query = query.where('orderId', isEqualTo: orderId);
+        query = query.eq('orderId', orderId);
       }
-
-      final snapshot = await query.get();
-      _estimates = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return Estimate.fromMap(data);
-      }).toList();
+      final rows = await query.order('createdAt', ascending: false);
+      _estimates = rows
+          .map((r) => Estimate.fromMap(Map<String, dynamic>.from(r)))
+          .toList();
     } catch (e) {
       print('견적 로드 오류: $e');
       _estimates = [];
@@ -65,7 +62,7 @@ class EstimateService extends ChangeNotifier {
   // 견적 생성
   Future<void> createEstimate(Estimate estimate) async {
     try {
-      await _firestore.collection('estimates').doc(estimate.id).set(estimate.toMap());
+      await _sb.from('estimates').insert(estimate.toMap());
       _estimates.add(estimate);
       _notifyListenersSafely();
     } catch (e) {
@@ -77,7 +74,7 @@ class EstimateService extends ChangeNotifier {
   // 견적 업데이트
   Future<void> updateEstimate(Estimate estimate) async {
     try {
-      await _firestore.collection('estimates').doc(estimate.id).update(estimate.toMap());
+      await _sb.from('estimates').update(estimate.toMap()).eq('id', estimate.id);
       final index = _estimates.indexWhere((e) => e.id == estimate.id);
       if (index != -1) {
         _estimates[index] = estimate;
@@ -92,7 +89,7 @@ class EstimateService extends ChangeNotifier {
   // 견적 삭제
   Future<void> deleteEstimate(String estimateId) async {
     try {
-      await _firestore.collection('estimates').doc(estimateId).delete();
+      await _sb.from('estimates').delete().eq('id', estimateId);
       _estimates.removeWhere((estimate) => estimate.id == estimateId);
       _notifyListenersSafely();
     } catch (e) {
@@ -104,10 +101,19 @@ class EstimateService extends ChangeNotifier {
   // 견적 채택 (기존 awardEstimate 개선)
   Future<void> awardEstimate(String estimateId) async {
     try {
-      await _firestore.collection('estimates').doc(estimateId).update({
-        'status': Estimate.STATUS_AWARDED,
-        'awardedAt': FieldValue.serverTimestamp(),
-      });
+      final row = await _sb
+          .from('estimates')
+          .select()
+          .eq('id', estimateId)
+          .maybeSingle();
+
+      await _sb
+          .from('estimates')
+          .update({
+            'status': Estimate.STATUS_AWARDED,
+            'awardedAt': DateTime.now().toIso8601String(),
+          })
+          .eq('id', estimateId);
 
       // 로컬 상태 업데이트
       final index = _estimates.indexWhere((e) => e.id == estimateId);
@@ -118,6 +124,8 @@ class EstimateService extends ChangeNotifier {
         _estimates[index] = updatedEstimate;
         _notifyListenersSafely();
       }
+
+      // 수수료 알림 등 사이드이펙트는 상위에서 별도 서비스로 처리
     } catch (e) {
       print('견적 채택 오류: $e');
       rethrow;
@@ -141,10 +149,13 @@ class EstimateService extends ChangeNotifier {
   // 견적 거절 (새로 추가)
   Future<void> rejectEstimate(String estimateId) async {
     try {
-      await _firestore.collection('estimates').doc(estimateId).update({
-        'status': Estimate.STATUS_REJECTED,
-        'rejectedAt': FieldValue.serverTimestamp(),
-      });
+      await _sb
+          .from('estimates')
+          .update({
+            'status': Estimate.STATUS_REJECTED,
+            'rejectedAt': DateTime.now().toIso8601String(),
+          })
+          .eq('id', estimateId);
 
       // 로컬 상태 업데이트
       final index = _estimates.indexWhere((e) => e.id == estimateId);
@@ -187,26 +198,25 @@ class EstimateService extends ChangeNotifier {
     required String transferredBy,
   }) async {
     try {
-      final estimateRef = _firestore.collection('estimates').doc(estimateId);
-      
-      // 견적 정보 업데이트
-      await estimateRef.update({
-        'businessName': newBusinessName,
-        'businessPhone': newPhoneNumber,
-        'transferredAt': FieldValue.serverTimestamp(),
-        'transferredBy': transferredBy,
-        'transferReason': reason,
-        'status': 'transferred',
-      });
+      await _sb
+          .from('estimates')
+          .update({
+            'businessName': newBusinessName,
+            'businessPhone': newPhoneNumber,
+            'transferredAt': DateTime.now().toIso8601String(),
+            'transferredBy': transferredBy,
+            'transferReason': reason,
+            'status': 'transferred',
+          })
+          .eq('id', estimateId);
 
-      // 이관 기록 생성
-      await _firestore.collection('estimate_transfers').add({
+      await _sb.from('estimate_transfers').insert({
         'estimateId': estimateId,
         'newBusinessName': newBusinessName,
         'newPhoneNumber': newPhoneNumber,
         'reason': reason,
         'transferredBy': transferredBy,
-        'transferredAt': FieldValue.serverTimestamp(),
+        'transferredAt': DateTime.now().toIso8601String(),
       });
 
       // 로컬 상태 업데이트

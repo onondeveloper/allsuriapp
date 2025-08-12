@@ -7,6 +7,7 @@ import '../../services/estimate_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/anonymous_service.dart';
+import '../../services/payment_service.dart';
 import '../../widgets/common_app_bar.dart';
 
 class EstimateManagementScreen extends StatefulWidget {
@@ -134,6 +135,17 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
 
       // 견적 승인 처리
       await _estimateService.awardEstimate(estimate.id);
+      // B2C 낙찰 시 플랫폼 5% 수수료 가상 알림 (주입된 서비스 사용)
+      try {
+        final amount = estimate.amount;
+        if (amount != null) {
+          // ignore: use_build_context_synchronously
+          await context.read<PaymentService>().notifyB2cAwardFee(
+                businessId: estimate.businessId,
+                awardedAmount: amount,
+              );
+        }
+      } catch (_) {}
       
       // 채팅방 활성화
       final chatService = ChatService(AnonymousService());
