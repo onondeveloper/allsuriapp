@@ -1,0 +1,202 @@
+import 'package:flutter/cupertino.dart';
+import 'package:provider/provider.dart';
+import '../models/estimate.dart';
+import '../models/order.dart';
+import '../services/estimate_service.dart';
+import '../services/order_service.dart';
+import '../services/payment_service.dart';
+import '../services/chat_service.dart';
+import '../services/anonymous_service.dart';
+import 'chat/chat_list_page.dart';
+
+class EstimateDetailScreen extends StatefulWidget {
+  final Order order;
+  final Estimate estimate;
+
+  const EstimateDetailScreen({super.key, required this.order, required this.estimate});
+
+  @override
+  State<EstimateDetailScreen> createState() => _EstimateDetailScreenState();
+}
+
+class _EstimateDetailScreenState extends State<EstimateDetailScreen> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = widget.order;
+    final e = widget.estimate;
+    final isAwarded = order.isAwarded && order.awardedEstimateId == e.id;
+
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: Text('견적 상세'),
+      ),
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _sectionCard(children: [
+              const Text('견적 금액', style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel)),
+              const SizedBox(height: 6),
+              Text('₩${_format(e.amount)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _FeeBadges(amount: e.amount),
+            ]),
+            const SizedBox(height: 12),
+            _sectionCard(children: [
+              const Text('사업자 정보', style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel)),
+              const SizedBox(height: 6),
+              Text(e.businessName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(
+                isAwarded ? '연락처: ${e.businessPhone}' : '연락처: 낙찰 후 공개',
+                style: const TextStyle(fontSize: 14, color: CupertinoColors.secondaryLabel),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            _sectionCard(children: [
+              const Text('상세 설명', style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel)),
+              const SizedBox(height: 6),
+              Text(e.description),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(CupertinoIcons.time, size: 18, color: CupertinoColors.systemGrey),
+                  const SizedBox(width: 6),
+                  Text('예상 소요일 ${e.estimatedDays}일', style: const TextStyle(color: CupertinoColors.secondaryLabel)),
+                ],
+              )
+            ]),
+            const SizedBox(height: 24),
+            if (!order.isAwarded) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: CupertinoButton(
+                      onPressed: _busy ? null : () => _reject(order, e),
+                      child: const Text('거절', style: TextStyle(color: CupertinoColors.systemRed)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: CupertinoButton.filled(
+                      onPressed: _busy ? null : () => _award(order, e),
+                      child: _busy ? const CupertinoActivityIndicator() : const Text('선택'),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              CupertinoButton(
+                onPressed: () {
+                  Navigator.push(context, CupertinoPageRoute(builder: (_) => const ChatListPage()));
+                },
+                child: const Text('채팅 열기'),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _award(Order order, Estimate estimate) async {
+    setState(() => _busy = true);
+    try {
+      final orderService = context.read<OrderService>();
+      final estimateService = context.read<EstimateService>();
+      final paymentService = context.read<PaymentService>();
+      final updatedOrder = order.copyWith(
+        isAwarded: true,
+        awardedAt: DateTime.now(),
+        awardedEstimateId: estimate.id,
+      );
+      await orderService.updateOrder(updatedOrder);
+      await estimateService.awardEstimate(estimate.id);
+      await paymentService.notifyB2cAwardFee(
+        businessId: estimate.businessId,
+        awardedAmount: estimate.amount,
+      );
+      await ChatService(AnonymousService()).activateChatRoom(estimate.id, estimate.businessId);
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reject(Order order, Estimate estimate) async {
+    setState(() => _busy = true);
+    try {
+      final orderService = context.read<OrderService>();
+      final estimateService = context.read<EstimateService>();
+      final updatedOrder = order.copyWith(isAwarded: false, awardedAt: null, awardedEstimateId: null);
+      await orderService.updateOrder(updatedOrder);
+      await estimateService.rejectEstimate(estimate.id);
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _sectionCard({required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: CupertinoColors.separator),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+    );
+  }
+
+  String _format(double v) {
+    final s = v.toStringAsFixed(0);
+    return s.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
+  }
+}
+
+class _FeeBadges extends StatelessWidget {
+  final double amount;
+  const _FeeBadges({required this.amount});
+
+  String _format(double v) {
+    final s = v.toStringAsFixed(0);
+    return s.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b2c5 = amount * 0.05;
+    final b2b5 = amount * 0.05;
+    final b2b3 = amount * 0.03;
+    return Row(children: [
+      _badge('B2C 5%', _format(b2c5), CupertinoColors.systemBlue),
+      const SizedBox(width: 8),
+      _badge('B2B 5%', _format(b2b5), CupertinoColors.systemGreen),
+      const SizedBox(width: 8),
+      _badge('B2B 3%', _format(b2b3), CupertinoColors.systemPurple),
+    ]);
+  }
+
+  Widget _badge(String label, String amountStr, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+        const SizedBox(width: 6),
+        Text('₩$amountStr', style: TextStyle(fontSize: 12, color: color)),
+      ]),
+    );
+  }
+}
+
+

@@ -201,4 +201,9 @@ class ApiService extends ChangeNotifier {
       'message': message,
     });
   }
+
+  // 채팅방 읽음 처리
+  Future<void> markChatRead(String chatRoomId) async {
+    await post('/chat/rooms/$chatRoomId/read', {});
+  }
 }

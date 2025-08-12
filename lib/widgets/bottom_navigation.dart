@@ -25,33 +25,31 @@ class BottomNavigation extends StatelessWidget {
       builder: (context, authService, child) {
         final isCustomer = authService.currentUser?.role != 'business';
         
-        return BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: currentIndex,
-          onTap: (index) {
+        return NavigationBar(
+          selectedIndex: currentIndex,
+          onDestinationSelected: (index) {
             switch (index) {
-              case 0: // 홈
+              case 0:
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => isCustomer 
-                        ? const CustomerDashboard() 
-                        : const BusinessDashboard(),
+                    builder: (context) =>
+                        isCustomer ? const CustomerDashboard() : const BusinessDashboard(),
                   ),
                   (route) => false,
                 );
                 break;
-              case 1: // 내 견적
+              case 1:
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => isCustomer 
+                    builder: (context) => isCustomer
                         ? const CustomerMyEstimatesScreen()
                         : const EstimateManagementScreen(),
                   ),
                 );
                 break;
-              case 2: // 채팅
+              case 2:
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -59,7 +57,7 @@ class BottomNavigation extends StatelessWidget {
                   ),
                 );
                 break;
-              case 3: // 프로필
+              case 3:
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -70,21 +68,25 @@ class BottomNavigation extends StatelessWidget {
             }
             onTap(index);
           },
-          items: [
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.home),
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
               label: '홈',
             ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.assignment),
+            NavigationDestination(
+              icon: const Icon(Icons.assignment_outlined),
+              selectedIcon: const Icon(Icons.assignment),
               label: isCustomer ? '내 견적' : '견적 관리',
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.chat),
+            const NavigationDestination(
+              icon: Icon(Icons.chat_outlined),
+              selectedIcon: Icon(Icons.chat),
               label: '채팅',
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
               label: '프로필',
             ),
           ],

@@ -34,19 +34,27 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Database connection
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('MongoDB에 연결되었습니다');
-    
-    // Start server
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-      console.log(`서버가 포트 ${port}에서 실행 중입니다`);
+// Database connection (optional)
+const startServer = () => {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`서버가 포트 ${port}에서 실행 중입니다`);
+  });
+};
+
+if (process.env.MONGODB_URI) {
+  mongoose
+    .connect(process.env.MONGODB_URI)
+    .then(() => {
+      console.log('MongoDB에 연결되었습니다');
+      startServer();
+    })
+    .catch((err) => {
+      console.error('MongoDB 연결 오류:', err);
+      console.warn('MongoDB 연결 없이 서버를 시작합니다(관리자 API는 Supabase 사용).');
+      startServer();
     });
-  })
-  .catch((err) => {
-    console.error('MongoDB 연결 오류:', err);
-    process.exit(1);
-  }); 
+} else {
+  console.warn('MONGODB_URI가 없어 MongoDB 연결 없이 서버를 시작합니다.');
+  startServer();
+}

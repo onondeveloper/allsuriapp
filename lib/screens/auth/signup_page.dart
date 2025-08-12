@@ -35,20 +35,15 @@ class _SignupPageState extends State<SignupPage> {
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final user = await authService.signUpWithEmailAndPassword(
+      await authService.signUpWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text,
-        _nameController.text.trim(),
-        _selectedRole,
+        name: _nameController.text.trim(),
       );
 
-      if (user != null) {
+      if (mounted) {
         // 회원가입 성공 - AuthWrapper가 자동으로 MainScreen으로 이동
         Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('회원가입에 실패했습니다.')),
-        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

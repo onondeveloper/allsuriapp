@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../screens/main/main_screen.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../screens/business/business_profile_screen.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
@@ -19,38 +21,56 @@ class RoleSelectionScreen extends StatelessWidget {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 40),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MainScreen()),
-                );
-              },
-              child: const Text('고객'),
-            ),
+            _RoleButton(label: '고객', role: 'customer'),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MainScreen()),
-                );
-              },
-              child: const Text('사업자'),
-            ),
+            _RoleButton(label: '사업자', role: 'business', pushOnboarding: true),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MainScreen()),
-                );
-              },
-              child: const Text('관리자'),
-            ),
+            _RoleButton(label: '관리자', role: 'admin'),
           ],
         ),
       ),
     );
   }
 } 
+
+class _RoleButton extends StatefulWidget {
+  final String label;
+  final String role;
+  final bool pushOnboarding;
+  const _RoleButton({required this.label, required this.role, this.pushOnboarding = false});
+
+  @override
+  State<_RoleButton> createState() => _RoleButtonState();
+}
+
+class _RoleButtonState extends State<_RoleButton> {
+  bool _loading = false;
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 240,
+      child: ElevatedButton(
+        onPressed: _loading
+            ? null
+            : () async {
+                setState(() => _loading = true);
+                try {
+                  await context.read<AuthService>().updateRole(widget.role);
+                  if (!mounted) return;
+                  if (widget.pushOnboarding && widget.role == 'business') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const BusinessProfileScreen()),
+                    );
+                  } else {
+                    Navigator.pop(context);
+                  }
+                } finally {
+                  if (mounted) setState(() => _loading = false);
+                }
+              },
+        child: _loading ? const CircularProgressIndicator() : Text(widget.label),
+      ),
+    );
+  }
+}

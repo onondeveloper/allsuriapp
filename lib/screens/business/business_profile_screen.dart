@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user.dart';
 import '../../providers/user_provider.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/common_app_bar.dart';
 import 'package:go_router/go_router.dart';
 
@@ -65,32 +66,24 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     });
 
     try {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final currentUser = userProvider.currentUser;
-      
-      if (currentUser != null) {
-        final updatedUser = currentUser.copyWith(
-          name: _nameController.text.trim(),
-          phoneNumber: _phoneController.text.trim(),
-          businessName: _businessNameController.text.trim(),
-          businessNumber: _businessNumberController.text.trim(),
-          address: _addressController.text.trim(),
-          serviceAreas: _selectedServiceAreas,
-          specialties: _selectedSpecialties,
-        );
-        
-        await userProvider.setCurrentUser(updatedUser);
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('프로필이 성공적으로 저장되었습니다.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          context.pop();
-        }
-      }
+      final auth = Provider.of<AuthService>(context, listen: false);
+      await auth.updateBusinessProfile(
+        name: _nameController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+        businessName: _businessNameController.text.trim(),
+        businessNumber: _businessNumberController.text.trim(),
+        address: _addressController.text.trim(),
+        serviceAreas: _selectedServiceAreas,
+        specialties: _selectedSpecialties,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('프로필이 성공적으로 저장되었습니다.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      context.pop();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

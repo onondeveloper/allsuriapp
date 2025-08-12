@@ -2,19 +2,28 @@ const express = require('express');
 const router = express.Router();
 const AdminMessage = require('../models/admin-message');
 const AdminStatistics = require('../models/admin-statistics');
-const User = require('../models/user');
-const Estimate = require('../models/estimate');
-const Order = require('../models/order');
+// const User = require('../models/user');
+// const Estimate = require('../models/estimate');
+// const Order = require('../models/order');
+const { supabase } = require('../config/supabase');
 
-// 미들웨어: 관리자 권한 확인
-const requireAdmin = async (req, res, next) => {
+// 미들웨어: 관리자 권한 확인 (헤더 토큰 + 환경변수 검증)
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+if (!ADMIN_TOKEN) {
+  // eslint-disable-next-line no-console
+  console.warn('[admin] ADMIN_TOKEN not set. Any non-empty admin-token header will be accepted (dev only).');
+}
+
+const requireAdmin = (req, res, next) => {
   try {
-    // 실제 구현에서는 JWT 토큰을 확인하여 관리자 권한을 검증
-    // 여기서는 간단히 헤더에서 admin-token을 확인
-    const adminToken = req.headers['admin-token'];
-    if (!adminToken) {
-      return res.status(401).json({ message: '관리자 권한이 필요합니다' });
-    }
+    // 허용: 헤더(admin-token|x-admin-token) 또는 쿼리 파라미터(admin_token|token)
+    const token =
+      req.headers['admin-token'] ||
+      req.headers['x-admin-token'] ||
+      req.query.admin_token ||
+      req.query.token;
+    if (!token) return res.status(401).json({ message: '관리자 권한이 필요합니다' });
+    if (ADMIN_TOKEN && token !== ADMIN_TOKEN) return res.status(401).json({ message: '관리자 권한이 필요합니다' });
     next();
   } catch (error) {
     res.status(401).json({ message: '인증 실패' });
@@ -27,17 +36,20 @@ router.use(requireAdmin);
 // 대시보드 데이터
 router.get('/dashboard', async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const totalBusinessUsers = await User.countDocuments({ role: 'business' });
-    const totalCustomers = await User.countDocuments({ role: 'customer' });
-    const totalEstimates = await Estimate.countDocuments();
-    const completedEstimates = await Estimate.countDocuments({ status: 'completed' });
-    const pendingEstimates = await Estimate.countDocuments({ status: 'pending' });
+    const { data: users, error: usersErr } = await supabase.from('users').select('id, role');
+    if (usersErr) throw usersErr;
+    const totalUsers = users.length;
+    const totalBusinessUsers = users.filter(u => u.role === 'business').length;
+    const totalCustomers = users.filter(u => u.role === 'customer').length;
 
-    // 수익 계산 (견적 금액의 5% 수수료 가정)
-    const estimates = await Estimate.find({ status: 'completed' });
-    const totalRevenue = estimates.reduce((sum, estimate) => sum + (estimate.amount * 0.05), 0);
-    const averageEstimateAmount = estimates.length > 0 ? estimates.reduce((sum, estimate) => sum + estimate.amount, 0) / estimates.length : 0;
+    const { data: estimatesAll, error: estAllErr } = await supabase.from('estimates').select('id, status, amount');
+    if (estAllErr) throw estAllErr;
+    const totalEstimates = estimatesAll.length;
+    const completedEstimates = estimatesAll.filter(e => e.status === 'completed').length;
+    const pendingEstimates = estimatesAll.filter(e => e.status === 'pending').length;
+    const completed = estimatesAll.filter(e => e.status === 'completed');
+    const totalRevenue = completed.reduce((sum, e) => sum + ((e.amount || 0) * 0.05), 0);
+    const averageEstimateAmount = completed.length > 0 ? completed.reduce((s, e) => s + (e.amount || 0), 0) / completed.length : 0;
 
     res.json({
       totalUsers,
@@ -176,8 +188,9 @@ router.get('/business-billings', async (req, res) => {
 // 사용자 관리
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
-    res.json(users);
+    const { data, error } = await supabase.from('users').select('*').order('createdAt', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
   } catch (error) {
     res.status(500).json({ message: '사용자 조회 실패' });
   }
@@ -185,13 +198,10 @@ router.get('/users', async (req, res) => {
 
 router.patch('/users/:id/status', async (req, res) => {
   try {
-    const { status } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-    res.json(user);
+    const { status } = req.body; // pending/approved/rejected
+    const { data, error } = await supabase.from('users').update({ businessStatus: status }).eq('id', req.params.id).select().maybeSingle();
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     res.status(500).json({ message: '사용자 상태 업데이트 실패' });
   }
@@ -199,8 +209,9 @@ router.patch('/users/:id/status', async (req, res) => {
 
 router.delete('/users/:id', async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ message: '사용자 삭제 완료' });
+    const { error } = await supabase.from('users').update({ role: 'customer', businessStatus: 'rejected' }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ message: '사용자 처리 완료(고객 강등/거절)' });
   } catch (error) {
     res.status(500).json({ message: '사용자 삭제 실패' });
   }
@@ -210,25 +221,13 @@ router.delete('/users/:id', async (req, res) => {
 router.get('/users/search', async (req, res) => {
   try {
     const { q, type, status } = req.query;
-    let query = {};
-
-    if (q) {
-      query.$or = [
-        { name: { $regex: q, $options: 'i' } },
-        { email: { $regex: q, $options: 'i' } },
-      ];
-    }
-
-    if (type && type !== '전체') {
-      query.role = type === '사업자' ? 'business' : 'customer';
-    }
-
-    if (status && status !== '전체') {
-      query.status = status;
-    }
-
-    const users = await User.find(query).sort({ createdAt: -1 });
-    res.json(users);
+    let qb = supabase.from('users').select('*');
+    if (q) qb = qb.or(`name.ilike.%${q}%,email.ilike.%${q}%`);
+    if (type && type !== '전체') qb = qb.eq('role', type === '사업자' ? 'business' : 'customer');
+    if (status && status !== '전체') qb = qb.eq('businessStatus', status);
+    const { data, error } = await qb.order('createdAt', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
   } catch (error) {
     res.status(500).json({ message: '사용자 검색 실패' });
   }
@@ -237,11 +236,9 @@ router.get('/users/search', async (req, res) => {
 // 견적 관리
 router.get('/estimates', async (req, res) => {
   try {
-    const estimates = await Estimate.find()
-      .populate('customerId', 'name email')
-      .populate('businessId', 'name email')
-      .sort({ createdAt: -1 });
-    res.json(estimates);
+    const { data, error } = await supabase.from('estimates').select('*').order('createdAt', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
   } catch (error) {
     res.status(500).json({ message: '견적 조회 실패' });
   }
@@ -250,12 +247,9 @@ router.get('/estimates', async (req, res) => {
 router.patch('/estimates/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
-    const estimate = await Estimate.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-    res.json(estimate);
+    const { data, error } = await supabase.from('estimates').update({ status }).eq('id', req.params.id).select().maybeSingle();
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     res.status(500).json({ message: '견적 상태 업데이트 실패' });
   }
@@ -265,24 +259,12 @@ router.patch('/estimates/:id/status', async (req, res) => {
 router.get('/estimates/search', async (req, res) => {
   try {
     const { q, status } = req.query;
-    let query = {};
-
-    if (q) {
-      query.$or = [
-        { title: { $regex: q, $options: 'i' } },
-        { description: { $regex: q, $options: 'i' } },
-      ];
-    }
-
-    if (status && status !== '전체') {
-      query.status = status;
-    }
-
-    const estimates = await Estimate.find(query)
-      .populate('customerId', 'name email')
-      .populate('businessId', 'name email')
-      .sort({ createdAt: -1 });
-    res.json(estimates);
+    let qb = supabase.from('estimates').select('*');
+    if (q) qb = qb.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
+    if (status && status !== '전체') qb = qb.eq('status', status);
+    const { data, error } = await qb.order('createdAt', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
   } catch (error) {
     res.status(500).json({ message: '견적 검색 실패' });
   }

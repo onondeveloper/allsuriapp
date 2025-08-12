@@ -4,6 +4,11 @@ import 'package:provider/provider.dart';
 import '../../models/estimate.dart';
 import '../../models/order.dart';
 import '../../services/estimate_service.dart';
+import '../../services/payment_service.dart';
+import '../../services/chat_service.dart';
+import '../../services/anonymous_service.dart';
+import '../chat/chat_list_page.dart';
+import '../estimate_detail_screen.dart';
 import '../../services/order_service.dart';
 import '../../services/auth_service.dart';
 import 'create_request_screen.dart';
@@ -531,7 +536,10 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
                     const SizedBox(height: 8),
                     Text('예상 작업 기간: ${estimate.estimatedDays}일'),
                     const SizedBox(height: 8),
-                    Text('연락처: ${estimate.businessPhone}'),
+                    if (order.isAwarded && estimate.id == order.awardedEstimateId)
+                      Text('연락처: ${estimate.businessPhone}')
+                    else
+                      const Text('연락처: 낙찰 후 공개'),
                     if (!order.isAwarded) ...[
                       const SizedBox(height: 16),
                       Row(
@@ -550,6 +558,37 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
                             child: CupertinoButton.filled(
                               onPressed: () => _awardEstimate(order, estimate),
                               child: const Text('선택'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CupertinoButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(
+                                    builder: (_) => EstimateDetailScreen(order: order, estimate: estimate),
+                                  ),
+                                );
+                              },
+                              child: const Text('상세 보기'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: CupertinoButton.filled(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(builder: (_) => const ChatListPage()),
+                                );
+                              },
+                              child: const Text('채팅 열기'),
                             ),
                           ),
                         ],
@@ -642,6 +681,7 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
     try {
       final orderService = Provider.of<OrderService>(context, listen: false);
       final estimateService = Provider.of<EstimateService>(context, listen: false);
+      final paymentService = Provider.of<PaymentService>(context, listen: false);
       
       // 주문 상태 업데이트
       final updatedOrder = order.copyWith(
@@ -652,6 +692,14 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
       
       await orderService.updateOrder(updatedOrder);
       await estimateService.awardEstimate(estimate.id);
+      // B2C 낙찰 5% 플랫폼 수수료 알림
+      await paymentService.notifyB2cAwardFee(
+        businessId: estimate.businessId,
+        awardedAmount: estimate.amount,
+      );
+      // 채팅 활성화
+      final chatService = ChatService(AnonymousService());
+      await chatService.activateChatRoom(estimate.id, estimate.businessId);
       
       // 데이터 새로고침
       await _loadData();

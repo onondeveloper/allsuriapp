@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 class NotificationModel {
   final String id;
   final String title;
@@ -30,9 +31,11 @@ class NotificationModel {
       orderId: map['orderId'],
       estimateId: map['estimateId'],
       isRead: map['isRead'] ?? false,
-      createdAt: map['createdAt'] != null 
-          ? DateTime.parse(map['createdAt']) 
-          : DateTime.now(),
+      createdAt: map['createdAt'] is Timestamp
+          ? (map['createdAt'] as Timestamp).toDate()
+          : (map['createdAt'] != null
+              ? DateTime.tryParse(map['createdAt'].toString()) ?? DateTime.now()
+              : DateTime.now()),
       userId: map['userId'] ?? '',
     );
   }
@@ -46,7 +49,7 @@ class NotificationModel {
       'orderId': orderId,
       'estimateId': estimateId,
       'isRead': isRead,
-      'createdAt': createdAt.toIso8601String(),
+      'createdAt': Timestamp.fromDate(createdAt),
       'userId': userId,
     };
   }

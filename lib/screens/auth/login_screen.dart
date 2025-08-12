@@ -33,18 +33,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final user = await authService.signInWithEmailAndPassword(
+      await authService.signInWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text,
       );
-
-      if (user != null) {
-        // 로그인 성공 - AuthWrapper가 자동으로 MainScreen으로 이동
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('로그인에 실패했습니다.')),
-        );
-      }
+      // 성공/실패는 onAuthStateChange에 의해 화면이 전환됨
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('오류: $e')),
@@ -109,6 +102,31 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: _isLoading
                       ? const CircularProgressIndicator()
                       : const Text('로그인'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.login),
+                  label: const Text('Google로 로그인'),
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          setState(() => _isLoading = true);
+                          try {
+                            final authService = context.read<AuthService>();
+                            await authService.signInWithGoogle(
+                              redirectUrl: 'io.supabase.flutter://login-callback/',
+                            );
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('오류: $e')),
+                            );
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
+                          }
+                        },
                 ),
               ),
               const SizedBox(height: 16),

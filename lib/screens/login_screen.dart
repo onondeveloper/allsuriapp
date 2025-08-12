@@ -102,16 +102,10 @@ class _LoginScreenState extends State<LoginScreen> {
     
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final result = await authService.signInWithEmailAndPassword(
+      await authService.signInWithEmailAndPassword(
         _emailController.text,
         _passwordController.text,
       );
-      
-      if (result == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('로그인에 실패했습니다.')),
-        );
-      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('오류: $e')),
@@ -128,21 +122,11 @@ class _LoginScreenState extends State<LoginScreen> {
     
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final result = await authService.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+      await authService.signUpWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text,
         name: _nameController.text.trim(),
       );
-      
-      if (result == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('회원가입에 실패했습니다.')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('회원가입이 완료되었습니다!')),
-        );
-      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('오류: $e')),
