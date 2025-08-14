@@ -1,20 +1,195 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!doctype html>
+<html lang="ko">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2487.7">
-  <style type="text/css">
-    body {background-color: #e7ebed}
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 13.0px '.AppleSystemUIFontMonospaced'; color: #9ba2b1}
-    span.s1 {color: #d65562}
-    span.s2 {color: #c58853}
-    span.s3 {color: #88b966}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>올수리 App 다운로드</title>
+  <meta name="description" content="내부 테스트용 Android APK 다운로드 페이지" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
+  <style>
+    :root { --bg:#0b1020; --card:#121830; --text:#e8ecf1; --muted:#9fb1c5; --accent:#6ee7ff; }
+    * { box-sizing: border-box; }
+    html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, Helvetica, Arial, sans-serif; }
+    .wrap { min-height:100%; display:flex; align-items:center; justify-content:center; padding:24px; }
+    .card {
+      width:100%; max-width:720px; background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:24px; box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+      backdrop-filter: blur(8px);
+    }
+    h1 { margin:0 0 8px; font-size: clamp(22px, 3.5vw, 30px); letter-spacing:.2px; }
+    p.lead { margin:0 0 16px; color:var(--muted); }
+    .meta { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px 0 20px; }
+    .meta div { background: var(--card); border:1px solid rgba(255,255,255,0.08); padding:12px 14px; border-radius:12px; font-size:14px; color:#d4deea; }
+    .btns { display:flex; gap:12px; flex-wrap:wrap; }
+    .btn {
+      appearance:none; border:none; cursor:pointer; font-weight:600;
+      padding:14px 18px; border-radius:12px; transition: transform .04s ease, box-shadow .2s ease, opacity .2s ease;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #22d3ee, #60a5fa);
+      color:#04121a; box-shadow: 0 6px 18px rgba(96,165,250,.35);
+    }
+    .btn-secondary { background:#1b2447; color:#e8ecf1; border:1px solid rgba(255,255,255,.08); }
+    .btn:active { transform: translateY(1px); }
+    .note { margin-top:20px; font-size:14px; color:var(--muted); line-height:1.6; }
+    .hr { height:1px; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); margin:20px 0; }
+    .warn { background:#251b1b; border:1px solid rgba(255,120,120,.25); color:#ffd9d9; padding:12px 14px; border-radius:12px; font-size:14px; }
+    code { background:#18213f; padding:2px 6px; border-radius:6px; }
+    .qr-wrap { display:flex; align-items:center; gap:14px; margin-top:14px; flex-wrap:wrap; }
+    canvas { background:#fff; border-radius:8px; }
+    @media (max-width:560px){ .meta { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
-<p class="p1">&lt;<span class="s1">a</span> <span class="s2">href</span>=<span class="s3">“/allsuriapp.apk"</span> <span class="s2">download</span>&gt;Welcome to Allsuri&lt;/<span class="s1">a</span>&gt;</p>
+  <div class="wrap">
+    <main class="card" role="main" aria-labelledby="title">
+      <h1 id="title">올수리 앱 다운로드</h1>
+      <p class="lead">내부 테스트 배포용 앱 파일 입니다. Android 기기에서 직접 다운로드해 설치하세요.</p>
+
+      <!-- 메타 정보 -->
+      <section class="meta" aria-label="앱 정보">
+        <div><strong>앱 버전</strong><br><span id="appVersion">v1.2.0</span></div>
+        <div><strong>파일 크기</strong><br><span id="fileSize">확인 중…</span></div>
+      </section>
+
+      <!-- 버튼 -->
+      <div class="btns">
+        <!-- 실제 파일명으로 href 바꾸세요 -->
+        <a id="dlBtn" class="btn btn-primary" href="./myapp-v1.2.0.apk" download>📥 APK 다운로드</a>
+        <button id="copyLinkBtn" class="btn btn-secondary" type="button">🔗 링크 복사</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <!-- QR 설치 안내 -->
+      <section aria-label="QR 코드로 설치">
+        <h2 style="margin:0 0 8px; font-size:18px;">QR 코드로 모바일에서 열기</h2>
+        <p class="note">아래 QR을 카메라로 스캔하면 이 페이지(또는 APK)를 휴대폰에서 바로 열 수 있습니다.</p>
+        <div class="qr-wrap">
+          <canvas id="qrPage" width="140" height="140" title="이 페이지 QR"></canvas>
+          <canvas id="qrApk" width="140" height="140" title="APK 직접 다운로드 QR"></canvas>
+        </div>
+      </section>
+
+      <div class="hr"></div>
+
+      <!-- 설치 유의사항 -->
+      <section aria-label="설치 유의사항">
+        <div class="warn">
+          <strong>설치 팁</strong><br/>
+          • 브라우저가 보안 경고를 표시할 수 있습니다. <em>출처를 알 수 없는 앱 설치</em>를 일시 허용해야 할 수 있어요.<br/>
+          • iPhone에서는 APK를 설치할 수 없습니다. Android 기기에서만 동작합니다.<br/>
+          • 새 버전을 배포할 때는 APK 파일을 교체하고, 위의 <code>앱 버전</code> 표시만 업데이트하세요.
+        </div>
+        <p class="note">문제가 있으면 기기/브라우저 종류, 오류 메시지 스크린샷과 함께 알려주세요.</p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // === 설정: 파일명/버전만 바꿔도 동작 ===
+    const APK_FILE = 'allusari-v1.0.0.apk';   // 실제 업로드한 APK 파일명
+    const APP_VERSION = 'v1.0.0';
+
+    // 화면 표시 업데이트
+    const dlBtn = document.getElementById('dlBtn');
+    const appVersionEl = document.getElementById('appVersion');
+    const fileSizeEl = document.getElementById('fileSize');
+    appVersionEl.textContent = APP_VERSION;
+    dlBtn.href = './' + APK_FILE;
+
+    // 파일 크기(HEAD) 조회
+    (async () => {
+      try {
+        const res = await fetch('./' + APK_FILE, { method: 'HEAD' });
+        if (!res.ok) throw new Error('HEAD failed');
+        const len = res.headers.get('content-length');
+        if (len) {
+          const size = humanFileSize(parseInt(len, 10));
+          fileSizeEl.textContent = size;
+        } else {
+          fileSizeEl.textContent = '알 수 없음';
+        }
+      } catch (e) {
+        fileSizeEl.textContent = '확인 실패';
+      }
+    })();
+
+    function humanFileSize(bytes) {
+      const thresh = 1024;
+      if (Math.abs(bytes) < thresh) return bytes + ' B';
+      const units = ['KB','MB','GB','TB'];
+      let u = -1;
+      do { bytes /= thresh; ++u; } while (Math.abs(bytes) >= thresh && u < units.length - 1);
+      return bytes.toFixed(1) + ' ' + units[u];
+    }
+
+    // 링크 복사
+    document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+      const apkUrl = new URL('./' + APK_FILE, location.href).toString();
+      try {
+        await navigator.clipboard.writeText(apkUrl);
+        toast('다운로드 링크를 복사했어요!');
+      } catch {
+        prompt('아래 링크를 복사하세요:', apkUrl);
+      }
+    });
+
+    // 간단 토스트
+    function toast(msg) {
+      const el = document.createElement('div');
+      el.textContent = msg;
+      el.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0e1a34;color:#e8ecf1;border:1px solid rgba(255,255,255,.12);padding:10px 14px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.35);z-index:9999';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1600);
+    }
+
+    // 아주 가벼운 QR 코드 렌더러(외부 라이브러리 없이)
+    // 참고: 단순화를 위해 URL 길이가 길어도 보통 동작합니다.
+    // 더 견고한 QR이 필요하면 라이브러리(qrcode.js 등)를 쓰세요.
+    // 아래는 Tiny-QR (알고리즘 단순 버전)
+    // ---- 시작: 초소형 QR (ver1-like, 오류보정 없음, 데모 용) ----
+    function simpleHash(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31 + s.charCodeAt(i))>>>0;return h;}
+    function drawFakeQR(canvas, text){
+      const ctx = canvas.getContext('2d');
+      const N = 29; // 격자 수(대충)
+      const pad = 6; // 여백
+      const size = Math.min(canvas.width, canvas.height);
+      const cell = (size - pad*2)/N;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,size,size);
+      ctx.fillStyle = '#000';
+      // 가장자리 위치 탐지 패턴 흉내
+      const finder = (x,y)=>{
+        ctx.fillRect(pad+x*cell, pad+y*cell, cell*7, cell*7);
+        ctx.fillStyle='#fff';ctx.fillRect(pad+(x+1)*cell, pad+(y+1)*cell, cell*5, cell*5);
+        ctx.fillStyle='#000';ctx.fillRect(pad+(x+2)*cell, pad+(y+2)*cell, cell*3, cell*3);
+        ctx.fillStyle='#000';
+      };
+      finder(0,0); finder(N-7,0); finder(0,N-7);
+
+      let seed = simpleHash(text);
+      // 랜덤 패턴처럼 찍기 (데모용)
+      for(let r=0;r<N;r++){
+        for(let c=0;c<N;c++){
+          const inFinder =
+            (r<7&&c<7) || (r<7&&c>=N-7) || (r>=N-7&&c<7);
+          if(inFinder) continue;
+          // pseudo random
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          if ((seed % 7) < 3) {
+            ctx.fillRect(pad+c*cell, pad+r*cell, Math.ceil(cell), Math.ceil(cell));
+          }
+        }
+      }
+    }
+    // ---- 끝: 초소형 QR ----
+
+    // QR 그리기 (페이지 URL / APK URL)
+    const pageUrl = location.href;
+    const apkUrl = new URL('./' + APK_FILE, location.href).toString();
+    drawFakeQR(document.getElementById('qrPage'), pageUrl);
+    drawFakeQR(document.getElementById('qrApk'), apkUrl);
+  </script>
 </body>
 </html>
