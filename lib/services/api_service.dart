@@ -6,7 +6,9 @@ import 'package:http/http.dart' as http;
 
 class ApiService extends ChangeNotifier {
   // API 기본 URL
-  static const String baseUrl = 'https://api.allsuriapp.com';
+  static const String baseUrl = kReleaseMode
+      ? 'https://api.allsuriapp.com'
+      : 'http://172.30.1.16:3001/api';
 
   // GET 요청
   Future<Map<String, dynamic>> get(String endpoint) async {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../../models/order.dart' as app_models;
 import '../../services/order_service.dart';
 import '../../services/image_service.dart';
@@ -35,6 +37,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   DateTime? _selectedDate;
   List<String> _imageUrls = [];
   bool _isLoading = false;
+  static const String _sessionKey = 'allsuri_session_id';
 
   @override
   void initState() {
@@ -50,6 +53,15 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     if (widget.editingOrder != null) {
       _loadOrderData();
     }
+  }
+  Future<String> _getOrCreateSessionId() async {
+    // 로컬에 세션ID 저장
+    final prefs = await SharedPreferences.getInstance();
+    String? sid = prefs.getString(_sessionKey);
+    if (sid != null && sid.isNotEmpty) return sid;
+    sid = const Uuid().v4();
+    await prefs.setString(_sessionKey, sid);
+    return sid;
   }
 
   void _loadOrderData() {
@@ -116,12 +128,6 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         // 로그인하지 않은 사용자인 경우
         phoneNumber = _phoneController.text;
         customerName = _nameController.text.trim();
-        
-        // 익명 사용자 생성 (수정 모드가 아닌 경우에만)
-        if (widget.editingOrder == null) {
-          await userProvider.createAnonymousUser(phoneNumber, customerName);
-          print('익명 사용자 생성: $customerName, $phoneNumber');
-        }
       }
       
       // 전화번호 정규화
@@ -155,8 +161,11 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         }
       } else {
         // 새 견적 요청 생성
+        // 비로그인 사용자를 위한 세션 ID 생성/로딩
+        String sessionId = await _getOrCreateSessionId();
+
         final order = app_models.Order(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: null, // Supabase가 UUID 자동 생성
           customerId: currentUser?.id,
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim(),
@@ -176,6 +185,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           isAwarded: false,
           awardedAt: null,
           awardedEstimateId: null,
+          sessionId: sessionId,
         );
 
         await orderService.createOrder(order);

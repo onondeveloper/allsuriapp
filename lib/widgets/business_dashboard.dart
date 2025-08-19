@@ -11,6 +11,7 @@ import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../screens/home/home_screen.dart';
 import '../widgets/bottom_navigation.dart';
+import 'interactive_card.dart';
 
 class BusinessDashboard extends StatefulWidget {
   const BusinessDashboard({Key? key}) : super(key: key);
@@ -77,32 +78,44 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 환영 메시지
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.business,
-                          size: 48,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '$businessName 님,\n올수리에 오신 것을 환영합니다!',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                // Modern welcome banner
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                        Theme.of(context).colorScheme.secondary.withOpacity(0.08),
                       ],
                     ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.business, size: 28, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '$businessName 님, 오늘도 안전한 서비스 제공을 응원합니다!',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      )
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                
-                // 메뉴 그리드
+                const SizedBox(height: 16),
+
+                // Menu grid (card-based)
                 GridView.count(
                   crossAxisCount: 2,
                   shrinkWrap: true,
@@ -116,12 +129,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       Icons.search,
                       Colors.blue,
                       () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const EstimateRequestsScreen(),
-                          ),
-                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateRequestsScreen()));
                       },
                     ),
                     _buildMenuCard(
@@ -130,12 +138,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       Icons.list_alt,
                       Colors.green,
                       () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const BusinessMyEstimatesScreen(),
-                          ),
-                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessMyEstimatesScreen()));
                       },
                     ),
                     _buildMenuCard(
@@ -144,12 +147,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       Icons.construction,
                       Colors.orange,
                       () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const CreateJobScreen(),
-                          ),
-                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateJobScreen()));
                       },
                     ),
                     _buildMenuCard(
@@ -158,18 +156,13 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       Icons.assignment_turned_in,
                       Colors.teal,
                       () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const JobManagementScreen(),
-                          ),
-                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
                       },
                     ),
                   ],
                 ),
-                
-                const SizedBox(height: 100), // 하단 네비게이션 공간
+
+                const SizedBox(height: 100),
               ],
             ),
           ),
@@ -193,40 +186,34 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     Color color,
     VoidCallback onTap,
   ) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: Theme.of(context).colorScheme.onSecondaryContainer,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    return InteractiveCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              size: 32,
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
+            ),
           ),
-        ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

@@ -28,7 +28,7 @@ class OrderService extends ChangeNotifier {
   }
 
   // 주문 목록 로드
-  Future<void> loadOrders({String? customerId, String? status}) async {
+  Future<void> loadOrders({String? customerId, String? status, String? sessionId}) async {
     _isLoading = true;
     _notifyListenersSafely();
 
@@ -40,6 +40,9 @@ class OrderService extends ChangeNotifier {
       }
       if (status != null) {
         query = query.eq('status', status);
+      }
+      if (sessionId != null) {
+        query = query.eq('sessionId', sessionId);
       }
 
       final rows = await query.order('createdAt', ascending: false);
@@ -82,8 +85,9 @@ class OrderService extends ChangeNotifier {
     _notifyListenersSafely();
 
     try {
-      await _sb.from('orders').insert(order.toMap());
-      _orders.add(order);
+      final inserted = await _sb.from('orders').insert(order.toMap()).select().single();
+      final created = app_models.Order.fromMap(Map<String, dynamic>.from(inserted));
+      _orders.add(created);
     } catch (e) {
       print('주문 생성 오류: $e');
       rethrow;
@@ -98,7 +102,10 @@ class OrderService extends ChangeNotifier {
     _notifyListenersSafely();
 
     try {
-      await _sb.from('orders').update(order.toMap()).eq('id', order.id);
+      if (order.id == null || order.id!.isEmpty) {
+        throw ArgumentError('Order id is required for update');
+      }
+      await _sb.from('orders').update(order.toMap()).eq('id', order.id!);
       final index = _orders.indexWhere((o) => o.id == order.id);
       if (index != -1) {
         _orders[index] = order;

@@ -110,11 +110,10 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 익명 사용자 생성
-      await _authService?.signInAnonymously();
-      
-      // 사용자 정보 업데이트
-      await _authService?.updateUserProfile(name: name, phoneNumber: phoneNumber);
+      // Supabase는 익명 로그인을 지원하지 않음 → 단순히 프로필 정보만 로컬 사용자에 반영하도록 처리
+      if (_authService?.currentUser != null) {
+        await _authService?.updateUserProfile(name: name, phoneNumber: phoneNumber);
+      }
     } catch (e) {
       rethrow;
     } finally {

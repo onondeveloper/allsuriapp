@@ -66,7 +66,11 @@ class _EstimateDetailScreenState extends State<EstimateDetailScreen> {
                   const SizedBox(width: 6),
                   Text('예상 소요일 ${e.estimatedDays}일', style: const TextStyle(color: CupertinoColors.secondaryLabel)),
                 ],
-              )
+              ),
+              const SizedBox(height: 12),
+              // 고객 개인정보 비표시 가이드
+              const Text('고객 정보는 낙찰 후에만 제공됩니다.',
+                  style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel))
             ]),
             const SizedBox(height: 24),
             if (!order.isAwarded) ...[
