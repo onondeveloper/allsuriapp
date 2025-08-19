@@ -62,7 +62,7 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
 
       final estimate = Estimate(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        orderId: widget.order.id,
+        orderId: widget.order.id ?? '',
         customerId: widget.order.customerId ?? '',
         customerName: widget.order.customerName,
         businessId: user.id,
@@ -165,9 +165,10 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '고객: ${widget.order.customerName}',
-                        style: const TextStyle(
+                      // 고객 개인정보 비표시 (이름 숨김)
+                      const Text(
+                        '요청자: 비공개',
+                        style: TextStyle(
                           fontSize: 12,
                           color: CupertinoColors.secondaryLabel,
                         ),
@@ -181,9 +182,10 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '주소: ${widget.order.address}',
-                        style: const TextStyle(
+                      // 고객 개인정보 비표시 (주소 숨김)
+                      const Text(
+                        '방문 주소: 낙찰 후 공유',
+                        style: TextStyle(
                           fontSize: 12,
                           color: CupertinoColors.secondaryLabel,
                         ),

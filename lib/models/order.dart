@@ -2,7 +2,7 @@
 import 'package:flutter/foundation.dart';
 
 class Order {
-  final String id;
+  final String? id;
   final String? customerId;
   final String title;
   final String description;
@@ -22,6 +22,7 @@ class Order {
   final bool isAwarded;
   final DateTime? awardedAt;
   final String? awardedEstimateId;
+  final String? sessionId;
 
   // 카테고리 목록
   static const List<String> CATEGORIES = [
@@ -40,7 +41,7 @@ class Order {
   static const String STATUS_CANCELLED = 'cancelled';
 
   Order({
-    required this.id,
+    this.id,
     this.customerId,
     required this.title,
     required this.description,
@@ -60,6 +61,7 @@ class Order {
     this.isAwarded = false,
     this.awardedAt,
     this.awardedEstimateId,
+    this.sessionId,
   });
 
   // equipmentType getter (하위 호환성)
@@ -72,7 +74,7 @@ class Order {
 
   factory Order.fromMap(Map<String, dynamic> map) {
     return Order(
-      id: map['id'] ?? '',
+      id: map['id'],
       customerId: map['customerId'],
       title: map['title'] ?? '',
       description: map['description'] ?? '',
@@ -104,12 +106,13 @@ class Order {
               : DateTime.parse(map['awardedAt'].toString()))
           : null,
       awardedEstimateId: map['awardedEstimateId'],
+      sessionId: map['sessionId'],
     );
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
+    final map = <String, dynamic>{
+      if (id != null && id!.isNotEmpty) 'id': id,
       'customerId': customerId,
       'title': title,
       'description': description,
@@ -129,7 +132,9 @@ class Order {
       'isAwarded': isAwarded,
       'awardedAt': awardedAt?.toIso8601String(),
       'awardedEstimateId': awardedEstimateId,
+      if (sessionId != null) 'sessionId': sessionId,
     };
+    return map;
   }
 
   Order copyWith({
@@ -153,6 +158,7 @@ class Order {
     bool? isAwarded,
     DateTime? awardedAt,
     String? awardedEstimateId,
+    String? sessionId,
   }) {
     return Order(
       id: id ?? this.id,
@@ -175,6 +181,7 @@ class Order {
       isAwarded: isAwarded ?? this.isAwarded,
       awardedAt: awardedAt ?? this.awardedAt,
       awardedEstimateId: awardedEstimateId ?? this.awardedEstimateId,
+      sessionId: sessionId ?? this.sessionId,
     );
   }
 }

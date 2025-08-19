@@ -7,6 +7,8 @@ import '../../services/estimate_service.dart';
 import '../../services/payment_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/anonymous_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../chat/chat_list_page.dart';
 import '../estimate_detail_screen.dart';
 import '../../services/order_service.dart';
@@ -69,9 +71,20 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
         // 각 주문에 대한 견적 목록 로드
         _orderEstimates.clear();
         for (final order in _orders) {
-          await estimateService.loadEstimates(orderId: order.id);
-          _orderEstimates[order.id] = List.from(estimateService.estimates);
+          if (order.id != null) {
+            await estimateService.loadEstimates(orderId: order.id!);
+            _orderEstimates[order.id!] = List.from(estimateService.estimates);
+          }
         }
+      } else {
+        // 비로그인 사용자: 로컬 세션ID로 주문 조회
+        final prefs = await SharedPreferences.getInstance();
+        String? sessionId = prefs.getString('allsuri_session_id');
+        sessionId ??= const Uuid().v4();
+        await prefs.setString('allsuri_session_id', sessionId);
+
+        await orderService.loadOrders(sessionId: sessionId);
+        _orders = orderService.orders;
       }
     } catch (e) {
       print('데이터 로드 오류: $e');
@@ -88,7 +101,7 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
     }
     
     return _orders.where((order) {
-      final estimates = _orderEstimates[order.id] ?? [];
+      final estimates = _orderEstimates[order.id ?? ''] ?? [];
       
       switch (_selectedStatus) {
         case 'pending':
@@ -156,7 +169,7 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
                           itemCount: filteredOrders.length,
                           itemBuilder: (context, index) {
                             final order = filteredOrders[index];
-                            final estimates = _orderEstimates[order.id] ?? [];
+                            final estimates = _orderEstimates[order.id ?? ''] ?? [];
                             return _buildOrderCard(order, estimates);
                           },
                         ),
@@ -640,7 +653,7 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
   Future<void> _performDeleteOrder(Order order) async {
     try {
       final orderService = Provider.of<OrderService>(context, listen: false);
-      await orderService.deleteOrder(order.id);
+      await orderService.deleteOrder(order.id ?? '');
       await _loadData();
       
       if (mounted) {
