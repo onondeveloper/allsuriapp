@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -19,12 +20,20 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan('dev'));
 
+// 정적 파일 제공 (관리자 대시보드)
+app.use('/admin', express.static(path.join(__dirname, '..', 'public')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+
+// 관리자 대시보드 라우트
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
