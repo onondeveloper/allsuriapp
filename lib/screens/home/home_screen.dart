@@ -6,6 +6,7 @@ import '../../widgets/interactive_card.dart';
 import '../../widgets/business_dashboard.dart';
 import '../business/business_profile_screen.dart';
 import '../business/business_pending_screen.dart';
+import '../role_selection_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -14,36 +15,38 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
-        // 사업자 라우팅 분기: 정보 미입력 -> 프로필, 승인대기/거절 -> 대기 화면, 승인됨 -> 대시보드
+        // 디버그 로깅 추가
+        print('=== HomeScreen Debug ===');
+        print('isAuthenticated: ${authService.isAuthenticated}');
+        print('currentUser: ${authService.currentUser}');
+        print('needsRoleSelection: ${authService.needsRoleSelection}');
+        print('========================');
+        
+        // 역할 선택이 필요한 경우
+        if (authService.isAuthenticated && authService.needsRoleSelection) {
+          print('역할 선택 화면을 표시합니다!');
+          return const RoleSelectionScreen();
+        }
+        
+        // 사업자: 직접 해당 화면 반환 (네비게이션 대신 위젯 교체로 라우팅 혼선 방지)
         if (authService.isAuthenticated && authService.currentUser?.role == 'business') {
+          print('사업자 화면을 표시합니다!');
           final u = authService.currentUser!;
           final hasBusinessName = (u.businessName != null && u.businessName!.trim().isNotEmpty);
           final status = (u.businessStatus ?? 'pending').toLowerCase();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!hasBusinessName) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const BusinessProfileScreen()),
-                (route) => false,
-              );
-            } else if (status != 'approved') {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const BusinessPendingScreen()),
-                (route) => false,
-              );
-            } else {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const BusinessDashboard()),
-                (route) => false,
-              );
-            }
-          });
+          if (!hasBusinessName) {
+            return const BusinessProfileScreen();
+          }
+          if (status != 'approved') {
+            return const BusinessPendingScreen();
+          }
+          return const BusinessDashboard();
         }
         
-        return Scaffold(
-          extendBodyBehindAppBar: true,
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: Scaffold(
+            extendBodyBehindAppBar: true,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -145,83 +148,35 @@ class HomeScreen extends StatelessWidget {
                 // Quick actions (e-com style CTA cards)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: InteractiveCard(
-                          onTap: () {
-                            if (!(authService.isAuthenticated && authService.currentUser?.role == 'business')) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const CustomerDashboard()),
-                              );
-                            } else {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const BusinessDashboard()),
-                              );
-                            }
-                          },
-                          child: Row(children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.secondaryContainer,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(Icons.request_quote, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('견적 내기', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 4),
-                                  Text('빠른 요청', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                                ],
-                              ),
-                            ),
-                          ]),
+                  child: InteractiveCard(
+                    onTap: () {
+                      if (!(authService.isAuthenticated && authService.currentUser?.role == 'business')) {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerDashboard()));
+                      } else {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const BusinessDashboard()));
+                      }
+                    },
+                    child: Row(children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: Icon(Icons.request_quote, color: Theme.of(context).colorScheme.onSecondaryContainer),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: InteractiveCard(
-                          onTap: () {
-                            if (authService.isAuthenticated) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const BusinessDashboard()),
-                              );
-                            } else {
-                              _showBusinessLoginDialog(context);
-                            }
-                          },
-                          child: Row(children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.secondaryContainer,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(Icons.business, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(authService.isAuthenticated ? '사업자' : '사업자 로그인', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 4),
-                                  Text('전문가 센터', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                                ],
-                              ),
-                            ),
-                          ]),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('견적 내기', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 4),
+                            Text('빠른 요청', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          ],
                         ),
                       ),
-                    ],
+                    ]),
                   ),
                 ),
 
@@ -246,9 +201,48 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
+
+                // Move business login CTA to bottom
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  child: InteractiveCard(
+                    onTap: () {
+                      if (authService.isAuthenticated) {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const BusinessDashboard()));
+                      } else {
+                        _showBusinessLoginDialog(context);
+                      }
+                    },
+                    child: Row(children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.business, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(authService.isAuthenticated ? '사업자 대시보드' : '사업자 로그인',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 4),
+                            Text('전문가 센터로 이동',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
               ],
             ),
           ),
+        ),
         );
       },
     );
@@ -270,7 +264,9 @@ class HomeScreen extends StatelessWidget {
               Navigator.pop(context);
               try {
                 // Google 로그인
-                await Provider.of<AuthService>(context, listen: false).signInWithGoogle();
+                await Provider.of<AuthService>(context, listen: false).signInWithGoogle(
+                  redirectUrl: 'io.supabase.flutter://login-callback/',
+                );
                 if (context.mounted) {
                   // 로그인 성공 시 바로 사업자 대시보드로 이동
                   Navigator.pushAndRemoveUntil(

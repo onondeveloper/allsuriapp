@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import '../../widgets/common_app_bar.dart';
+import '../../utils/navigation_utils.dart';
 
 class BusinessPendingScreen extends StatelessWidget {
   const BusinessPendingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('사업자 승인 대기')),
+    return WillPopScope(
+      onWillPop: () async {
+        NavigationUtils.navigateToRoleHome(context);
+        return false;
+      },
+      child: Scaffold(
+      appBar: const CommonAppBar(title: '사업자 승인 대기', showBackButton: true, showHomeButton: true),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -29,7 +36,7 @@ class BusinessPendingScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 
