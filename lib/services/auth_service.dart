@@ -8,10 +8,12 @@ class AuthService extends ChangeNotifier {
   
   app_models.User? _currentUser;
   bool _isLoading = false;
+  bool _needsRoleSelection = false; // 역할 선택이 필요한지 표시
 
   app_models.User? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
   bool get isLoading => _isLoading;
+  bool get needsRoleSelection => _needsRoleSelection; // 역할 선택 필요 여부
 
   AuthService() {
     _sb.auth.onAuthStateChange.listen((event) async {
@@ -21,6 +23,7 @@ class AuthService extends ChangeNotifier {
         await _loadUserData(supaUserId);
       } else {
         _currentUser = null;
+        _needsRoleSelection = false;
       }
       notifyListeners();
     });
@@ -28,24 +31,62 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _loadUserData(String uid) async {
     try {
+      print('=== _loadUserData 시작 ===');
+      print('UID: $uid');
+      
       final row = await _sb.from('users').select().eq('id', uid).maybeSingle();
+      print('데이터베이스 결과: $row');
+      
+      // Google 메타데이터 동기화 (full_name)
+      final supaUser = _sb.auth.currentUser;
+      final Map<String, dynamic>? meta = (supaUser?.userMetadata is Map<String, dynamic>)
+          ? (supaUser!.userMetadata as Map<String, dynamic>)
+          : null;
+      final String? fullName = meta != null ? (meta['full_name'] as String?) : null;
+      print('Google 메타데이터 full_name: $fullName');
+      
       if (row != null) {
-        _currentUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
+        // 필요 시 이름 갱신
+        if (fullName != null && fullName.isNotEmpty && row['name'] != fullName) {
+          await _sb.from('users').update({'name': fullName}).eq('id', uid);
+          row['name'] = fullName;
+        }
+        
+        // 사용자 역할이 설정되어 있는지 확인
+        final userRole = row['role'] as String?;
+        print('데이터베이스에서 읽은 역할: $userRole');
+        
+        if (userRole != null && userRole.isNotEmpty && userRole != 'customer') {
+          _currentUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
+          _needsRoleSelection = false;
+          print('사용자 역할 로드됨: $userRole, _needsRoleSelection: $_needsRoleSelection');
+        } else {
+          // 역할이 설정되지 않았거나 customer인 경우 역할 선택 필요
+          final updatedUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
+          _currentUser = updatedUser;
+          _needsRoleSelection = true;
+          print('역할 선택이 필요합니다. 현재 역할: ${userRole ?? "설정되지 않음"}, _needsRoleSelection: $_needsRoleSelection');
+        }
         return;
       }
+      
+      // 새 사용자인 경우 기본 역할 설정
       final fallbackUser = app_models.User(
         id: uid,
-        name: '사용자',
+        name: fullName ?? '사용자',
         email: _sb.auth.currentUser?.email ?? '',
-        role: '',
+        role: 'customer', // 기본 역할을 customer로 설정
         phoneNumber: null,
         createdAt: DateTime.now(),
       );
       await _sb.from('users').insert(fallbackUser.toMap());
       _currentUser = fallbackUser;
+      _needsRoleSelection = true; // 새 사용자는 역할 선택 필요
+      print('새 사용자 생성됨, 기본 역할: customer, _needsRoleSelection: $_needsRoleSelection');
     } catch (e) {
       print('사용자 데이터 로드/생성 오류: $e');
       _currentUser = null;
+      _needsRoleSelection = false;
     }
   }
 
@@ -173,6 +214,8 @@ class AuthService extends ChangeNotifier {
         role: role,
         businessStatus: role == 'business' ? 'pending' : _currentUser!.businessStatus,
       );
+      _needsRoleSelection = false; // 역할 선택이 완료되었으므로 플래그 초기화
+      print('사용자 역할이 업데이트되었습니다: $role');
     } catch (e) {
       print('역할 업데이트 오류: $e');
     } finally {
@@ -219,6 +262,8 @@ class AuthService extends ChangeNotifier {
         specialties: specialties,
         businessStatus: _currentUser!.businessStatus ?? 'pending',
       );
+      _needsRoleSelection = false; // 사업자 프로필 설정이 완료되었으므로 플래그 초기화
+      print('사업자 프로필이 업데이트되었습니다');
     } catch (e) {
       print('사업자 프로필 업데이트 오류: $e');
       rethrow;

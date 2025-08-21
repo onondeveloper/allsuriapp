@@ -120,59 +120,110 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('내 견적 관리'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () {
-            Navigator.push(
-              context,
-              CupertinoPageRoute(
-                builder: (context) => const CreateRequestScreen(),
-              ),
-            ).then((_) => _loadData());
-          },
-          child: const Icon(CupertinoIcons.add),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('내 견적 관리'),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+      ),
+      body: _buildBody(),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_orders.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return Column(
+      children: [
+        // 상태 필터
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildStatusFilter('전체', 'all'),
+                const SizedBox(width: 8),
+                _buildStatusFilter('대기중', Order.STATUS_PENDING),
+                const SizedBox(width: 8),
+                _buildStatusFilter('진행중', Order.STATUS_IN_PROGRESS),
+                const SizedBox(width: 8),
+                _buildStatusFilter('완료', Order.STATUS_COMPLETED),
+                const SizedBox(width: 8),
+                _buildStatusFilter('취소됨', Order.STATUS_CANCELLED),
+              ],
+            ),
+          ),
         ),
+        
+        // 주문 목록
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadData,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: filteredOrders.length,
+              itemBuilder: (context, index) {
+                final order = filteredOrders[index];
+                final estimates = _orderEstimates[order.id ?? ''] ?? [];
+                return _buildOrderCard(order, estimates);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: SafeArea(
-        child: Column(
+        child: Row(
           children: [
-            // 상태 필터
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildStatusFilter('전체', 'all'),
-                    const SizedBox(width: 8),
-                    _buildStatusFilter('견적 대기', 'pending'),
-                    const SizedBox(width: 8),
-                    _buildStatusFilter('견적 받음', 'received'),
-                    const SizedBox(width: 8),
-                    _buildStatusFilter('진행 중', 'awarded'),
-                    const SizedBox(width: 8),
-                    _buildStatusFilter('완료', 'completed'),
-                  ],
+            // 고객 전용 버튼들
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () {
+                  // 견적 요청 화면으로 이동
+                  Navigator.pushNamed(context, '/create-request');
+                },
+                icon: const Icon(Icons.add_shopping_cart),
+                label: const Text('견적 요청'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),
-            // 견적 목록
+            const SizedBox(width: 12),
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CupertinoActivityIndicator())
-                  : filteredOrders.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                          itemCount: filteredOrders.length,
-                          itemBuilder: (context, index) {
-                            final order = filteredOrders[index];
-                            final estimates = _orderEstimates[order.id ?? ''] ?? [];
-                            return _buildOrderCard(order, estimates);
-                          },
-                        ),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  // 채팅 목록 화면으로 이동
+                  Navigator.pushNamed(context, '/chat-list');
+                },
+                icon: const Icon(Icons.chat),
+                label: const Text('채팅'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
             ),
           ],
         ),

@@ -30,7 +30,12 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        // 고객 홈에서 뒤로가기 시 앱 종료 대신 홈 유지하려면 false
+        return true;
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('올수리'),
         centerTitle: true,
@@ -129,16 +134,17 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: MediaQuery.of(context).size.width < 400 ? 3 : 4,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 1,
+                      childAspectRatio: 0.95,
                     ),
                     itemCount: _categories.length,
                     itemBuilder: (context, index) {
                       final category = _categories[index];
                       return InteractiveCard(
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                         onTap: () {
                           Navigator.push(
                             context,
@@ -151,6 +157,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                         },
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
                               padding: const EdgeInsets.all(10),
@@ -245,7 +252,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           });
         },
       ),
-    );
+    ));
   }
 
   Widget _buildQuickMenuCard(

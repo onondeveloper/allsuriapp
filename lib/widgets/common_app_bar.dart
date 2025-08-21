@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../utils/navigation_utils.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -54,7 +55,8 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
               onPressed: () {
-                Navigator.of(context).pop();
+                // 뒤로가기 대신 역할별 홈으로 이동
+                NavigationUtils.navigateToRoleHome(context);
               },
             )
           : null,
@@ -73,11 +75,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
                 color: Color(0xFF4F8CFF),
               ),
             ),
-            onPressed: () {
-              // 홈 버튼 클릭 시 로그아웃
-              final authService = Provider.of<AuthService>(context, listen: false);
-              authService.signOut();
-            },
+            onPressed: () => NavigationUtils.navigateToRoleHome(context),
           ),
         if (actions != null) ...actions!,
       ],

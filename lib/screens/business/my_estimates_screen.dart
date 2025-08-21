@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/estimate.dart';
 import '../../services/estimate_service.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/common_app_bar.dart';
 import 'transfer_estimate_screen.dart';
 
 class BusinessMyEstimatesScreen extends StatefulWidget {
@@ -39,73 +41,118 @@ class _BusinessMyEstimatesScreenState extends State<BusinessMyEstimatesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('내 견적'),
+    return Scaffold(
+      appBar: const CommonAppBar(
+        title: '내 견적',
+        showBackButton: true,
+        showHomeButton: true,
+      ),
+      body: _buildBody(),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildBody() {
+    return Consumer<EstimateService>(
+      builder: (context, estimateService, child) {
+        if (estimateService.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final filteredEstimates = _getFilteredEstimates(estimateService.estimates);
+
+        return Column(
+          children: [
+            // 상태 필터
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildStatusFilter('전체', 'all'),
+                    const SizedBox(width: 8),
+                    _buildStatusFilter('대기중', Estimate.STATUS_PENDING),
+                    const SizedBox(width: 8),
+                    _buildStatusFilter('채택됨', Estimate.STATUS_AWARDED),
+                    const SizedBox(width: 8),
+                    _buildStatusFilter('수락됨', Estimate.STATUS_ACCEPTED),
+                    const SizedBox(width: 8),
+                    _buildStatusFilter('거절됨', Estimate.STATUS_REJECTED),
+                    const SizedBox(width: 8),
+                    _buildStatusFilter('완료', Estimate.STATUS_COMPLETED),
+                  ],
+                ),
+              ),
+            ),
+            
+            // 견적 목록
+            Expanded(
+              child: filteredEstimates.isEmpty
+                  ? _buildEmptyState()
+                  : RefreshIndicator(
+                      onRefresh: _loadEstimates,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filteredEstimates.length,
+                        itemBuilder: (context, index) {
+                          final estimate = filteredEstimates[index];
+                          return _buildEstimateCard(context, estimate, estimateService);
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: SafeArea(
-        child: Consumer<EstimateService>(
-          builder: (context, estimateService, child) {
-            if (estimateService.isLoading) {
-              return const Center(child: CupertinoActivityIndicator());
-            }
-
-            final filteredEstimates = _getFilteredEstimates(estimateService.estimates);
-
-            return Column(
-              children: [
-                // 상태 필터
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildStatusFilter('전체', 'all'),
-                        const SizedBox(width: 8),
-                        _buildStatusFilter('대기중', Estimate.STATUS_PENDING),
-                        const SizedBox(width: 8),
-                        _buildStatusFilter('채택됨', Estimate.STATUS_AWARDED),
-                        const SizedBox(width: 8),
-                        _buildStatusFilter('수락됨', Estimate.STATUS_ACCEPTED),
-                        const SizedBox(width: 8),
-                        _buildStatusFilter('거절됨', Estimate.STATUS_REJECTED),
-                        const SizedBox(width: 8),
-                        _buildStatusFilter('완료', Estimate.STATUS_COMPLETED),
-                      ],
-                    ),
-                  ),
+        child: Row(
+          children: [
+            // 사업자 전용 버튼들
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () {
+                  // 공사 만들기 화면으로 이동
+                  Navigator.pushNamed(context, '/create-job');
+                },
+                icon: const Icon(Icons.add_business),
+                label: const Text('공사 만들기'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                
-                // 견적 목록
-                Expanded(
-                  child: filteredEstimates.isEmpty
-                      ? _buildEmptyState()
-                      : CupertinoScrollbar(
-                          child: CustomScrollView(
-                            slivers: [
-                              CupertinoSliverRefreshControl(
-                                onRefresh: _loadEstimates,
-                              ),
-                              SliverPadding(
-                                padding: const EdgeInsets.all(16),
-                                sliver: SliverList(
-                                  delegate: SliverChildBuilderDelegate(
-                                    (context, index) {
-                                      final estimate = filteredEstimates[index];
-                                      return _buildEstimateCard(context, estimate, estimateService);
-                                    },
-                                    childCount: filteredEstimates.length,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  // 공사 관리 화면으로 이동
+                  Navigator.pushNamed(context, '/job-management');
+                },
+                icon: const Icon(Icons.work),
+                label: const Text('공사 관리'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-              ],
-            );
-          },
+              ),
+            ),
+          ],
         ),
       ),
     );

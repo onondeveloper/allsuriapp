@@ -32,7 +32,12 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
             ? user.businessName!
             : (user?.name ?? "사업자");
         
-        return Scaffold(
+        return WillPopScope(
+          onWillPop: () async {
+            // 사업자는 홈이 곧 대시보드이므로 남겨둠 (스택 클리어 없이 true 반환 시 기본 pop)
+            return false; // 기본 뒤로가기 방지 (홈으로 나가는 것을 방지)
+          },
+          child: Scaffold(
           appBar: AppBar(
             title: Text('$businessName with 올수리'),
             centerTitle: true,
@@ -174,7 +179,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
               });
             },
           ),
-        );
+        ));
       },
     );
   }

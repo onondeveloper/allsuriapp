@@ -5,6 +5,7 @@ import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/common_app_bar.dart';
 import 'package:go_router/go_router.dart';
+import '../../utils/navigation_utils.dart';
 
 class BusinessProfileScreen extends StatefulWidget {
   const BusinessProfileScreen({Key? key}) : super(key: key);
@@ -201,7 +202,12 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        NavigationUtils.navigateToRoleHome(context);
+        return false;
+      },
+      child: Scaffold(
       appBar: CommonAppBar(
         title: '사업자 프로필',
         showBackButton: true,
@@ -421,7 +427,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildSection(String title, List<Widget> children) {

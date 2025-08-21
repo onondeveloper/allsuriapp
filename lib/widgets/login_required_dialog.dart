@@ -207,7 +207,7 @@ class LoginRequiredDialog extends StatelessWidget {
   static Future<void> _performGoogleLogin(BuildContext context, UserRole role) async {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final success = await authService.signInWithGoogle();
+      final success = await authService.signInWithGoogle(redirectUrl: 'io.supabase.flutter://login-callback/');
       
       if (success && context.mounted) {
         // 로그인 성공 시 사용자 정보 업데이트
