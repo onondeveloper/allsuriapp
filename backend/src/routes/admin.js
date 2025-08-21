@@ -22,6 +22,13 @@ const requireAdmin = (req, res, next) => {
       req.headers['x-admin-token'] ||
       req.query.admin_token ||
       req.query.token;
+    
+    // 디버그 로그 추가
+    console.log('[ADMIN AUTH] Request headers:', req.headers);
+    console.log('[ADMIN AUTH] Query params:', req.query);
+    console.log('[ADMIN AUTH] Extracted token:', token);
+    console.log('[ADMIN AUTH] Expected token:', ADMIN_TOKEN);
+    
     if (!token) return res.status(401).json({ message: '관리자 권한이 필요합니다' });
     if (ADMIN_TOKEN && token !== ADMIN_TOKEN) return res.status(401).json({ message: '관리자 권한이 필요합니다' });
     next();
