@@ -39,6 +39,7 @@ class Order {
   static const String STATUS_IN_PROGRESS = 'in_progress';
   static const String STATUS_COMPLETED = 'completed';
   static const String STATUS_CANCELLED = 'cancelled';
+  static const String STATUS_ESTIMATING = 'estimating';
 
   Order({
     this.id,

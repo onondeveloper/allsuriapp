@@ -60,16 +60,20 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
         throw Exception('사용자 정보를 찾을 수 없습니다.');
       }
 
+      // 쉼표가 포함된 금액 문자열을 안전하게 파싱합니다.
+      final parsedAmount = double.parse(_amountController.text.trim().replaceAll(',', ''));
+
+      final customerId = widget.order.customerId ?? '';
       final estimate = Estimate(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         orderId: widget.order.id ?? '',
-        customerId: widget.order.customerId ?? '',
+        customerId: customerId,
         customerName: widget.order.customerName,
         businessId: user.id,
         businessName: user.name,
         businessPhone: user.phoneNumber ?? '',
         equipmentType: widget.order.equipmentType,
-        amount: double.parse(_amountController.text.trim()),
+        amount: parsedAmount,
         description: _descriptionController.text.trim(),
         estimatedDays: int.parse(_estimatedDaysController.text.trim()),
         createdAt: DateTime.now(),

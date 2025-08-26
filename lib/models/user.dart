@@ -216,6 +216,9 @@ class User {
   final List<String> serviceAreas;
   final List<String> specialties;
 
+  // uid는 id의 별칭
+  String get uid => id;
+
   User({
     required this.id,
     required this.email,

@@ -8,7 +8,8 @@ import '../../widgets/common_app_bar.dart';
 import 'transfer_estimate_screen.dart';
 
 class BusinessMyEstimatesScreen extends StatefulWidget {
-  const BusinessMyEstimatesScreen({super.key});
+  final String? initialStatus;
+  const BusinessMyEstimatesScreen({super.key, this.initialStatus});
 
   @override
   State<BusinessMyEstimatesScreen> createState() => _BusinessMyEstimatesScreenState();
@@ -20,6 +21,9 @@ class _BusinessMyEstimatesScreenState extends State<BusinessMyEstimatesScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialStatus != null && widget.initialStatus!.isNotEmpty) {
+      _selectedStatus = widget.initialStatus!;
+    }
     _loadEstimates();
   }
 

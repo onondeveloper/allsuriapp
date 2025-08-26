@@ -6,6 +6,8 @@ import '../../services/auth_service.dart';
 import '../../widgets/common_app_bar.dart';
 import 'package:go_router/go_router.dart';
 import '../../utils/navigation_utils.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_settings/app_settings.dart';
 
 class BusinessProfileScreen extends StatefulWidget {
   const BusinessProfileScreen({Key? key}) : super(key: key);
@@ -21,6 +23,11 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   final _businessNameController = TextEditingController();
   final _businessNumberController = TextEditingController();
   final _addressController = TextEditingController();
+  // 결제/정산용 계정 설정 필드
+  final _accountHolderController = TextEditingController();
+  final _bankNameController = TextEditingController();
+  final _accountNumberController = TextEditingController();
+  final _settlementEmailController = TextEditingController();
   
   List<String> _selectedServiceAreas = [];
   List<String> _selectedSpecialties = [];
@@ -45,6 +52,17 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       _selectedServiceAreas = List.from(currentUser.serviceAreas);
       _selectedSpecialties = List.from(currentUser.specialties);
     }
+    // 로컬 결제/정산 정보 로드
+    Future.microtask(_loadBillingInfoFromLocal);
+  }
+
+  Future<void> _loadBillingInfoFromLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    _accountHolderController.text = prefs.getString('billing_account_holder') ?? '';
+    _bankNameController.text = prefs.getString('billing_bank_name') ?? '';
+    _accountNumberController.text = prefs.getString('billing_account_number') ?? '';
+    _settlementEmailController.text = prefs.getString('billing_email') ?? '';
+    if (mounted) setState(() {});
   }
 
   @override
@@ -54,6 +72,10 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     _businessNameController.dispose();
     _businessNumberController.dispose();
     _addressController.dispose();
+    _accountHolderController.dispose();
+    _bankNameController.dispose();
+    _accountNumberController.dispose();
+    _settlementEmailController.dispose();
     super.dispose();
   }
 
@@ -220,6 +242,32 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // 상단 헤더: 상호명 표시 (프레임 내 Ellipsis)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.storefront, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _businessNameController.text.isNotEmpty
+                            ? _businessNameController.text
+                            : '상호명을 입력하세요',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               // 기본 정보 섹션
               _buildSection(
                 '기본 정보',
@@ -255,6 +303,64 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
               ),
               
               const SizedBox(height: 24),
+
+              // 계정 설정 (결제)
+              _buildSection(
+                '계정 설정 (결제)',
+                [
+                  TextFormField(
+                    controller: _accountHolderController,
+                    decoration: const InputDecoration(
+                      labelText: '예금주',
+                      hintText: '예: 홍길동',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _bankNameController,
+                    decoration: const InputDecoration(
+                      labelText: '은행명',
+                      hintText: '예: 국민은행',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _accountNumberController,
+                    decoration: const InputDecoration(
+                      labelText: '계좌번호',
+                      hintText: '하이픈 없이 입력',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _settlementEmailController,
+                    decoration: const InputDecoration(
+                      labelText: '정산 이메일',
+                      hintText: '정산 관련 안내를 받을 이메일',
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // 알림 설정 섹션
+              _buildSection(
+                '알림 설정',
+                [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.notifications_active),
+                    title: const Text('기기 알림 설정 열기'),
+                    subtitle: const Text('OS의 앱 알림 설정으로 이동합니다.'),
+                    onTap: () {
+                      AppSettings.openAppSettings();
+                    },
+                  ),
+                ],
+              ),
               
               // 사업자 정보 섹션
               _buildSection(
@@ -422,6 +528,25 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                           color: Colors.white,
                         ),
                       ),
+              ),
+
+              const SizedBox(height: 12),
+              // 로그아웃 버튼
+              OutlinedButton.icon(
+                onPressed: () async {
+                  try {
+                    await Provider.of<AuthService>(context, listen: false).signOut();
+                    if (mounted) NavigationUtils.navigateToRoleHome(context);
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('로그아웃 실패: $e')),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text('로그아웃'),
               ),
             ],
           ),

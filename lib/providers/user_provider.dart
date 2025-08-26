@@ -181,6 +181,14 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  // 누락된 메서드 추가
+  Future<void> refreshCurrentUser() async {
+    if (_authService != null) {
+      _currentUser = _authService!.currentUser;
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
     _authService?.removeListener(_onAuthChanged);

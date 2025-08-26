@@ -43,3 +43,38 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# APK files
+*.apk
+*.aab
+
+# Build outputs
+build/
+**/build/
+
+# Gradle files
+.gradle/
+**/.gradle/
+
+# Android build files
+android/.gradle/
+android/app/build/
+android/build/
+
+# Flutter build files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Public APK files
+public/*.apk
+public/*.aab
+
+# Node modules (if any)
+node_modules/
+**/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production

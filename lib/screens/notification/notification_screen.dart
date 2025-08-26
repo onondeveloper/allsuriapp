@@ -5,6 +5,8 @@ import '../../models/user.dart';
 import '../../providers/user_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/common_app_bar.dart';
+import '../business/job_management_screen.dart';
+import '../business/call_marketplace_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({Key? key}) : super(key: key);
@@ -208,6 +210,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(notification.message),
+            if ((notification.jobTitle?.isNotEmpty ?? false) || (notification.region?.isNotEmpty ?? false)) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${notification.jobTitle ?? ''}${(notification.jobTitle?.isNotEmpty ?? false) && (notification.region?.isNotEmpty ?? false) ? ' · ' : ''}${notification.region ?? ''}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600),
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
               _formatTimeAgo(notification.createdAt),
@@ -216,6 +225,22 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 color: Colors.grey[600],
               ),
             ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () async {
+                  await _markAsRead(notification);
+                  if (!mounted) return;
+                  if ((notification.type == 'call_assigned' || notification.type == 'call_update') && (notification.jobId?.isNotEmpty ?? false)) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const CallMarketplaceScreen()));
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const JobManagementScreen()));
+                  }
+                },
+                child: const Text('자세히 보기'),
+              ),
+            )
           ],
         ),
         trailing: notification.isRead

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/estimate.dart';
+import 'package:allsuriapp/services/notification_service.dart';
 
 class EstimateService extends ChangeNotifier {
   final SupabaseClient _sb = Supabase.instance.client;
@@ -29,13 +30,13 @@ class EstimateService extends ChangeNotifier {
     try {
       var query = _sb.from('estimates').select();
       if (businessId != null) {
-        query = query.eq('businessId', businessId);
+        query = query.eq('businessid', businessId);
       } else if (customerId != null) {
-        query = query.eq('customerId', customerId);
+        query = query.eq('customerid', customerId);
       } else if (orderId != null) {
         query = query.eq('orderId', orderId);
       }
-      final rows = await query.order('createdAt', ascending: false);
+      final rows = await query.order('createdat', ascending: false);
       _estimates = rows
           .map((r) => Estimate.fromMap(Map<String, dynamic>.from(r)))
           .toList();
@@ -62,11 +63,87 @@ class EstimateService extends ChangeNotifier {
   // 견적 생성
   Future<void> createEstimate(Estimate estimate) async {
     try {
-      await _sb.from('estimates').insert(estimate.toMap());
-      _estimates.add(estimate);
+      // DB 스키마(컬럼명)에 맞춘 입력 맵을 구성합니다.
+      // 필수값 검증
+      if (estimate.orderId.isEmpty) {
+        throw Exception('주문 ID가 유효하지 않습니다.');
+      }
+      if (estimate.businessId.isEmpty) {
+        throw Exception('사업자 ID가 유효하지 않습니다.');
+      }
+
+      // 'id'는 DB에서 자동 생성(uuid)되므로 전달하지 않습니다.
+      final nowIso = DateTime.now().toIso8601String();
+      final Map<String, dynamic> insertData = {
+        'orderId': estimate.orderId,
+        'customername': (estimate.customerName.isEmpty ? '고객' : estimate.customerName),
+        'businessid': estimate.businessId,
+        'businessname': (estimate.businessName.isEmpty ? '사업자' : estimate.businessName),
+        'businessphone': estimate.businessPhone,
+        'equipmenttype': (estimate.equipmentType.isEmpty ? '기타' : estimate.equipmentType),
+        'amount': estimate.amount,
+        'description': estimate.description,
+        'estimateddays': estimate.estimatedDays,
+        'createdat': nowIso,
+        'updatedAt': nowIso,
+        'visitdate': estimate.visitDate.toIso8601String(),
+        'status': estimate.status,
+      };
+
+      // 고객 ID가 있는 경우에만 설정 (빈 문자열로 넣지 않음 → 22P02 방지)
+      if (estimate.customerId.isNotEmpty) {
+        insertData['customerid'] = estimate.customerId;
+      }
+
+      final row = await _sb
+          .from('estimates')
+          .upsert(insertData, onConflict: 'orderId,businessid')
+          .select('id, orderId, customerid, customername, businessid, businessname, businessphone, equipmenttype, amount, description, estimateddays, createdat, visitdate, status')
+          .maybeSingle();
+
+      if (row != null) {
+        final m = Map<String, dynamic>.from(row);
+        final created = Estimate(
+          id: (m['id']?.toString() ?? estimate.id),
+          orderId: (m['orderId']?.toString() ?? estimate.orderId),
+          customerId: (m['customerid']?.toString() ?? ''),
+          customerName: (m['customername']?.toString() ?? estimate.customerName),
+          businessId: (m['businessid']?.toString() ?? estimate.businessId),
+          businessName: (m['businessname']?.toString() ?? estimate.businessName),
+          businessPhone: (m['businessphone']?.toString() ?? estimate.businessPhone),
+          equipmentType: (m['equipmenttype']?.toString() ?? estimate.equipmentType),
+          amount: (m['amount'] is num ? (m['amount'] as num).toDouble() : estimate.amount),
+          description: (m['description']?.toString() ?? estimate.description),
+          estimatedDays: (m['estimateddays'] is num ? (m['estimateddays'] as num).toInt() : estimate.estimatedDays),
+          createdAt: m['createdat'] != null ? DateTime.parse(m['createdat'].toString()) : estimate.createdAt,
+          visitDate: m['visitdate'] != null ? DateTime.parse(m['visitdate'].toString()) : estimate.visitDate,
+          status: (m['status']?.toString() ?? estimate.status),
+        );
+        _estimates.add(created);
+      } else {
+        // 삽입은 되었으나 row가 없으면 입력 값으로 추가
+        _estimates.add(estimate);
+      }
       _notifyListenersSafely();
+
+      // 알림: 견적 제출 완료 (본인)
+      final uid = _sb.auth.currentUser?.id;
+      if (uid != null && uid.isNotEmpty) {
+        try {
+          await NotificationService().sendNotification(
+            userId: uid,
+            title: '견적 제출 완료',
+            body: '제출한 견적이 저장되었습니다.',
+          );
+        } catch (_) {}
+      }
     } catch (e) {
       print('견적 생성 오류: $e');
+      // 고유 제약 위반(이미 같은 주문에 동일 사업자가 제출한 경우) 가독성 향상
+      final msg = e.toString();
+      if (msg.contains('uq_estimates_order_business') || msg.contains('duplicate key value') || msg.contains('409')) {
+        throw Exception('이미 이 요청에 제출한 견적이 있어 기존 견적을 업데이트했습니다.');
+      }
       rethrow;
     }
   }
@@ -74,7 +151,23 @@ class EstimateService extends ChangeNotifier {
   // 견적 업데이트
   Future<void> updateEstimate(Estimate estimate) async {
     try {
-      await _sb.from('estimates').update(estimate.toMap()).eq('id', estimate.id);
+      // DB 컬럼 스키마에 맞게 업데이트할 필드를 구성합니다.
+      final updateData = {
+        'orderId': estimate.orderId,
+        'customerid': estimate.customerId,
+        'customername': estimate.customerName,
+        'businessid': estimate.businessId,
+        'businessname': estimate.businessName,
+        'businessphone': estimate.businessPhone,
+        'equipmenttype': estimate.equipmentType,
+        'amount': estimate.amount,
+        'description': estimate.description,
+        'estimateddays': estimate.estimatedDays,
+        'status': estimate.status,
+        'visitdate': estimate.visitDate.toIso8601String(),
+        // updatedAt 컬럼이 있다면 자동 트리거나 별도 업데이트로 처리될 수 있음
+      };
+      await _sb.from('estimates').update(updateData).eq('id', estimate.id);
       final index = _estimates.indexWhere((e) => e.id == estimate.id);
       if (index != -1) {
         _estimates[index] = estimate;
@@ -125,7 +218,17 @@ class EstimateService extends ChangeNotifier {
         _notifyListenersSafely();
       }
 
-      // 수수료 알림 등 사이드이펙트는 상위에서 별도 서비스로 처리
+      // 알림: 견적 낙찰(본인)
+      final uid = _sb.auth.currentUser?.id;
+      if (uid != null && uid.isNotEmpty) {
+        try {
+          await NotificationService().sendNotification(
+            userId: uid,
+            title: '낙찰되었습니다',
+            body: '제출한 견적이 낙찰로 선택되었습니다.',
+          );
+        } catch (_) {}
+      }
     } catch (e) {
       print('견적 채택 오류: $e');
       rethrow;

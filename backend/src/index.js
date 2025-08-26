@@ -11,6 +11,7 @@ const userRoutes = require('./routes/users');
 const orderRoutes = require('./routes/orders');
 const notificationRoutes = require('./routes/notifications');
 const adminRoutes = require('./routes/admin');
+const marketRoutes = require('./routes/market');
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/market', marketRoutes);
 
 // 관리자 대시보드 라우트
 app.get('/admin', (req, res) => {

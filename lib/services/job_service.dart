@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/job.dart';
+import 'notification_service.dart';
 
 class JobService extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -89,13 +90,31 @@ class JobService extends ChangeNotifier {
     required String transferToBusinessId,
   }) async {
     try {
-      await _supabase
+      final row = await _supabase
           .from('jobs')
           .update({
             'transfer_to_business_id': transferToBusinessId,
             'status': 'pending_transfer',
           })
-          .eq('id', jobId);
+          .eq('id', jobId)
+          .select('owner_business_id')
+          .single();
+
+      // Notifications
+      final ownerId = row['owner_business_id'] as String?;
+      final notif = NotificationService();
+      if (ownerId != null && ownerId.isNotEmpty) {
+        await notif.sendNotification(
+          userId: ownerId,
+          title: '이관 요청 완료',
+          body: '공사 이관 요청을 보냈습니다.',
+        );
+      }
+      await notif.sendNotification(
+        userId: transferToBusinessId,
+        title: '공사 이관 요청',
+        body: '새로운 공사 이관 요청이 도착했습니다.',
+      );
     } catch (e) {
       if (kDebugMode) {
         print('Error requesting transfer: $e');
@@ -110,14 +129,34 @@ class JobService extends ChangeNotifier {
     required double awardedAmount,
   }) async {
     try {
-      await _supabase
+      final row = await _supabase
           .from('jobs')
           .update({
             'assigned_business_id': assigneeBusinessId,
             'awarded_amount': awardedAmount,
             'status': 'assigned',
           })
-          .eq('id', jobId);
+          .eq('id', jobId)
+          .select('owner_business_id, transfer_to_business_id')
+          .single();
+
+      final ownerId = row['owner_business_id'] as String?;
+      final receiverId = row['transfer_to_business_id'] as String?;
+      final notif = NotificationService();
+      if (ownerId != null && ownerId.isNotEmpty) {
+        await notif.sendNotification(
+          userId: ownerId,
+          title: '이관 완료',
+          body: '요청한 공사가 이관 완료되었습니다.',
+        );
+      }
+      if (receiverId != null && receiverId.isNotEmpty) {
+        await notif.sendNotification(
+          userId: receiverId,
+          title: '공사를 받았습니다',
+          body: '공사 이관을 수락했습니다.',
+        );
+      }
     } catch (e) {
       if (kDebugMode) {
         print('Error accepting transfer: $e');
@@ -131,10 +170,26 @@ class JobService extends ChangeNotifier {
     required String status,
   }) async {
     try {
-      await _supabase
+      final row = await _supabase
           .from('jobs')
           .update({'status': status})
-          .eq('id', jobId);
+          .eq('id', jobId)
+          .select('owner_business_id, transfer_to_business_id, assigned_business_id')
+          .single();
+
+      final ownerId = row['owner_business_id'] as String?;
+      final receiverId = row['transfer_to_business_id'] as String?;
+      final assigneeId = row['assigned_business_id'] as String?;
+      final notif = NotificationService();
+      if (status == 'transfer_rejected') {
+        if (ownerId != null && ownerId.isNotEmpty) {
+          await notif.sendNotification(
+            userId: ownerId,
+            title: '이관 거절',
+            body: '이관 요청이 거절되었습니다.',
+          );
+        }
+      }
     } catch (e) {
       if (kDebugMode) {
         print('Error updating job status: $e');

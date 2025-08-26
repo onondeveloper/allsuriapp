@@ -1,0 +1,926 @@
+// API 기본 URL
+const API_BASE = '/api/admin';
+const MARKET_API_BASE = '/api/market';
+
+// 관리자 토큰 (.env 파일의 ADMIN_TOKEN과 일치해야 함)
+const ADMIN_TOKEN = 'devtoken';
+
+// API 호출 헬퍼 함수
+async function apiCall(endpoint, options = {}) {
+    const url = `${API_BASE}${endpoint}`;
+    const config = {
+        headers: {
+            'Content-Type': 'application/json',
+            'admin-token': ADMIN_TOKEN,
+            ...options.headers
+        },
+        ...options
+    };
+
+    // 디버그 로그 추가
+    console.log('[API CALL] URL:', url);
+    console.log('[API CALL] Headers:', config.headers);
+    console.log('[API CALL] Token being sent:', ADMIN_TOKEN);
+
+    try {
+        const response = await fetch(url, config);
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('관리자 권한이 필요합니다. ADMIN_TOKEN을 확인해주세요.');
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('API 호출 오류:', error);
+        throw error;
+    }
+}
+
+        // 대시보드 데이터 로드
+        async function loadDashboard() {
+            try {
+                const data = await apiCall('/dashboard');
+                
+                document.getElementById('totalUsers').textContent = data.totalUsers;
+                document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers;
+                document.getElementById('totalCustomers').textContent = data.totalCustomers;
+                document.getElementById('pendingUsers').textContent = data.totalBusinessUsers - (data.approvedUsers || 0);
+                document.getElementById('totalEstimates').textContent = data.totalEstimates;
+                document.getElementById('pendingEstimates').textContent = data.pendingEstimates;
+                document.getElementById('approvedEstimates').textContent = data.approvedEstimates || 0;
+                document.getElementById('completedEstimates').textContent = data.completedEstimates;
+                document.getElementById('inProgressEstimates').textContent = data.inProgressEstimates || 0;
+                document.getElementById('awardedEstimates').textContent = data.awardedEstimates || 0;
+                document.getElementById('transferredEstimates').textContent = data.transferredEstimates || 0;
+                document.getElementById('totalRevenue').textContent = data.totalRevenue?.toLocaleString() || '0';
+            } catch (error) {
+                console.error('대시보드 로드 오류:', error);
+            }
+        }
+
+// 사용자 목록 로드
+async function loadUsers() {
+    try {
+        const users = await apiCall('/users');
+        displayUsers(users);
+    } catch (error) {
+        document.getElementById('userTableContainer').innerHTML = 
+            '<div class="error">사용자 목록을 불러오는데 실패했습니다.</div>';
+    }
+}
+
+        // 사용자 표시
+        function displayUsers(users) {
+            const container = document.getElementById('userTableContainer');
+            
+            if (users.length === 0) {
+                container.innerHTML = '<div class="loading">등록된 사용자가 없습니다.</div>';
+                return;
+            }
+
+            const table = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>이름</th>
+                            <th>이메일</th>
+                            <th>역할</th>
+                            <th>상태</th>
+                            <th>가입일</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(user => `
+                            <tr>
+                                <td class="clickable-cell" data-user-id="${user.id}" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${user.name || '이름 없음'}</td>
+                                <td>${user.email}</td>
+                                <td>${user.role === 'business' ? '사업자' : '고객'}</td>
+                                <td>
+                                    <span class="status-badge status-${user.businessStatus || 'pending'}">
+                                        ${getStatusText(user.businessStatus)}
+                                    </span>
+                                </td>
+                                <td>${new Date(user.createdAt).toLocaleDateString()}</td>
+                                <td>
+                                    ${user.role === 'business' && user.businessStatus === 'pending' ? `
+                                        <button class="btn btn-success" data-user-id="${user.id}" data-action="approve">승인</button>
+                                        <button class="btn btn-danger" data-user-id="${user.id}" data-action="reject">거절</button>
+                                    ` : ''}
+                                    <button class="btn btn-danger" data-user-id="${user.id}" data-action="delete">삭제</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            container.innerHTML = table;
+            
+            // 사용자 이름 클릭 이벤트 리스너 설정
+            const clickableCells = container.querySelectorAll('.clickable-cell');
+            clickableCells.forEach(cell => {
+                cell.addEventListener('click', () => {
+                    const userId = cell.getAttribute('data-user-id');
+                    showUserDetail(userId);
+                });
+            });
+
+            // 사용자 액션 버튼 이벤트 리스너 설정
+            const actionButtons = container.querySelectorAll('[data-action]');
+            actionButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const userId = button.getAttribute('data-user-id');
+                    const action = button.getAttribute('data-action');
+                    
+                    switch(action) {
+                        case 'approve':
+                            approveUser(userId);
+                            break;
+                        case 'reject':
+                            rejectUser(userId);
+                            break;
+                        case 'delete':
+                            deleteUser(userId);
+                            break;
+                    }
+                });
+            });
+        }
+
+        // 견적 목록 로드
+async function loadEstimates() {
+    try {
+        const params = buildEstimateQueryParams();
+        const qs = params ? `?${params}` : '';
+        const estimates = await apiCall(`/estimates${qs}`);
+        displayEstimates(estimates);
+    } catch (error) {
+        document.getElementById('estimateTableContainer').innerHTML = 
+            '<div class="error">견적 목록을 불러오는데 실패했습니다.</div>';
+    }
+}
+
+        // 견적 표시
+        function displayEstimates(estimates) {
+            const container = document.getElementById('estimateTableContainer');
+            
+            if (estimates.length === 0) {
+                container.innerHTML = '<div class="loading">등록된 견적이 없습니다.</div>';
+                return;
+            }
+
+            const table = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>제목</th>
+                            <th>고객</th>
+                            <th>사업자</th>
+                            <th>금액</th>
+                            <th>상태</th>
+                            <th>생성일</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${estimates.map(e => {
+                            const title = e.title || e.description || '제목 없음';
+                            const customerName = e.customerName || e.customername || '고객명 없음';
+                            const businessName = e.businessName || e.businessname || '사업자명 없음';
+                            const amountRaw = (e.amount !== undefined && e.amount !== null) ? e.amount : (e.estimatedPrice !== undefined ? e.estimatedPrice : null);
+                            const amountText = (typeof amountRaw === 'number') ? amountRaw.toLocaleString() + '원' : '금액 없음';
+                            const createdAt = e.createdAt || e.createdat;
+                            const createdAtText = createdAt ? new Date(createdAt).toLocaleDateString() : '-';
+                            const status = e.status || '-';
+                            return `
+                            <tr>
+                                <td class="clickable-title" data-estimate-id="${e.id}" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${title}</td>
+                                <td>${customerName}</td>
+                                <td>${businessName}</td>
+                                <td>${amountText}</td>
+                                <td>
+                                    <span class="status-badge status-${status}">${getStatusText(status)}</span>
+                                </td>
+                                <td>${createdAtText}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            container.innerHTML = table;
+            
+            // 견적 제목 클릭 이벤트 리스너 설정
+            const clickableTitles = container.querySelectorAll('.clickable-title');
+            clickableTitles.forEach(title => {
+                title.addEventListener('click', () => {
+                    const estimateId = title.getAttribute('data-estimate-id');
+                    showEstimateDetail(estimateId);
+                });
+            });
+        }
+
+// 상태 텍스트 변환
+function getStatusText(status) {
+    const statusMap = {
+        'pending': '대기중',
+        'approved': '승인됨',
+        'rejected': '거절됨',
+        'completed': '완료',
+        'in_progress': '진행중',
+        'awarded': '입찰 완료',
+        'transferred': '이전됨'
+    };
+    return statusMap[status] || status;
+}
+
+        // 사용자 승인
+        async function approveUser(userId) {
+            try {
+                console.log('사용자 승인 시도:', userId);
+                const response = await apiCall(`/users/${userId}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: 'approved' })
+                });
+                console.log('승인 응답:', response);
+                alert('사용자가 승인되었습니다.');
+                loadUsers();
+                loadDashboard();
+            } catch (error) {
+                console.error('승인 오류:', error);
+                alert('사용자 승인에 실패했습니다: ' + error.message);
+            }
+        }
+
+        // 사용자 거절
+        async function rejectUser(userId) {
+            try {
+                console.log('사용자 거절 시도:', userId);
+                const response = await apiCall(`/users/${userId}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: 'rejected' })
+                });
+                console.log('거절 응답:', response);
+                alert('사용자가 거절되었습니다.');
+                loadUsers();
+                loadDashboard();
+            } catch (error) {
+                console.error('거절 오류:', error);
+                alert('사용자 거절에 실패했습니다: ' + error.message);
+            }
+        }
+
+// 사용자 삭제
+async function deleteUser(userId) {
+    if (!confirm('정말로 이 사용자를 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        await apiCall(`/users/${userId}`, {
+            method: 'DELETE'
+        });
+        loadUsers();
+        loadDashboard();
+    } catch (error) {
+        alert('사용자 삭제에 실패했습니다.');
+    }
+}
+
+        // 검색 기능 및 이벤트 리스너 설정
+        document.addEventListener('DOMContentLoaded', () => {
+            // 검색 기능 이벤트 리스너
+            document.getElementById('userSearch').addEventListener('input', debounce(async (e) => {
+                const query = e.target.value;
+                if (query.length > 0) {
+                    try {
+                        const users = await apiCall(`/users/search?q=${encodeURIComponent(query)}`);
+                        displayUsers(users);
+                    } catch (error) {
+                        console.error('사용자 검색 오류:', error);
+                    }
+                } else {
+                    loadUsers();
+                }
+            }, 300));
+
+            document.getElementById('estimateSearch').addEventListener('input', debounce(async (e) => {
+                const query = e.target.value;
+                if (query.length > 0) {
+                    try {
+                        const base = `/estimates/search?q=${encodeURIComponent(query)}`;
+                        const params = buildEstimateQueryParams({ includeText:false });
+                        const qs = params ? `&${params}` : '';
+                        const estimates = await apiCall(`${base}${qs}`);
+                        displayEstimates(estimates);
+                    } catch (error) {
+                        console.error('견적 검색 오류:', error);
+                    }
+                } else {
+                        loadEstimates();
+                }
+            }, 300));
+
+            // 필터 버튼
+            document.getElementById('applyEstimateFilters').addEventListener('click', loadEstimates);
+            document.getElementById('resetEstimateFilters').addEventListener('click', () => {
+                document.getElementById('statusFilter').value = 'all';
+                document.getElementById('startDateFilter').value = '';
+                document.getElementById('endDateFilter').value = '';
+                document.getElementById('phoneFilter').value = '';
+                document.getElementById('estimateSearch').value = '';
+                loadEstimates();
+            });
+
+            // 모달 닫기 버튼 이벤트 리스너
+            document.getElementById('closeEstimateModal').addEventListener('click', closeEstimateModal);
+            document.getElementById('closeEstimateModalBtn').addEventListener('click', closeEstimateModal);
+            document.getElementById('closeUserModal').addEventListener('click', closeUserModal);
+            document.getElementById('closeUserModalBtn').addEventListener('click', closeUserModal);
+            document.getElementById('closeStatsModalBtn').addEventListener('click', closeStatsModal);
+
+            // 견적 모달 버튼 이벤트 리스너
+            document.getElementById('updateEstimateStatus').addEventListener('click', updateEstimateStatus);
+
+            // 사용자 모달 버튼 이벤트 리스너
+            document.getElementById('approveUserFromModal').addEventListener('click', approveUserFromModal);
+            document.getElementById('rejectUserFromModal').addEventListener('click', rejectUserFromModal);
+
+            // 통계 숫자 클릭 이벤트 리스너
+            setupStatsClickListeners();
+
+            // 페이지 로드 시 데이터 로드
+            console.log('[PAGE LOAD] DOM이 로드되었습니다. 데이터를 불러오기 시작합니다.');
+            loadDashboard();
+            loadUsers();
+            loadEstimates();
+            // Call 현황 초기 로드 및 필터 바인딩
+            const applyCallFiltersBtn = document.getElementById('applyCallFilters');
+            if (applyCallFiltersBtn) {
+                applyCallFiltersBtn.addEventListener('click', loadCalls);
+            }
+            if (typeof loadCalls === 'function') {
+                loadCalls();
+            }
+        });
+
+        // 쿼리 파라미터 구성
+        function buildEstimateQueryParams(opts = { includeText:true }) {
+            const status = (document.getElementById('statusFilter')?.value || '').trim();
+            const startDate = (document.getElementById('startDateFilter')?.value || '').trim();
+            const endDate = (document.getElementById('endDateFilter')?.value || '').trim();
+            const phone = (document.getElementById('phoneFilter')?.value || '').trim();
+            const text = (document.getElementById('estimateSearch')?.value || '').trim();
+            const parts = [];
+            if (status && status !== 'all') parts.push(`status=${encodeURIComponent(status)}`);
+            if (startDate) parts.push(`startDate=${encodeURIComponent(startDate)}`);
+            if (endDate) parts.push(`endDate=${encodeURIComponent(endDate)}`);
+            if (phone) parts.push(`phone=${encodeURIComponent(phone)}`);
+            if (opts.includeText && text) parts.push(`q=${encodeURIComponent(text)}`);
+            return parts.join('&');
+        }
+
+        // 디바운스 함수
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // 전역 변수로 현재 선택된 견적/사용자 ID 저장
+        let currentEstimateId = null;
+        let currentUserId = null;
+
+        // 견적 상세 보기 모달 표시
+        async function showEstimateDetail(estimateId) {
+            try {
+                console.log('견적 상세 보기 시도:', estimateId);
+                currentEstimateId = estimateId;
+                const estimates = await apiCall('/estimates');
+                console.log('견적 목록:', estimates);
+                const estimate = estimates.find(e => e.id === estimateId);
+                console.log('찾은 견적:', estimate);
+                
+                if (!estimate) {
+                    alert('견적을 찾을 수 없습니다.');
+                    return;
+                }
+
+                document.getElementById('estimateModalTitle').textContent = `견적 상세 정보 - ${estimate.title}`;
+                
+                const modalBody = document.getElementById('estimateModalBody');
+                modalBody.innerHTML = `
+                    <div class="detail-row">
+                        <div class="detail-label">제목:</div>
+                        <div class="detail-value">${estimate.title || '제목 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">고객명:</div>
+                        <div class="detail-value">${estimate.customerName || '고객명 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">고객 연락처:</div>
+                        <div class="detail-value">${estimate.customerPhone || '연락처 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">주소:</div>
+                        <div class="detail-value">${estimate.address || '주소 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">설명:</div>
+                        <div class="detail-value">${estimate.description || '설명 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">카테고리:</div>
+                        <div class="detail-value">${estimate.category || '카테고리 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">방문 예정일:</div>
+                        <div class="detail-value">${estimate.visitDate ? new Date(estimate.visitDate).toLocaleDateString() : '날짜 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">현재 상태:</div>
+                        <div class="detail-value">
+                            <span class="status-badge status-${estimate.status}">
+                                ${getStatusText(estimate.status)}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">상태 변경:</div>
+                        <div class="detail-value">
+                            <select id="statusSelector" class="status-selector">
+                                <option value="pending" ${estimate.status === 'pending' ? 'selected' : ''}>대기중</option>
+                                <option value="approved" ${estimate.status === 'approved' ? 'selected' : ''}>승인됨</option>
+                                <option value="rejected" ${estimate.status === 'rejected' ? 'selected' : ''}>거절됨</option>
+                                <option value="completed" ${estimate.status === 'completed' ? 'selected' : ''}>완료</option>
+                                <option value="in_progress" ${estimate.status === 'in_progress' ? 'selected' : ''}>진행중</option>
+                                <option value="awarded" ${estimate.status === 'awarded' ? 'selected' : ''}>입찰 완료</option>
+                                <option value="transferred" ${estimate.status === 'transferred' ? 'selected' : ''}>이전됨</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">생성일:</div>
+                        <div class="detail-value">${new Date(estimate.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">수정일:</div>
+                        <div class="detail-value">${new Date(estimate.updatedAt).toLocaleString()}</div>
+                    </div>
+                `;
+
+                document.getElementById('estimateModal').style.display = 'block';
+            } catch (error) {
+                console.error('견적 상세 정보 로드 오류:', error);
+                alert('견적 상세 정보를 불러오는데 실패했습니다: ' + error.message);
+            }
+        }
+
+        // 견적 상태 업데이트
+        async function updateEstimateStatus() {
+            if (!currentEstimateId) return;
+            
+            const statusSelector = document.getElementById('statusSelector');
+            const newStatus = statusSelector.value;
+            
+            try {
+                console.log('견적 상태 업데이트 시도:', currentEstimateId, '->', newStatus);
+                const response = await apiCall(`/estimates/${currentEstimateId}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: newStatus })
+                });
+                console.log('상태 업데이트 응답:', response);
+                
+                alert('견적 상태가 업데이트되었습니다.');
+                closeEstimateModal();
+                loadEstimates();
+                loadDashboard();
+            } catch (error) {
+                console.error('상태 업데이트 오류:', error);
+                alert('견적 상태 업데이트에 실패했습니다: ' + error.message);
+            }
+        }
+
+        // 견적 모달 닫기
+        function closeEstimateModal() {
+            document.getElementById('estimateModal').style.display = 'none';
+            currentEstimateId = null;
+        }
+
+        // 사용자 상세 보기 모달 표시
+        async function showUserDetail(userId) {
+            try {
+                currentUserId = userId;
+                const users = await apiCall('/users');
+                const user = users.find(u => u.id === userId);
+                
+                if (!user) {
+                    alert('사용자를 찾을 수 없습니다.');
+                    return;
+                }
+
+                document.getElementById('userModalTitle').textContent = `사용자 상세 정보 - ${user.name || '이름 없음'}`;
+                
+                const modalBody = document.getElementById('userModalBody');
+                modalBody.innerHTML = `
+                    <div class="detail-row">
+                        <div class="detail-label">이름:</div>
+                        <div class="detail-value">${user.name || '이름 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">이메일:</div>
+                        <div class="detail-value">${user.email || '이메일 없음'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">역할:</div>
+                        <div class="detail-value">${user.role === 'business' ? '사업자' : '고객'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">연락처:</div>
+                        <div class="detail-value">${user.phoneNumber || user.phonenumber || '연락처 없음'}</div>
+                    </div>
+                    ${user.role === 'business' ? `
+                        <div class="detail-row">
+                            <div class="detail-label">사업자명:</div>
+                            <div class="detail-value">${user.businessName || user.businessname || '사업자명 없음'}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">사업자등록번호:</div>
+                            <div class="detail-value">${user.businessNumber || user.businessnumber || '등록번호 없음'}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">주소:</div>
+                            <div class="detail-value">${user.address || '주소 없음'}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">서비스 지역:</div>
+                            <div class="detail-value">${user.serviceAreas || user.serviceareas ? (user.serviceAreas || user.serviceareas).join(', ') : '지역 없음'}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">전문 분야:</div>
+                            <div class="detail-value">${user.specialties ? user.specialties.join(', ') : '전문 분야 없음'}</div>
+                        </div>
+                    ` : ''}
+                    <div class="detail-row">
+                        <div class="detail-label">현재 상태:</div>
+                        <div class="detail-value">
+                            <span class="status-badge status-${user.businessStatus || user.businessstatus || 'pending'}">
+                                ${getStatusText(user.businessStatus || user.businessstatus)}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">가입일:</div>
+                        <div class="detail-value">${new Date(user.createdAt || user.createdat).toLocaleString()}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">수정일:</div>
+                        <div class="detail-value">${new Date(user.updatedAt || user.updatedat).toLocaleString()}</div>
+                    </div>
+                `;
+
+                document.getElementById('userModal').style.display = 'block';
+            } catch (error) {
+                console.error('사용자 상세 정보 로드 오류:', error);
+                alert('사용자 상세 정보를 불러오는데 실패했습니다.');
+            }
+        }
+
+        // 사용자 모달에서 승인
+        async function approveUserFromModal() {
+            if (!currentUserId) return;
+            await approveUser(currentUserId);
+            closeUserModal();
+        }
+
+        // 사용자 모달에서 거절
+        async function rejectUserFromModal() {
+            if (!currentUserId) return;
+            await rejectUser(currentUserId);
+            closeUserModal();
+        }
+
+        // 사용자 모달 닫기
+        function closeUserModal() {
+            document.getElementById('userModal').style.display = 'none';
+            currentUserId = null;
+        }
+
+        // 모달 외부 클릭 시 닫기
+        window.onclick = function(event) {
+            const estimateModal = document.getElementById('estimateModal');
+            const userModal = document.getElementById('userModal');
+            const statsModal = document.getElementById('statsModal');
+            
+            if (event.target === estimateModal) {
+                closeEstimateModal();
+            }
+            if (event.target === userModal) {
+                closeUserModal();
+            }
+            if (event.target === statsModal) {
+                closeStatsModal();
+            }
+        }
+
+        // 사용자 타입별 상세 정보 표시
+        async function showUsersByType(type) {
+            try {
+                const users = await apiCall('/users');
+                let filteredUsers = [];
+                let title = '';
+
+                switch(type) {
+                    case 'all':
+                        filteredUsers = users;
+                        title = '전체 사용자 목록';
+                        break;
+                    case 'business':
+                        filteredUsers = users.filter(u => u.role === 'business');
+                        title = '사업자 사용자 목록';
+                        break;
+                    case 'customer':
+                        filteredUsers = users.filter(u => u.role === 'customer');
+                        title = '고객 사용자 목록';
+                        break;
+                    case 'pending':
+                        filteredUsers = users.filter(u => u.role === 'business' && (u.businessStatus || u.businessstatus) === 'pending');
+                        title = '승인 대기 사업자 목록';
+                        break;
+                }
+
+                document.getElementById('statsModalTitle').textContent = title;
+                const modalBody = document.getElementById('statsModalBody');
+                
+                if (filteredUsers.length === 0) {
+                    modalBody.innerHTML = '<div class="loading">해당 조건의 사용자가 없습니다.</div>';
+                } else {
+                    const table = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>이름</th>
+                                    <th>이메일</th>
+                                    <th>역할</th>
+                                    <th>상태</th>
+                                    <th>가입일</th>
+                                    <th>작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filteredUsers.map(user => `
+                                    <tr>
+                                        <td class="clickable-cell" onclick="showUserDetail('${user.id}')" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${user.name || '이름 없음'}</td>
+                                        <td>${user.email}</td>
+                                        <td>${user.role === 'business' ? '사업자' : '고객'}</td>
+                                        <td>
+                                            <span class="status-badge status-${user.businessStatus || user.businessstatus || 'pending'}">
+                                                ${getStatusText(user.businessStatus || user.businessstatus)}
+                                            </span>
+                                        </td>
+                                        <td>${new Date(user.createdAt || user.createdat).toLocaleDateString()}</td>
+                                        <td>
+                                            ${user.role === 'business' && (user.businessStatus || user.businessstatus) === 'pending' ? `
+                                                <button class="btn btn-success" onclick="approveUser('${user.id}')">승인</button>
+                                                <button class="btn btn-danger" onclick="rejectUser('${user.id}')">거절</button>
+                                            ` : ''}
+                                            <button class="btn btn-danger" onclick="deleteUser('${user.id}')">삭제</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    modalBody.innerHTML = table;
+                }
+
+                document.getElementById('statsModal').style.display = 'block';
+            } catch (error) {
+                console.error('사용자 상세 정보 로드 오류:', error);
+                alert('사용자 상세 정보를 불러오는데 실패했습니다.');
+            }
+        }
+
+        // 견적 상태별 상세 정보 표시
+        async function showEstimatesByStatus(status) {
+            try {
+                const endpoint = status === 'all' ? '/estimates' : `/estimates?status=${encodeURIComponent(status)}`;
+                const estimates = await apiCall(endpoint);
+                const filteredEstimates = estimates;
+                const titleMap = {
+                    all: '전체 견적 목록',
+                    pending: '대기중인 견적 목록',
+                    approved: '승인된 견적 목록',
+                    completed: '완료된 견적 목록',
+                    in_progress: '진행중인 견적 목록',
+                    awarded: '입찰 완료된 견적 목록',
+                    transferred: '이전된 견적 목록',
+                };
+                const title = titleMap[status] || '견적 목록';
+
+                document.getElementById('statsModalTitle').textContent = title;
+                const modalBody = document.getElementById('statsModalBody');
+                
+                if (filteredEstimates.length === 0) {
+                    modalBody.innerHTML = '<div class="loading">해당 조건의 견적이 없습니다.</div>';
+                } else {
+                    const table = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>제목</th>
+                                    <th>고객</th>
+                                    <th>사업자</th>
+                                    <th>금액</th>
+                                    <th>상태</th>
+                                    <th>생성일</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filteredEstimates.map(estimate => `
+                                    <tr>
+                                        <td class="clickable-title" onclick="showEstimateDetail('${estimate.id}')" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${estimate.title || '제목 없음'}</td>
+                                        <td>${estimate.customerName || '고객명 없음'}</td>
+                                        <td>${estimate.businessName || '사업자명 없음'}</td>
+                                        <td>${estimate.estimatedPrice ? estimate.estimatedPrice.toLocaleString() + '원' : '금액 없음'}</td>
+                                        <td>
+                                            <span class="status-badge status-${estimate.status}">
+                                                ${getStatusText(estimate.status)}
+                                            </span>
+                                        </td>
+                                        <td>${new Date(estimate.createdAt).toLocaleDateString()}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    modalBody.innerHTML = table;
+                }
+
+                document.getElementById('statsModal').style.display = 'block';
+            } catch (error) {
+                console.error('견적 상세 정보 로드 오류:', error);
+                alert('견적 상세 정보를 불러오는데 실패했습니다.');
+            }
+        }
+
+        // 수익 상세 정보 표시
+        async function showRevenueDetails() {
+            try {
+                const estimates = await apiCall('/estimates');
+                const completedEstimates = estimates.filter(e => e.status === 'completed');
+                
+                document.getElementById('statsModalTitle').textContent = '수익 상세 정보';
+                const modalBody = document.getElementById('statsModalBody');
+                
+                if (completedEstimates.length === 0) {
+                    modalBody.innerHTML = '<div class="loading">완료된 견적이 없어 수익 정보를 계산할 수 없습니다.</div>';
+                } else {
+                    const totalRevenue = completedEstimates.reduce((sum, e) => sum + ((e.estimatedPrice || 0) * 0.05), 0);
+                    const averageRevenue = totalRevenue / completedEstimates.length;
+                    
+                    const table = `
+                        <div class="detail-row">
+                            <div class="detail-label">총 완료 견적:</div>
+                            <div class="detail-value">${completedEstimates.length}건</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">총 수익:</div>
+                            <div class="detail-value">${totalRevenue.toLocaleString()}원</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">평균 수익:</div>
+                            <div class="detail-value">${averageRevenue.toLocaleString()}원</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">수수료율:</div>
+                            <div class="detail-value">5%</div>
+                        </div>
+                        <hr style="margin: 1rem 0;">
+                        <h4>완료된 견적 목록</h4>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>제목</th>
+                                    <th>고객</th>
+                                    <th>금액</th>
+                                    <th>수익</th>
+                                    <th>완료일</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${completedEstimates.map(estimate => `
+                                    <tr>
+                                        <td class="clickable-title" onclick="showEstimateDetail('${estimate.id}')" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${estimate.title || '제목 없음'}</td>
+                                        <td>${estimate.customerName || '고객명 없음'}</td>
+                                        <td>${estimate.estimatedPrice ? estimate.estimatedPrice.toLocaleString() + '원' : '금액 없음'}</td>
+                                        <td>${((estimate.estimatedPrice || 0) * 0.05).toLocaleString()}원</td>
+                                        <td>${new Date(estimate.updatedAt).toLocaleDateString()}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    modalBody.innerHTML = table;
+                }
+
+                document.getElementById('statsModal').style.display = 'block';
+            } catch (error) {
+                console.error('수익 상세 정보 로드 오류:', error);
+                alert('수익 상세 정보를 불러오는데 실패했습니다.');
+            }
+        }
+
+        // 통계 모달 닫기
+        function closeStatsModal() {
+            document.getElementById('statsModal').style.display = 'none';
+        }
+
+        // 통계 숫자 클릭 이벤트 리스너 설정
+        function setupStatsClickListeners() {
+            // 사용자 통계 클릭 리스너
+            const userStats = document.querySelectorAll('[data-type]');
+            userStats.forEach(stat => {
+                stat.addEventListener('click', () => {
+                    const type = stat.getAttribute('data-type');
+                    showUsersByType(type);
+                });
+            });
+
+            // 견적 통계 클릭 리스너
+            const estimateStats = document.querySelectorAll('[data-status]');
+            estimateStats.forEach(stat => {
+                stat.addEventListener('click', () => {
+                    const status = stat.getAttribute('data-status');
+                    showEstimatesByStatus(status);
+                });
+            });
+
+            // 수익 통계 클릭 리스너
+            const revenueStat = document.getElementById('totalRevenue');
+            if (revenueStat) {
+                revenueStat.addEventListener('click', showRevenueDetails);
+            }
+        }
+
+// ===== Call 현황 (마켓플레이스) =====
+async function loadCalls() {
+    try {
+        const status = document.getElementById('callStatusFilter')?.value || 'all';
+        const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
+        const res = await fetch(`${MARKET_API_BASE}/listings${qs}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const calls = await res.json();
+        displayCalls(calls);
+    } catch (e) {
+        const container = document.getElementById('callTableContainer');
+        if (container) container.innerHTML = '<div class="error">Call 목록을 불러오는데 실패했습니다.</div>';
+    }
+}
+
+function displayCalls(calls) {
+    const container = document.getElementById('callTableContainer');
+    if (!container) return;
+    if (!calls || calls.length === 0) {
+        container.innerHTML = '<div class="loading">등록된 Call이 없습니다.</div>';
+        return;
+    }
+    const table = `
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>제목</th>
+                    <th>지역</th>
+                    <th>카테고리</th>
+                    <th>예산</th>
+                    <th>상태</th>
+                    <th>게시자</th>
+                    <th>생성일</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${calls.map(item => `
+                    <tr>
+                        <td>${item.title || '-'}</td>
+                        <td>${item.region || '-'}</td>
+                        <td>${item.category || '-'}</td>
+                        <td>${typeof item.budget_amount === 'number' ? item.budget_amount.toLocaleString() : '-'}</td>
+                        <td>${item.status || '-'}</td>
+                        <td>${item.posted_by || '-'}</td>
+                        <td>${item.createdat ? new Date(item.createdat).toLocaleString() : '-'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    container.innerHTML = table;
+}

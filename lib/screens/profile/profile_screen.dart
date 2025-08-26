@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
+import '../business/business_profile_screen.dart';
+import 'package:app_settings/app_settings.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -132,6 +134,8 @@ class ProfileScreen extends StatelessWidget {
               (user.role == 'business' && (user.businessName != null && user.businessName!.trim().isNotEmpty))
                   ? user.businessName!
                   : user.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -182,20 +186,24 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildProfileActions(BuildContext context, User user) {
     return Column(
       children: [
-        _buildActionTile(
-          context,
-          Icons.settings,
-          '설정',
-          () {
-            // 설정 화면으로 이동
-          },
-        ),
+        if (user.role == 'business')
+          _buildActionTile(
+            context,
+            Icons.account_balance_wallet,
+            '계정 설정 (결제)',
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BusinessProfileScreen()),
+              );
+            },
+          ),
         _buildActionTile(
           context,
           Icons.notifications,
           '알림 설정',
           () {
-            // 알림 설정 화면으로 이동
+            AppSettings.openAppSettings();
           },
         ),
         if (user.role == 'business')
@@ -204,7 +212,10 @@ class ProfileScreen extends StatelessWidget {
             Icons.business,
             '사업자 관리',
             () {
-              // 사업자 관리 화면으로 이동
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BusinessProfileScreen()),
+              );
             },
           ),
         _buildActionTile(

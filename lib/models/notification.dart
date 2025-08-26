@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 class NotificationModel {
   final String id;
   final String title;
@@ -6,6 +5,9 @@ class NotificationModel {
   final String type; // 'estimate', 'order', 'system' 등
   final String? orderId;
   final String? estimateId;
+  final String? jobId;
+  final String? jobTitle;
+  final String? region;
   final bool isRead;
   final DateTime createdAt;
   final String userId;
@@ -17,26 +19,34 @@ class NotificationModel {
     required this.type,
     this.orderId,
     this.estimateId,
+    this.jobId,
+    this.jobTitle,
+    this.region,
     this.isRead = false,
     required this.createdAt,
     required this.userId,
   });
 
   factory NotificationModel.fromMap(Map<String, dynamic> map) {
+    String _str(dynamic v) => v?.toString() ?? '';
+    DateTime _dt(dynamic v) {
+      if (v == null) return DateTime.now();
+      if (v is DateTime) return v;
+      return DateTime.tryParse(v.toString()) ?? DateTime.now();
+    }
     return NotificationModel(
-      id: map['id'] ?? '',
-      title: map['title'] ?? '',
-      message: map['message'] ?? '',
-      type: map['type'] ?? '',
-      orderId: map['orderId'],
-      estimateId: map['estimateId'],
-      isRead: map['isRead'] ?? false,
-      createdAt: map['createdAt'] is Timestamp
-          ? (map['createdAt'] as Timestamp).toDate()
-          : (map['createdAt'] != null
-              ? DateTime.tryParse(map['createdAt'].toString()) ?? DateTime.now()
-              : DateTime.now()),
-      userId: map['userId'] ?? '',
+      id: _str(map['id']),
+      title: _str(map['title']),
+      message: _str(map['message'] ?? map['body']),
+      type: _str(map['type']),
+      orderId: map['orderId']?.toString() ?? map['orderid']?.toString(),
+      estimateId: map['estimateId']?.toString() ?? map['estimateid']?.toString(),
+      jobId: map['jobId']?.toString() ?? map['jobid']?.toString(),
+      jobTitle: map['jobTitle']?.toString() ?? map['jobtitle']?.toString(),
+      region: map['region']?.toString(),
+      isRead: (map['isRead'] as bool?) ?? (map['isread'] as bool?) ?? false,
+      createdAt: _dt(map['createdAt'] ?? map['createdat']),
+      userId: _str(map['userId'] ?? map['userid']),
     );
   }
 
@@ -48,8 +58,11 @@ class NotificationModel {
       'type': type,
       'orderId': orderId,
       'estimateId': estimateId,
+      'jobId': jobId,
+      'jobTitle': jobTitle,
+      'region': region,
       'isRead': isRead,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
       'userId': userId,
     };
   }
