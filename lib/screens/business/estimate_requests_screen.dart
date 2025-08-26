@@ -72,7 +72,14 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
     if (_selectedCategory == 'all') {
       return requests;
     }
-    return requests.where((request) => request.equipmentType == _selectedCategory).toList();
+    String mapCategory(String? raw) {
+      final v = (raw ?? '').trim();
+      if (v.contains('누수')) return '누수';
+      if (v.contains('배관') || v.contains('보일러') || v.contains('난방')) return '배관';
+      if (v.contains('화장실') || v.contains('욕실') || v.contains('변기')) return '화장실';
+      return '기타';
+    }
+    return requests.where((request) => mapCategory(request.equipmentType) == _selectedCategory).toList();
   }
 
   // 카테고리 필터 변경
@@ -121,11 +128,11 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
                     children: [
                       _buildCategoryChip('all', '전체'),
                       const SizedBox(width: 8),
-                      _buildCategoryChip('에어컨', '에어컨'),
+                      _buildCategoryChip('누수', '누수'),
                       const SizedBox(width: 8),
-                      _buildCategoryChip('냉장고', '냉장고'),
+                      _buildCategoryChip('배관', '배관'),
                       const SizedBox(width: 8),
-                      _buildCategoryChip('세탁기', '세탁기'),
+                      _buildCategoryChip('화장실', '화장실'),
                       const SizedBox(width: 8),
                       _buildCategoryChip('기타', '기타'),
                     ],
@@ -290,14 +297,13 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
               ],
             ),
             const SizedBox(height: 4),
+            // 고객 개인정보 비표시 (앱 이탈 방지)
             Row(
-              children: [
-                const Icon(Icons.person, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  '${request.customerName} (${request.customerPhone})',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
+              children: const [
+                Icon(Icons.person, size: 16, color: Colors.grey),
+                SizedBox(width: 4),
+                Text('고객 정보: 낙찰 후 공개',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
             const SizedBox(height: 16),
@@ -346,29 +352,36 @@ class _EstimateRequestsScreenState extends State<EstimateRequestsScreen> {
               const SizedBox(height: 8),
               Text('방문일: ${request.visitDate.toString().split(' ')[0]}'),
               const SizedBox(height: 8),
-              Text('고객: ${request.customerName}'),
+              const Text('고객: 비공개'),
               const SizedBox(height: 8),
-              Text('연락처: ${request.customerPhone}'),
+              const Text('연락처: 낙찰 후 공개'),
               const SizedBox(height: 8),
               Text('요청일: ${request.createdAt.toString().split('.')[0]}'),
             ],
           ),
         ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('닫기'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _goToBidding(request);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('취소'),
             ),
-            child: const Text('입찰하기'),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _goToBidding(request);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('입찰하기'),
+            ),
           ),
         ],
       ),

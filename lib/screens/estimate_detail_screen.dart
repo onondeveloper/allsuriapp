@@ -41,7 +41,6 @@ class _EstimateDetailScreenState extends State<EstimateDetailScreen> {
               const SizedBox(height: 6),
               Text('₩${_format(e.amount)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              _FeeBadges(amount: e.amount),
             ]),
             const SizedBox(height: 12),
             _sectionCard(children: [
@@ -161,46 +160,6 @@ class _EstimateDetailScreenState extends State<EstimateDetailScreen> {
   }
 }
 
-class _FeeBadges extends StatelessWidget {
-  final double amount;
-  const _FeeBadges({required this.amount});
-
-  String _format(double v) {
-    final s = v.toStringAsFixed(0);
-    return s.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final b2c5 = amount * 0.05;
-    final b2b5 = amount * 0.05;
-    final b2b3 = amount * 0.03;
-    return Row(children: [
-      _badge('B2C 5%', _format(b2c5), CupertinoColors.systemBlue),
-      const SizedBox(width: 8),
-      _badge('B2B 5%', _format(b2b5), CupertinoColors.systemGreen),
-      const SizedBox(width: 8),
-      _badge('B2B 3%', _format(b2b3), CupertinoColors.systemPurple),
-    ]);
-  }
-
-  Widget _badge(String label, String amountStr, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
-        const SizedBox(width: 6),
-        Text('₩$amountStr', style: TextStyle(fontSize: 12, color: color)),
-      ]),
-    );
-  }
-}
+// 수수료 배지 제거됨: 낙찰 시 플랫폼이 견적가 5%를 별도 징수
 
 

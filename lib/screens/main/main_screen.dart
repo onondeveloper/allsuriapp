@@ -23,7 +23,7 @@ class MainScreen extends StatelessWidget {
         }
 
         return Scaffold(
-          appBar: const CommonAppBar(),
+          appBar: const CommonAppBar(title: '올수리'),
           body: const HomeScreen(),
         );
       },

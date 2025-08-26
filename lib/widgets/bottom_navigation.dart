@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/customer/my_estimates_screen.dart';
 import '../screens/business/estimate_management_screen.dart';
+import '../screens/business/create_job_screen.dart';
 import '../screens/chat/chat_list_page.dart';
 import '../screens/profile/profile_screen.dart';
 import '../widgets/customer_dashboard.dart';
@@ -45,7 +46,7 @@ class BottomNavigation extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (context) => isCustomer
                         ? const CustomerMyEstimatesScreen()
-                        : const EstimateManagementScreen(),
+                        : const CreateJobScreen(),
                   ),
                 );
                 break;
@@ -77,7 +78,7 @@ class BottomNavigation extends StatelessWidget {
             NavigationDestination(
               icon: const Icon(Icons.assignment_outlined),
               selectedIcon: const Icon(Icons.assignment),
-              label: isCustomer ? '내 견적' : '견적 관리',
+              label: isCustomer ? '내 견적' : '공사 만들기',
             ),
             const NavigationDestination(
               icon: Icon(Icons.chat_outlined),

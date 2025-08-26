@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../screens/business/estimate_requests_screen.dart';
-import '../screens/business/my_estimates_screen.dart';
-import '../screens/business/create_job_screen.dart';
+import '../screens/business/estimate_management_screen.dart';
 import '../screens/business/transfer_estimate_screen.dart';
 import '../screens/notification/notification_screen.dart';
 import '../screens/business/job_management_screen.dart';
+import '../screens/business/call_marketplace_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../screens/home/home_screen.dart';
 import '../widgets/bottom_navigation.dart';
 import 'interactive_card.dart';
+import 'package:lottie/lottie.dart';
+import 'package:allsuriapp/services/marketplace_service.dart';
+import '../services/order_service.dart';
 
 class BusinessDashboard extends StatefulWidget {
   const BusinessDashboard({Key? key}) : super(key: key);
@@ -22,6 +25,56 @@ class BusinessDashboard extends StatefulWidget {
 
 class _BusinessDashboardState extends State<BusinessDashboard> {
   int _currentIndex = 0;
+  final MarketplaceService _market = MarketplaceService();
+  late Future<int> _callOpenCountFuture;
+  late Future<int> _estimateRequestsCountFuture;
+  late Future<int> _totalWaitingFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Futures are initialized in didChangeDependencies to safely read providers
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _callOpenCountFuture = _getCallOpenCount();
+    _estimateRequestsCountFuture = _getEstimateRequestsCount();
+    _totalWaitingFuture = _getTotalWaitingCount();
+  }
+
+  Future<int> _getCallOpenCount() async {
+    try {
+      final items = await _market.listListings(status: 'open');
+      return items.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<int> _getEstimateRequestsCount() async {
+    try {
+      final orderService = Provider.of<OrderService>(context, listen: false);
+      final all = await orderService.getOrders();
+      final available = all.where((o) => o.status == 'pending' && !o.isAwarded).length;
+      return available;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<int> _getTotalWaitingCount() async {
+    try {
+      final results = await Future.wait<int>([
+        _getCallOpenCount(),
+        _getEstimateRequestsCount(),
+      ]);
+      return results.fold<int>(0, (sum, v) => sum + v);
+    } catch (_) {
+      return 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +92,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
           },
           child: Scaffold(
           appBar: AppBar(
-            title: Text('$businessName with 올수리'),
+            title: Text('올수리에서 번창하세요!'),
             centerTitle: true,
             actions: [
               FutureBuilder<int>(
@@ -63,13 +116,27 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                         Positioned(
                           right: 10,
                           top: 10,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                            child: Text(
-                              unread.toString(),
-                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 26,
+                                height: 26,
+                                child: Lottie.asset(
+                                  'assets/lottie/notification_bell.json',
+                                  repeat: false,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                                child: Text(
+                                  unread.toString(),
+                                  style: const TextStyle(color: Colors.white, fontSize: 6, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
@@ -101,18 +168,55 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.primaryContainer,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.business, size: 28, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                        child: FutureBuilder<int>(
+                          future: _totalWaitingFuture,
+                          builder: (context, snapshot) {
+                            final n = snapshot.data ?? 0;
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '$n',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                              ],
+                            );
+                          },
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          '$businessName 님, 오늘도 안전한 서비스 제공을 응원합니다!',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        child: FutureBuilder<int>(
+                          future: _totalWaitingFuture,
+                          builder: (context, snapshot) {
+                            final n = snapshot.data ?? 0;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$businessName 님,',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$n건의 공사가 사장님을 애타게 기다리고 있어요!',
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       )
                     ],
@@ -130,36 +234,36 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                   children: [
                     _buildMenuCard(
                       context,
-                      '견적 확인하기',
+                      '고객 견적',
                       Icons.search,
-                      Colors.blue,
+                      Colors.indigo,
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateRequestsScreen()));
                       },
                     ),
+                   _buildMenuCard(
+                      context,
+                      'Call 공사',
+                      Icons.campaign_outlined,
+                      Colors.deepPurple,
+                      () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const CallMarketplaceScreen(showSuccessMessage: false)));
+                      },
+                    ),
                     _buildMenuCard(
                       context,
-                      '내 견적 목록',
+                      '견적 관리',
                       Icons.list_alt,
-                      Colors.green,
-                      () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessMyEstimatesScreen()));
-                      },
-                    ),
-                    _buildMenuCard(
-                      context,
-                      '공사 만들기',
-                      Icons.construction,
-                      Colors.orange,
-                      () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateJobScreen()));
-                      },
-                    ),
-                    _buildMenuCard(
-                      context,
-                      '공사 관리',
-                      Icons.assignment_turned_in,
                       Colors.teal,
+                      () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateManagementScreen()));
+                      },
+                    ),
+                    _buildMenuCard(
+                      context,
+                      '내가 만든 공사',
+                      Icons.assignment_turned_in,
+                      Colors.amber,
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
                       },
@@ -191,34 +295,160 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     Color color,
     VoidCallback onTap,
   ) {
-    return InteractiveCard(
+    Future<int>? badgeFuture;
+    if (title == '고객 견적') {
+      badgeFuture = _estimateRequestsCountFuture;
+    } else if (title == 'Call 공사') {
+      badgeFuture = _callOpenCountFuture;
+    }
+    return DashboardMenuCard(
+      title: title,
+      icon: icon,
+      color: color,
       onTap: onTap,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              size: 32,
-              color: Theme.of(context).colorScheme.onSecondaryContainer,
-            ),
+      badgeFuture: badgeFuture,
+    );
+  }
+}
+
+class DashboardMenuCard extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final Future<int>? badgeFuture;
+
+  const DashboardMenuCard({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.badgeFuture,
+  });
+
+  @override
+  State<DashboardMenuCard> createState() => _DashboardMenuCardState();
+}
+
+class _DashboardMenuCardState extends State<DashboardMenuCard> {
+  bool _pressed = false;
+  bool _hover = false;
+
+  void _setPressed(bool v) {
+    if (_pressed == v) return;
+    setState(() => _pressed = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final borderRadius = BorderRadius.circular(18);
+    final card = AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: borderRadius,
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.6)),
+          boxShadow: _pressed
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : _hover
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.10),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+        ),
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 120),
+          scale: _pressed ? 0.98 : 1.0,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          widget.color.withOpacity(0.95),
+                          widget.color.withOpacity(0.70),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      widget.icon,
+                      size: 30,
+                      color: Colors.white,
+                    ),
+                  ),
+                  if (widget.badgeFuture != null)
+                    Positioned(
+                      right: -6,
+                      top: -6,
+                      child: FutureBuilder<int>(
+                        future: widget.badgeFuture,
+                        builder: (context, snapshot) {
+                          final count = snapshot.data ?? 0;
+                          if (count <= 0) return const SizedBox.shrink();
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                            child: Text(
+                              count > 99 ? '99+' : count.toString(),
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                widget.title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
+      );
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTapDown: (_) => _setPressed(true),
+        onTapCancel: () => _setPressed(false),
+        onTapUp: (_) => _setPressed(false),
+        onTap: widget.onTap,
+        child: card,
       ),
     );
   }

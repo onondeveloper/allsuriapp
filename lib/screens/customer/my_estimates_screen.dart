@@ -14,6 +14,7 @@ import '../estimate_detail_screen.dart';
 import '../../services/order_service.dart';
 import '../../services/auth_service.dart';
 import 'create_request_screen.dart';
+import '../../services/marketplace_service.dart';
 
 class CustomerMyEstimatesScreen extends StatefulWidget {
   const CustomerMyEstimatesScreen({super.key});
@@ -27,6 +28,8 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
   Map<String, List<Estimate>> _orderEstimates = {};
   bool _isLoading = true;
   String _selectedStatus = 'all';
+  String _typeFilter = 'all'; // all | order | call
+  List<Map<String, dynamic>> _listings = [];
 
   @override
   void initState() {
@@ -86,6 +89,10 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
         await orderService.loadOrders(sessionId: sessionId);
         _orders = orderService.orders;
       }
+
+      // 사업자 Call 목록 로드 (오픈 상태)
+      final ms = MarketplaceService();
+      _listings = await ms.listListings(status: 'open');
     } catch (e) {
       print('데이터 로드 오류: $e');
     } finally {
@@ -135,12 +142,28 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_orders.isEmpty) {
+    if (_orders.isEmpty && _listings.isEmpty) {
       return _buildEmptyState();
     }
 
     return Column(
       children: [
+        // 타입 필터 (전체 / 내 견적 요청 / 사업자 Call)
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildTypeFilter('전체', 'all'),
+                const SizedBox(width: 8),
+                _buildTypeFilter('내 견적 요청', 'order'),
+                const SizedBox(width: 8),
+                _buildTypeFilter('사업자 Call', 'call'),
+              ],
+            ),
+          ),
+        ),
         // 상태 필터
         Container(
           padding: const EdgeInsets.all(16),
@@ -162,18 +185,21 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
           ),
         ),
         
-        // 주문 목록
+        // 통합 목록 (주문 + 콜)
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadData,
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              itemCount: filteredOrders.length,
-              itemBuilder: (context, index) {
-                final order = filteredOrders[index];
-                final estimates = _orderEstimates[order.id ?? ''] ?? [];
-                return _buildOrderCard(order, estimates);
-              },
+              children: [
+                if (_typeFilter == 'all' || _typeFilter == 'order') ...[
+                  for (final order in filteredOrders)
+                    _buildOrderCard(order, _orderEstimates[order.id ?? ''] ?? []),
+                ],
+                if (_typeFilter == 'all' || _typeFilter == 'call') ...[
+                  for (final listing in _listings) _buildCallCard(listing),
+                ],
+              ],
             ),
           ),
         ),
@@ -321,6 +347,23 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.activeBlue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: CupertinoColors.activeBlue),
+                      ),
+                      child: const Text(
+                        '내 견적 요청',
+                        style: TextStyle(fontSize: 11, color: CupertinoColors.activeBlue),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 const SizedBox(height: 4),
                 Text(
                   order.description,
@@ -432,6 +475,162 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeFilter(String label, String type) {
+    final isSelected = _typeFilter == type;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _typeFilter = type;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? CupertinoColors.activeBlue : CupertinoColors.systemGrey6,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? CupertinoColors.white : CupertinoColors.black,
+            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCallCard(Map<String, dynamic> listing) {
+    final String title = (listing['title']?.toString() ?? '제목 없음');
+    final String region = (listing['region']?.toString() ?? '지역 미정');
+    final String category = (listing['category']?.toString() ?? '분류 없음');
+    final double? budget = (listing['budget_amount'] is num) ? (listing['budget_amount'] as num).toDouble() : null;
+    DateTime? createdAt;
+    try {
+      createdAt = listing['createdat'] != null ? DateTime.tryParse(listing['createdat'].toString()) : null;
+    } catch (_) {}
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: CupertinoListTile(
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemPurple.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: CupertinoColors.systemPurple),
+              ),
+              child: const Text(
+                '사업자 Call',
+                style: TextStyle(fontSize: 11, color: CupertinoColors.systemPurple),
+              ),
+            ),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(CupertinoIcons.location, size: 14, color: CupertinoColors.systemGrey),
+                const SizedBox(width: 4),
+                Expanded(child: Text(region, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey))),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(CupertinoIcons.tag, size: 14, color: CupertinoColors.systemGrey),
+                const SizedBox(width: 4),
+                Expanded(child: Text(category, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey))),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(CupertinoIcons.money_yen_circle, size: 14, color: CupertinoColors.systemGrey),
+                const SizedBox(width: 4),
+                Expanded(child: Text('예산: ${budget != null ? '${budget.toStringAsFixed(0)}원' : '-'}', style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey))),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(CupertinoIcons.calendar, size: 14, color: CupertinoColors.systemGrey),
+                const SizedBox(width: 4),
+                Expanded(child: Text('게시일: ${createdAt != null ? createdAt.toString().split(' ')[0] : '-'}', style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey))),
+              ],
+            ),
+          ],
+        ),
+        trailing: const Icon(CupertinoIcons.chevron_right),
+        onTap: () => _showCallDetails(listing),
+      ),
+    );
+  }
+
+  void _showCallDetails(Map<String, dynamic> listing) {
+    final title = listing['title']?.toString() ?? '제목 없음';
+    final desc = listing['description']?.toString() ?? '';
+    final region = listing['region']?.toString() ?? '지역 미정';
+    final category = listing['category']?.toString() ?? '분류 없음';
+    final double? budget = (listing['budget_amount'] is num) ? (listing['budget_amount'] as num).toDouble() : null;
+    final createdAt = listing['createdat'] != null ? DateTime.tryParse(listing['createdat'].toString()) : null;
+
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Call 상세 정보'),
+        content: Column(
+          children: [
+            Text('제목: $title'),
+            const SizedBox(height: 6),
+            Text('지역: $region'),
+            const SizedBox(height: 6),
+            Text('분류: $category'),
+            const SizedBox(height: 6),
+            Text('예산: ${budget != null ? '${budget.toStringAsFixed(0)}원' : '-'}'),
+            const SizedBox(height: 6),
+            const Text('설명:'),
+            Text(desc.isNotEmpty ? desc : '없음'),
+            const SizedBox(height: 6),
+            Text('게시일: ${createdAt != null ? createdAt.toString().split(' ')[0] : '-'}'),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
         ],
       ),
     );

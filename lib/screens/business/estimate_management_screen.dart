@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:lottie/lottie.dart';
+import '../../widgets/shimmer_widgets.dart';
 import '../../models/estimate.dart';
 import '../../providers/estimate_provider.dart';
 import '../../services/estimate_service.dart';
@@ -8,11 +10,18 @@ import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/anonymous_service.dart';
 import '../../services/payment_service.dart';
+import '../chat_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+// Call(마켓) 분리는 홈의 별도 버튼로 이동
 import '../../widgets/common_app_bar.dart';
 
+// 통합 아이템 제거 (고객 견적만 관리)
+
 class EstimateManagementScreen extends StatefulWidget {
+  final String? initialStatus;
   const EstimateManagementScreen({
     Key? key,
+    this.initialStatus,
   }) : super(key: key);
 
   @override
@@ -25,6 +34,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
   List<Estimate> _estimates = [];
   bool _isLoading = true;
   String _selectedStatus = 'all';
+  // type 필터 제거 (고객 견적만)
 
   @override
   void didChangeDependencies() {
@@ -41,13 +51,14 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
         throw Exception('User not logged in');
       }
       setState(() => _isLoading = true);
-      // Note: listEstimatesByTechnician was removed, this will need to be re-implemented in EstimateService
-      // For now, it will fetch all estimates
-      await _estimateService.createEstimate(Estimate.empty()); // This is a placeholder
+      await _estimateService.loadEstimates(businessId: technicianId);
       final estimates = _estimateService.estimates;
       setState(() {
         _estimates = estimates;
         _isLoading = false;
+        if (widget.initialStatus != null && widget.initialStatus!.isNotEmpty) {
+          _selectedStatus = widget.initialStatus!;
+        }
       });
     } catch (e) {
       print('Error loading estimates: $e');
@@ -65,9 +76,11 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
       return _estimates;
     }
     return _estimates
-        .where((estimate) => estimate.status == _selectedStatus)
+        .where((estimate) => (estimate.status).toLowerCase() == _selectedStatus.toLowerCase())
         .toList();
   }
+
+  // 고객 견적만 표시
 
   Future<void> _deleteEstimate(Estimate estimate) async {
     final confirmed = await showDialog<bool>(
@@ -194,9 +207,9 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
           _buildFilterChips(),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const ShimmerList(itemCount: 6, itemHeight: 110)
                 : _filteredEstimates.isEmpty
-                    ? const Center(child: Text('제출한 견적이 없습니다.'))
+                    ? const Center(child: Text('표시할 항목이 없습니다.'))
                     : ListView.builder(
                         itemCount: _filteredEstimates.length,
                         padding: const EdgeInsets.all(16),
@@ -210,6 +223,25 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
     );
   }
 
+  void _showCheck() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'check',
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (_, __, ___) {
+        return Center(
+          child: SizedBox(width: 140, height: 140, child: Lottie.asset('assets/lottie/check.json', repeat: false)),
+        );
+      },
+    );
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    });
+  }
+
   Widget _buildFilterChips() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -218,15 +250,19 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
         children: [
           _buildFilterChip('전체', 'all'),
           const SizedBox(width: 8),
-          _buildFilterChip('대기중', 'PENDING'),
+          _buildFilterChip('대기중', Estimate.STATUS_PENDING),
           const SizedBox(width: 8),
-          _buildFilterChip('선택됨', 'SELECTED'),
+          _buildFilterChip('선택됨', Estimate.STATUS_AWARDED),
           const SizedBox(width: 8),
-          _buildFilterChip('거절됨', 'REJECTED'),
+          _buildFilterChip('거절됨', Estimate.STATUS_REJECTED),
+          const SizedBox(width: 8),
+          _buildFilterChip('완료', Estimate.STATUS_COMPLETED),
         ],
       ),
     );
   }
+
+  // type chips 제거
 
   Widget _buildFilterChip(String label, String status) {
     final isSelected = _selectedStatus == status;
@@ -256,7 +292,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    currencyFormat.format(estimate.price),
+                    estimate.amount != null ? currencyFormat.format(estimate.amount) : '금액 없음',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Colors.blue.shade700,
@@ -264,6 +300,8 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
                   ),
                 ),
                 _buildStatusChip(estimate.status),
+                const SizedBox(width: 6),
+                _buildTypeBadge(estimate),
               ],
             ),
             const SizedBox(height: 8),
@@ -292,6 +330,40 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                if (estimate.status == Estimate.STATUS_COMPLETED)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        // Call 공사: 원 사업자(posted_by)와 채팅방 연결
+                        final listing = await _fetchListingPoster(estimate.orderId);
+                        final postedBy = listing['postedBy'] ?? '';
+                        final listingId = listing['listingId'] ?? '';
+                        if (postedBy.isEmpty) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('채팅 상대 정보를 찾을 수 없습니다.')),
+                            );
+                          }
+                          return;
+                        }
+                        final me = context.read<AuthService>().currentUser?.id;
+                        if (me == null || me.isEmpty) return;
+                        final roomId = listingId.isNotEmpty ? 'call_$listingId' : 'call_${estimate.orderId}';
+                        try {
+                          await ChatService(AnonymousService()).createChatRoom(roomId, postedBy, me);
+                        } catch (_) {}
+                        if (!mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatScreen(chatRoomId: roomId, chatRoomTitle: '원 사업자와 채팅'),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text('채팅'),
+                    ),
+                  ),
                 if (estimate.status == 'PENDING') ...[
                   Expanded(
                     child: OutlinedButton(
@@ -317,22 +389,51 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
     );
   }
 
+  // Call 공사 원 사업자/리스트 ID 조회: marketplace_listings에서 orderId(jobid)의 posted_by와 id를 읽음
+  Future<Map<String, String>> _fetchListingPoster(String orderId) async {
+    try {
+      final sb = Supabase.instance.client;
+      final row = await sb
+          .from('marketplace_listings')
+          .select('id, posted_by')
+          .eq('jobid', orderId)
+          .order('createdat', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (row == null) return {'postedBy': '', 'listingId': ''};
+      return {
+        'postedBy': row['posted_by']?.toString() ?? '',
+        'listingId': row['id']?.toString() ?? '',
+      };
+    } catch (_) {
+      return {'postedBy': '', 'listingId': ''};
+    }
+  }
+
+
+  // Call UI 제거 시작
+  // Call 관련 카드 제거됨
+
   Widget _buildStatusChip(String status) {
     Color backgroundColor;
     String statusText;
 
     switch (status) {
-      case 'PENDING':
+      case Estimate.STATUS_PENDING:
         backgroundColor = Colors.orange;
         statusText = '대기중';
         break;
-      case 'SELECTED':
+      case Estimate.STATUS_AWARDED:
         backgroundColor = Colors.green;
         statusText = '선택됨';
         break;
-      case 'REJECTED':
+      case Estimate.STATUS_REJECTED:
         backgroundColor = Colors.grey;
         statusText = '거절됨';
+        break;
+      case Estimate.STATUS_COMPLETED:
+        backgroundColor = Colors.blueGrey;
+        statusText = '완료';
         break;
       default:
         backgroundColor = Colors.grey;
@@ -348,6 +449,19 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
     );
   }
 
+  // Grabbed Call 공사일 경우 배지 구분
+  Widget _buildTypeBadge(Estimate estimate) {
+    // Heuristic: Call grab으로 만든 견적은 createdAt과 awardedAt/transfer정보 없이 STATUS_COMPLETED로 생성됨
+    final isCall = estimate.status == Estimate.STATUS_COMPLETED &&
+        (estimate.transferredBy == null || estimate.transferredBy!.isEmpty);
+    final color = isCall ? Colors.deepPurple : Colors.indigo;
+    final label = isCall ? 'Call 공사' : '고객 견적';
+    return Chip(
+      label: Text(label, style: const TextStyle(color: Colors.white)),
+      backgroundColor: color,
+    );
+  }
+
   void _showEstimateDetails(Estimate estimate) {
     final currencyFormat = NumberFormat.currency(locale: 'ko_KR', symbol: '₩');
 
@@ -359,7 +473,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('견적 금액: ${currencyFormat.format(estimate.price)}'),
+            Text('견적 금액: ${estimate.amount != null ? currencyFormat.format(estimate.amount) : '-'}'),
             const SizedBox(height: 8),
             Text('예상 작업 기간: ${estimate.estimatedDays}일'),
             const SizedBox(height: 8),
@@ -381,6 +495,8 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
       ),
     );
   }
+
+  // Call 상세 제거됨
 
   void _showEditEstimateDialog(Estimate estimate) {
     final priceController =
@@ -462,4 +578,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
         return status;
     }
   }
+
+  // Call 상태칩 제거됨
+  // Call UI 제거 끝
 }

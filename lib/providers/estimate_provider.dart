@@ -134,4 +134,18 @@ class EstimateProvider extends ChangeNotifier {
     fn();
     notifyListeners();
   }
+
+  // 누락된 메서드들 추가
+  Future<List<Estimate>> fetchEstimates() async {
+    await loadEstimates();
+    return _estimates;
+  }
+
+  Future<void> loadMyEstimates() async {
+    await loadEstimates();
+  }
+
+  Future<void> addEstimate(Estimate estimate) async {
+    await createEstimate(estimate);
+  }
 }

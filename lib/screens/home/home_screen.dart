@@ -119,6 +119,14 @@ class HomeScreen extends StatelessWidget {
                                         color: Colors.white.withOpacity(0.9),
                                       ),
                                 ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '모든 일감은 여기에~',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
                               ],
                             ),
                           ),
@@ -382,11 +390,11 @@ class _PromoCard extends StatelessWidget {
                 child: const Icon(Icons.local_offer, color: Colors.black87),
               ),
               const SizedBox(width: 12),
-              Text('추천 서비스', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              Text('광고', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
             ],
           ),
           const Spacer(),
-          Text('인기 카테고리 최대 10% 할인', style: Theme.of(context).textTheme.bodySmall),
+          Text('광고 문의: ', style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );

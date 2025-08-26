@@ -49,12 +49,20 @@ router.get('/dashboard', async (req, res) => {
     const totalBusinessUsers = users.filter(u => u.role === 'business').length;
     const totalCustomers = users.filter(u => u.role === 'customer').length;
 
-    const { data: estimatesAll, error: estAllErr } = await supabase.from('estimates').select('id, status, amount');
-    if (estAllErr) throw estAllErr;
-    const totalEstimates = estimatesAll.length;
-    const completedEstimates = estimatesAll.filter(e => e.status === 'completed').length;
-    const pendingEstimates = estimatesAll.filter(e => e.status === 'pending').length;
-    const completed = estimatesAll.filter(e => e.status === 'completed');
+    // 대시보드는 사업자 제출 견적(estimates 테이블)을 기준으로 계산
+    const { data: estimatesAll, error: estimatesErr } = await supabase
+      .from('estimates')
+      .select('id, status, amount');
+    if (estimatesErr) throw estimatesErr;
+    const totalEstimates = (estimatesAll || []).length;
+    const pendingEstimates = (estimatesAll || []).filter(e => e.status === 'pending').length;
+    const approvedEstimates = (estimatesAll || []).filter(e => e.status === 'approved').length;
+    const completedEstimates = (estimatesAll || []).filter(e => e.status === 'completed').length;
+    const inProgressEstimates = (estimatesAll || []).filter(e => e.status === 'in_progress').length;
+    const awardedEstimates = (estimatesAll || []).filter(e => e.status === 'awarded').length;
+    const transferredEstimates = (estimatesAll || []).filter(e => e.status === 'transferred').length;
+
+    const completed = (estimatesAll || []).filter(e => e.status === 'completed');
     const totalRevenue = completed.reduce((sum, e) => sum + ((e.amount || 0) * 0.05), 0);
     const averageEstimateAmount = completed.length > 0 ? completed.reduce((s, e) => s + (e.amount || 0), 0) / completed.length : 0;
 
@@ -63,8 +71,12 @@ router.get('/dashboard', async (req, res) => {
       totalBusinessUsers,
       totalCustomers,
       totalEstimates,
-      completedEstimates,
       pendingEstimates,
+      approvedEstimates,
+      completedEstimates,
+      inProgressEstimates,
+      awardedEstimates,
+      transferredEstimates,
       totalRevenue,
       averageEstimateAmount,
     });
@@ -240,12 +252,41 @@ router.get('/users/search', async (req, res) => {
   }
 });
 
-// 견적 관리
+// 견적 관리 (estimates 테이블 사용)
 router.get('/estimates', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('estimates').select('*').order('createdAt', { ascending: false });
+    const { status, startDate, endDate, phone } = req.query;
+    let qb = supabase.from('estimates').select('*');
+    if (status && status !== 'all') qb = qb.eq('status', status);
+    if (startDate) qb = qb.gte('createdat', startDate);
+    if (endDate) qb = qb.lte('createdat', `${endDate}T23:59:59`);
+
+    const { data: baseData, error } = await qb.order('createdat', { ascending: false });
     if (error) throw error;
-    res.json(data || []);
+
+    // 전화번호 필터: 사업자 전화(businessphone) 또는 주문의 고객 전화(customerPhone)
+    let result = baseData || [];
+    if (phone && phone.trim()) {
+      const phoneQuery = phone.trim();
+      // 일단 businessphone으로 1차 필터
+      result = result.filter((e) => (e.businessphone || '').includes(phoneQuery));
+
+      // 고객 전화도 검사: orders에서 customerPhone 매칭되는 orderId 모아 교집합 추가
+      const { data: orders, error: ordersErr } = await supabase
+        .from('orders')
+        .select('id, customerPhone')
+        .ilike('customerPhone', `%${phoneQuery}%`);
+      if (!ordersErr && orders) {
+        const orderIdSet = new Set(orders.map((o) => o.id));
+        const extra = (baseData || []).filter((e) => orderIdSet.has(e.orderId));
+        // merge unique by id
+        const byId = new Map(result.map((r) => [r.id, r]));
+        for (const row of extra) byId.set(row.id, row);
+        result = Array.from(byId.values());
+      }
+    }
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: '견적 조회 실패' });
   }
@@ -267,9 +308,9 @@ router.get('/estimates/search', async (req, res) => {
   try {
     const { q, status } = req.query;
     let qb = supabase.from('estimates').select('*');
-    if (q) qb = qb.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
+    if (q) qb = qb.or(`description.ilike.%${q}%,customername.ilike.%${q}%,businessname.ilike.%${q}%`);
     if (status && status !== '전체') qb = qb.eq('status', status);
-    const { data, error } = await qb.order('createdAt', { ascending: false });
+    const { data, error } = await qb.order('createdat', { ascending: false });
     if (error) throw error;
     res.json(data || []);
   } catch (error) {

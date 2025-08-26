@@ -140,25 +140,56 @@ class Estimate {
   }
 
   factory Estimate.fromMap(Map<String, dynamic> map) {
+    String _strOf(dynamic v, {String fallback = ''}) => v == null ? fallback : v.toString();
+    num _numOf(dynamic v, {num fallback = 0}) => v is num ? v : (v == null ? fallback : num.tryParse(v.toString()) ?? fallback);
+    DateTime _dtOf(dynamic v, {DateTime? fallback}) {
+      if (v == null) return fallback ?? DateTime.now();
+      final s = v.toString();
+      return DateTime.tryParse(s) ?? (fallback ?? DateTime.now());
+    }
+
+    final id = _strOf(map['id']);
+    final orderId = _strOf(map['orderId'] ?? map['orderid']);
+    final customerId = _strOf(map['customerId'] ?? map['customerid']);
+    final customerName = _strOf(map['customerName'] ?? map['customername'], fallback: '고객');
+    final businessId = _strOf(map['businessId'] ?? map['businessid']);
+    final businessName = _strOf(map['businessName'] ?? map['businessname'], fallback: '사업자');
+    final businessPhone = _strOf(map['businessPhone'] ?? map['businessphone']);
+    final equipmentType = _strOf(map['equipmentType'] ?? map['equipmenttype'], fallback: '기타');
+    final amount = _numOf(map['amount']).toDouble();
+    final description = _strOf(map['description']);
+    final estimatedDays = _numOf(map['estimatedDays'] ?? map['estimateddays']).toInt();
+    final createdAt = _dtOf(map['createdAt'] ?? map['createdat']);
+    final visitDate = _dtOf(map['visitDate'] ?? map['visitdate']);
+    final status = _strOf(map['status'], fallback: STATUS_PENDING);
+    final transferredBy = map['transferredBy'] ?? map['transferredby'];
+    final transferredAt = (map['transferredAt'] ?? map['transferredat']) != null
+        ? _dtOf(map['transferredAt'] ?? map['transferredat'])
+        : null;
+    final transferReason = map['transferReason'] ?? map['transferreason'];
+    final awardedAt = (map['awardedAt'] ?? map['awardedat']) != null
+        ? _dtOf(map['awardedAt'] ?? map['awardedat'])
+        : null;
+
     return Estimate(
-      id: map['id'] ?? '',
-      orderId: map['orderId'] ?? '',
-      customerId: map['customerId'] ?? '',
-      customerName: map['customerName'] ?? '',
-      businessId: map['businessId'] ?? '',
-      businessName: map['businessName'] ?? '',
-      businessPhone: map['businessPhone'] ?? '',
-      equipmentType: map['equipmentType'] ?? '',
-      amount: (map['amount'] ?? 0.0).toDouble(),
-      description: map['description'] ?? '',
-      estimatedDays: map['estimatedDays'] ?? 0,
-      createdAt: DateTime.parse(map['createdAt']),
-      visitDate: DateTime.parse(map['visitDate']),
-      status: map['status'] ?? STATUS_PENDING,
-      transferredBy: map['transferredBy'],
-      transferredAt: map['transferredAt'] != null ? DateTime.parse(map['transferredAt']) : null,
-      transferReason: map['transferReason'],
-      awardedAt: map['awardedAt'] != null ? DateTime.parse(map['awardedAt']) : null,
+      id: id,
+      orderId: orderId,
+      customerId: customerId,
+      customerName: customerName,
+      businessId: businessId,
+      businessName: businessName,
+      businessPhone: businessPhone,
+      equipmentType: equipmentType,
+      amount: amount,
+      description: description,
+      estimatedDays: estimatedDays,
+      createdAt: createdAt,
+      visitDate: visitDate,
+      status: status,
+      transferredBy: transferredBy?.toString(),
+      transferredAt: transferredAt,
+      transferReason: transferReason?.toString(),
+      awardedAt: awardedAt,
     );
   }
 }

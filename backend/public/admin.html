@@ -105,6 +105,87 @@
         .table td {
             padding: 0.75rem;
             text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-completed {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+
+
+        .table th,
+        .table td {
+            padding: 0.75rem;
+            text-align: left;
             border-bottom: 1px solid #eee;
         }
 
@@ -181,6 +262,110 @@
             border-radius: 4px;
             margin: 1rem 0;
         }
+
+        .clickable-stat {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clickable-stat:hover {
+            color: #1a73e8;
+            transform: scale(1.05);
+        }
+
+        .clickable-title {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clickable-title:hover {
+            color: #0d47a1;
+            text-decoration: underline !important;
+        }
+
+        /* 모달 스타일 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #e0e0e0;
+            text-align: right;
+        }
+
+        .detail-row {
+            display: flex;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 0.5rem;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            width: 120px;
+            color: #666;
+        }
+
+        .detail-value {
+            flex: 1;
+            color: #333;
+        }
+
+        .status-selector {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -195,19 +380,19 @@
                 <h3>사용자 통계</h3>
                 <div class="stat-grid">
                     <div class="stat-item">
-                        <div class="stat-number" id="totalUsers">-</div>
+                        <div class="stat-number clickable-stat" id="totalUsers" data-type="all">-</div>
                         <div class="stat-label">전체 사용자</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number" id="totalBusinessUsers">-</div>
+                        <div class="stat-number clickable-stat" id="totalBusinessUsers" data-type="business">-</div>
                         <div class="stat-label">사업자</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number" id="totalCustomers">-</div>
+                        <div class="stat-number clickable-stat" id="totalCustomers" data-type="customer">-</div>
                         <div class="stat-label">고객</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number" id="pendingUsers">-</div>
+                        <div class="stat-number clickable-stat" id="pendingUsers" data-type="pending">-</div>
                         <div class="stat-label">승인 대기</div>
                     </div>
                 </div>
@@ -217,19 +402,40 @@
                 <h3>견적 통계</h3>
                 <div class="stat-grid">
                     <div class="stat-item">
-                        <div class="stat-number" id="totalEstimates">-</div>
+                        <div class="stat-number clickable-stat" id="totalEstimates" data-status="all">-</div>
                         <div class="stat-label">전체 견적</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number" id="completedEstimates">-</div>
-                        <div class="stat-label">완료</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number" id="pendingEstimates">-</div>
+                        <div class="stat-number clickable-stat" id="pendingEstimates" data-status="pending">-</div>
                         <div class="stat-label">대기중</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number" id="totalRevenue">-</div>
+                        <div class="stat-number clickable-stat" id="approvedEstimates" data-status="approved">-</div>
+                        <div class="stat-label">승인됨</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number clickable-stat" id="completedEstimates" data-status="completed">-</div>
+                        <div class="stat-label">완료</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>상세 통계</h3>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <div class="stat-number clickable-stat" id="inProgressEstimates" data-status="in_progress">-</div>
+                        <div class="stat-label">진행중</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number clickable-stat" id="awardedEstimates" data-status="awarded">-</div>
+                        <div class="stat-label">입찰 완료</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number clickable-stat" id="transferredEstimates" data-status="transferred">-</div>
+                        <div class="stat-label">이전됨</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number clickable-stat" id="totalRevenue" data-action="revenue">-</div>
                         <div class="stat-label">총 수익 (원)</div>
                     </div>
                 </div>
@@ -248,289 +454,100 @@
         <!-- 견적 관리 -->
         <div class="section">
             <h2>견적 관리</h2>
-            <input type="text" class="search-box" id="estimateSearch" placeholder="견적 검색 (제목, 설명)">
+            <!-- 필터 바 -->
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+                <select id="statusFilter" class="search-box" style="max-width:180px;">
+                    <option value="all">전체 상태</option>
+                    <option value="pending">대기중</option>
+                    <option value="approved">승인됨</option>
+                    <option value="completed">완료</option>
+                    <option value="in_progress">진행중</option>
+                    <option value="awarded">입찰 완료</option>
+                    <option value="transferred">이전됨</option>
+                </select>
+                <input type="date" id="startDateFilter" class="search-box" style="max-width:200px;">
+                <input type="date" id="endDateFilter" class="search-box" style="max-width:200px;">
+                <input type="text" id="phoneFilter" class="search-box" style="max-width:220px;" placeholder="전화번호 검색 (고객/사업자)">
+                <button id="applyEstimateFilters" class="btn btn-primary">필터 적용</button>
+                <button id="resetEstimateFilters" class="btn">초기화</button>
+            </div>
+            <input type="text" class="search-box" id="estimateSearch" placeholder="견적 검색 (설명, 고객/사업자명)">
             <div id="estimateTableContainer">
                 <div class="loading">견적 목록을 불러오는 중...</div>
             </div>
         </div>
+
+        <!-- Call 현황 (마켓플레이스) -->
+        <div class="section">
+            <h2>Call 현황</h2>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+                <select id="callStatusFilter" class="search-box" style="max-width:180px;">
+                    <option value="all">전체 상태</option>
+                    <option value="open">오픈</option>
+                    <option value="assigned">배정됨</option>
+                    <option value="withdrawn">철회</option>
+                    <option value="expired">만료</option>
+                    <option value="cancelled">취소</option>
+                </select>
+                <button id="applyCallFilters" class="btn btn-primary">필터 적용</button>
+            </div>
+            <div id="callTableContainer">
+                <div class="loading">Call 목록을 불러오는 중...</div>
+            </div>
+        </div>
     </div>
 
-    <script>
-        // API 기본 URL
-        const API_BASE = '/api/admin';
-        
-        // 관리자 토큰 (.env 파일의 ADMIN_TOKEN과 일치해야 함)
-        const ADMIN_TOKEN = 'devtoken';
+    <!-- 견적 상세 보기 모달 -->
+    <div id="estimateModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="estimateModalTitle">견적 상세 정보</h2>
+                <span class="close" id="closeEstimateModal">&times;</span>
+            </div>
+            <div class="modal-body" id="estimateModalBody">
+                <!-- 견적 상세 정보가 여기에 표시됩니다 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="updateEstimateStatus">상태 업데이트</button>
+                <button class="btn btn-danger" id="closeEstimateModalBtn">닫기</button>
+            </div>
+        </div>
+    </div>
 
-        // API 호출 헬퍼 함수
-        async function apiCall(endpoint, options = {}) {
-            const url = `${API_BASE}${endpoint}`;
-            const config = {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'admin-token': ADMIN_TOKEN,
-                    ...options.headers
-                },
-                ...options
-            };
+    <!-- 사용자 상세 보기 모달 -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="userModalTitle">사용자 상세 정보</h2>
+                <span class="close" id="closeUserModal">&times;</span>
+            </div>
+            <div class="modal-body" id="userModalBody">
+                <!-- 사용자 상세 정보가 여기에 표시됩니다 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" id="approveUserFromModal">승인</button>
+                <button class="btn btn-danger" id="rejectUserFromModal">거절</button>
+                <button class="btn btn-danger" id="closeUserModalBtn">닫기</button>
+            </div>
+        </div>
+    </div>
 
-            // 디버그 로그 추가
-            console.log('[API CALL] URL:', url);
-            console.log('[API CALL] Headers:', config.headers);
-            console.log('[API CALL] Token being sent:', ADMIN_TOKEN);
+    <!-- 통계 상세 정보 모달 -->
+    <div id="statsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="statsModalTitle">상세 정보</h2>
+                <span class="close" onclick="closeStatsModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="statsModalBody">
+                <!-- 통계 상세 정보가 여기에 표시됩니다 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="closeStatsModalBtn">닫기</button>
+            </div>
+        </div>
+    </div>
 
-            try {
-                const response = await fetch(url, config);
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('관리자 권한이 필요합니다. ADMIN_TOKEN을 확인해주세요.');
-                    }
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return await response.json();
-            } catch (error) {
-                console.error('API 호출 오류:', error);
-                throw error;
-            }
-        }
-
-        // 대시보드 데이터 로드
-        async function loadDashboard() {
-            try {
-                const data = await apiCall('/dashboard');
-                
-                document.getElementById('totalUsers').textContent = data.totalUsers;
-                document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers;
-                document.getElementById('totalCustomers').textContent = data.totalCustomers;
-                document.getElementById('pendingUsers').textContent = data.totalBusinessUsers - (data.approvedUsers || 0);
-                document.getElementById('totalEstimates').textContent = data.totalEstimates;
-                document.getElementById('completedEstimates').textContent = data.completedEstimates;
-                document.getElementById('pendingEstimates').textContent = data.pendingEstimates;
-                document.getElementById('totalRevenue').textContent = data.totalRevenue?.toLocaleString() || '0';
-            } catch (error) {
-                console.error('대시보드 로드 오류:', error);
-            }
-        }
-
-        // 사용자 목록 로드
-        async function loadUsers() {
-            try {
-                const users = await apiCall('/users');
-                displayUsers(users);
-            } catch (error) {
-                document.getElementById('userTableContainer').innerHTML = 
-                    '<div class="error">사용자 목록을 불러오는데 실패했습니다.</div>';
-            }
-        }
-
-        // 사용자 표시
-        function displayUsers(users) {
-            const container = document.getElementById('userTableContainer');
-            
-            if (users.length === 0) {
-                container.innerHTML = '<div class="loading">등록된 사용자가 없습니다.</div>';
-                return;
-            }
-
-            const table = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>이름</th>
-                            <th>이메일</th>
-                            <th>역할</th>
-                            <th>상태</th>
-                            <th>가입일</th>
-                            <th>작업</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${users.map(user => `
-                            <tr>
-                                <td>${user.name || '이름 없음'}</td>
-                                <td>${user.email}</td>
-                                <td>${user.role === 'business' ? '사업자' : '고객'}</td>
-                                <td>
-                                    <span class="status-badge status-${user.businessStatus || 'pending'}">
-                                        ${getStatusText(user.businessStatus)}
-                                    </span>
-                                </td>
-                                <td>${new Date(user.createdAt).toLocaleDateString()}</td>
-                                <td>
-                                    ${user.role === 'business' && user.businessStatus === 'pending' ? `
-                                        <button class="btn btn-success" onclick="approveUser('${user.id}')">승인</button>
-                                        <button class="btn btn-danger" onclick="rejectUser('${user.id}')">거절</button>
-                                    ` : ''}
-                                    <button class="btn btn-danger" onclick="deleteUser('${user.id}')">삭제</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-            
-            container.innerHTML = table;
-        }
-
-        // 견적 목록 로드
-        async function loadEstimates() {
-            try {
-                const estimates = await apiCall('/estimates');
-                displayEstimates(estimates);
-            } catch (error) {
-                document.getElementById('estimateTableContainer').innerHTML = 
-                    '<div class="error">견적 목록을 불러오는데 실패했습니다.</div>';
-            }
-        }
-
-        // 견적 표시
-        function displayEstimates(estimates) {
-            const container = document.getElementById('estimateTableContainer');
-            
-            if (estimates.length === 0) {
-                container.innerHTML = '<div class="loading">등록된 견적이 없습니다.</div>';
-                return;
-            }
-
-            const table = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>제목</th>
-                            <th>고객</th>
-                            <th>사업자</th>
-                            <th>금액</th>
-                            <th>상태</th>
-                            <th>생성일</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${estimates.map(estimate => `
-                            <tr>
-                                <td>${estimate.title || '제목 없음'}</td>
-                                <td>${estimate.customerName || '고객명 없음'}</td>
-                                <td>${estimate.businessName || '사업자명 없음'}</td>
-                                <td>${estimate.amount ? estimate.amount.toLocaleString() + '원' : '금액 없음'}</td>
-                                <td>
-                                    <span class="status-badge status-${estimate.status}">
-                                        ${getStatusText(estimate.status)}
-                                    </span>
-                                </td>
-                                <td>${new Date(estimate.createdAt).toLocaleDateString()}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-            
-            container.innerHTML = table;
-        }
-
-        // 상태 텍스트 변환
-        function getStatusText(status) {
-            const statusMap = {
-                'pending': '대기중',
-                'approved': '승인됨',
-                'rejected': '거절됨',
-                'completed': '완료',
-                'in_progress': '진행중'
-            };
-            return statusMap[status] || status;
-        }
-
-        // 사용자 승인
-        async function approveUser(userId) {
-            try {
-                await apiCall(`/users/${userId}/status`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ status: 'approved' })
-                });
-                loadUsers();
-                loadDashboard();
-            } catch (error) {
-                alert('사용자 승인에 실패했습니다.');
-            }
-        }
-
-        // 사용자 거절
-        async function rejectUser(userId) {
-            try {
-                await apiCall(`/users/${userId}/status`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ status: 'rejected' })
-                });
-                loadUsers();
-                loadDashboard();
-            } catch (error) {
-                alert('사용자 거절에 실패했습니다.');
-            }
-        }
-
-        // 사용자 삭제
-        async function deleteUser(userId) {
-            if (!confirm('정말로 이 사용자를 삭제하시겠습니까?')) {
-                return;
-            }
-
-            try {
-                await apiCall(`/users/${userId}`, {
-                    method: 'DELETE'
-                });
-                loadUsers();
-                loadDashboard();
-            } catch (error) {
-                alert('사용자 삭제에 실패했습니다.');
-            }
-        }
-
-        // 검색 기능
-        document.getElementById('userSearch').addEventListener('input', debounce(async (e) => {
-            const query = e.target.value;
-            if (query.length > 0) {
-                try {
-                    const users = await apiCall(`/users/search?q=${encodeURIComponent(query)}`);
-                    displayUsers(users);
-                } catch (error) {
-                    console.error('사용자 검색 오류:', error);
-                }
-            } else {
-                loadUsers();
-            }
-        }, 300));
-
-        document.getElementById('estimateSearch').addEventListener('input', debounce(async (e) => {
-            const query = e.target.value;
-            if (query.length > 0) {
-                try {
-                    const estimates = await apiCall(`/estimates/search?q=${encodeURIComponent(query)}`);
-                    displayEstimates(estimates);
-                } catch (error) {
-                    console.error('견적 검색 오류:', error);
-                }
-            } else {
-                loadEstimates();
-            }
-        }, 300));
-
-        // 디바운스 함수
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        }
-
-        // 페이지 로드 시 데이터 로드
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboard();
-            loadUsers();
-            loadEstimates();
-        });
-    </script>
+    <script src="admin.js"></script>
 </body>
 </html>
