@@ -6,7 +6,6 @@ import '../../models/order.dart';
 import '../../services/estimate_service.dart';
 import '../../services/payment_service.dart';
 import '../../services/chat_service.dart';
-import '../../services/anonymous_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../chat/chat_list_page.dart';
@@ -961,7 +960,7 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
         awardedAmount: estimate.amount,
       );
       // 채팅 활성화
-      final chatService = ChatService(AnonymousService());
+      final chatService = ChatService();
       await chatService.activateChatRoom(estimate.id, estimate.businessId);
       
       // 데이터 새로고침

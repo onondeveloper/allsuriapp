@@ -6,7 +6,6 @@ import '../services/estimate_service.dart';
 import '../services/order_service.dart';
 import '../services/payment_service.dart';
 import '../services/chat_service.dart';
-import '../services/anonymous_service.dart';
 import 'chat/chat_list_page.dart';
 
 class EstimateDetailScreen extends StatefulWidget {
@@ -121,7 +120,7 @@ class _EstimateDetailScreenState extends State<EstimateDetailScreen> {
         businessId: estimate.businessId,
         awardedAmount: estimate.amount,
       );
-      await ChatService(AnonymousService()).activateChatRoom(estimate.id, estimate.businessId);
+      await ChatService().activateChatRoom(estimate.id, estimate.businessId);
       if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) setState(() => _busy = false);

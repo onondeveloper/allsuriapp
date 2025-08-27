@@ -8,7 +8,6 @@ import '../../providers/estimate_provider.dart';
 import '../../services/estimate_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
-import '../../services/anonymous_service.dart';
 import '../../services/payment_service.dart';
 import '../chat_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -161,7 +160,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
       } catch (_) {}
       
       // 채팅방 활성화
-      final chatService = ChatService(AnonymousService());
+      final chatService = ChatService();
       await chatService.activateChatRoom(estimate.id, estimate.businessId);
 
       if (mounted) {
@@ -350,7 +349,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
                         if (me == null || me.isEmpty) return;
                         final roomId = listingId.isNotEmpty ? 'call_$listingId' : 'call_${estimate.orderId}';
                         try {
-                          await ChatService(AnonymousService()).createChatRoom(roomId, postedBy, me);
+                          await ChatService().createChatRoom(roomId, postedBy, me);
                         } catch (_) {}
                         if (!mounted) return;
                         Navigator.push(

@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Firestore import 제거: Supabase 모델 전용
 
 class Job {
   final String? id;

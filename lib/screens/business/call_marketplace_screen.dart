@@ -6,7 +6,6 @@ import 'package:allsuriapp/screens/business/estimate_management_screen.dart';
 import 'package:allsuriapp/widgets/interactive_card.dart';
 import 'package:allsuriapp/widgets/shimmer_widgets.dart';
 import 'package:allsuriapp/services/chat_service.dart';
-import 'package:allsuriapp/services/anonymous_service.dart';
 import 'package:provider/provider.dart';
 import 'package:allsuriapp/models/estimate.dart';
 import 'package:allsuriapp/services/estimate_service.dart';
@@ -290,7 +289,7 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                                                 final me = Supabase.instance.client.auth.currentUser?.id;
                                                 if (postedBy != null && postedBy.isNotEmpty && me != null && me.isNotEmpty) {
                                                   try {
-                                                    await ChatService(AnonymousService()).createChatRoom('call_$id', postedBy, me);
+                                                    await ChatService().createChatRoom('call_$id', postedBy, me);
                                                   } catch (_) {}
                                                 }
                                                 if (me != null && me.isNotEmpty && jobId.isNotEmpty) {
