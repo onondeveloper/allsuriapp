@@ -3,9 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChatService extends ChangeNotifier {
   final SupabaseClient _sb = Supabase.instance.client;
-  final dynamic _anonymousService;
-
-  ChatService(this._anonymousService);
 
   // 채팅방 생성 (임시 구현)
   Future<String> createChatRoom(String estimateId, String customerId, String businessId) async {
@@ -20,7 +17,6 @@ class ChatService extends ChangeNotifier {
       });
       return id;
     } catch (e) {
-      print('Error creating chat room: $e');
       rethrow;
     }
   }
@@ -35,7 +31,6 @@ class ChatService extends ChangeNotifier {
         'createdAt': DateTime.now().toIso8601String(),
       });
     } catch (e) {
-      print('Error sending message: $e');
       rethrow;
     }
   }
@@ -50,7 +45,6 @@ class ChatService extends ChangeNotifier {
           .order('createdAt', ascending: false);
       return rows.map((r) => Map<String, dynamic>.from(r)).toList();
     } catch (e) {
-      print('Error getting chat rooms: $e');
       return [];
     }
   }
@@ -64,7 +58,6 @@ class ChatService extends ChangeNotifier {
           .eq('estimateId', estimateId)
           .eq('businessId', businessId);
     } catch (e) {
-      print('Error activating chat room: $e');
       rethrow;
     }
   }

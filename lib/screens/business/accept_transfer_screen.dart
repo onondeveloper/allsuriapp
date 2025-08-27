@@ -1,9 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/job_service.dart';
 import '../../services/payment_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AcceptTransferScreen extends StatefulWidget {
   final String jobId;
@@ -21,16 +21,20 @@ class _AcceptTransferScreenState extends State<AcceptTransferScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('이관 수락 및 결제')),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance.collection('jobs').doc(widget.jobId).snapshots(),
+      body: FutureBuilder<Map<String, dynamic>?>(
+        future: Supabase.instance.client
+            .from('jobs')
+            .select('id, title, description, owner_business_id, transfer_to_business_id')
+            .eq('id', widget.jobId)
+            .maybeSingle(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final data = snapshot.data!.data();
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          final data = snapshot.data;
           if (data == null) return const Center(child: Text('공사 정보를 불러올 수 없습니다'));
-          final title = data['title'] ?? '공사';
-          final desc = data['description'] ?? '';
-          final ownerId = data['ownerBusinessId'] ?? '';
-          final transferTo = data['transferToBusinessId'] ?? '';
+          final title = data['title']?.toString() ?? '공사';
+          final desc = data['description']?.toString() ?? '';
+          final ownerId = data['owner_business_id']?.toString() ?? '';
+          final transferTo = data['transfer_to_business_id']?.toString() ?? '';
           return Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(

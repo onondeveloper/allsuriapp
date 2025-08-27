@@ -46,8 +46,13 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
 
   Future<int> _getCallOpenCount() async {
     try {
-      final items = await _market.listListings(status: 'open');
-      return items.length;
+      // Call 마켓에서 화면에 보이는 기준과 동일하게: open + withdrawn 만 집계
+      final items = await _market.listListings(status: 'all');
+      final count = items.where((row) {
+        final s = (row['status'] ?? '').toString();
+        return s == 'open' || s == 'withdrawn';
+      }).length;
+      return count;
     } catch (_) {
       return 0;
     }

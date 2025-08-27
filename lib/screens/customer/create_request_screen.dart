@@ -10,9 +10,7 @@ import '../../services/messaging_service.dart';
 import '../../providers/user_provider.dart';
 import '../../utils/responsive_utils.dart';
 import '../../widgets/common_app_bar.dart';
-// import 'package:cached_network_image/cached_network_image.dart';
-// import '../../services/api_service.dart';
-// import '../../services/storage_service.dart';
+// 사용하지 않는 import 정리
 
 class CreateRequestScreen extends StatefulWidget {
   final app_models.Order? editingOrder;

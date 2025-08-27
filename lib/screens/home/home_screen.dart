@@ -20,22 +20,15 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
-        // 디버그 로깅 추가
-        print('=== HomeScreen Debug ===');
-        print('isAuthenticated: ${authService.isAuthenticated}');
-        print('currentUser: ${authService.currentUser}');
-        print('needsRoleSelection: ${authService.needsRoleSelection}');
-        print('========================');
+        // 디버그 로그 제거
         
         // 역할 선택이 필요한 경우
         if (authService.isAuthenticated && authService.needsRoleSelection) {
-          print('역할 선택 화면을 표시합니다!');
           return const RoleSelectionScreen();
         }
         
         // 사업자: 직접 해당 화면 반환 (네비게이션 대신 위젯 교체로 라우팅 혼선 방지)
         if (authService.isAuthenticated && authService.currentUser?.role == 'business') {
-          print('사업자 화면을 표시합니다!');
           final u = authService.currentUser!;
           final hasBusinessName = (u.businessName != null && u.businessName!.trim().isNotEmpty);
           final status = (u.businessStatus ?? 'pending').toLowerCase();
@@ -425,98 +418,4 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeCtaCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _HomeCtaCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Ink(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.secondaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: Theme.of(context).colorScheme.onSecondaryContainer),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                ],
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PromoCard extends StatelessWidget {
-  final List<Color> gradientColors;
-  const _PromoCard({required this.gradientColors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradientColors,
-        ),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.local_offer, color: Colors.black87),
-              ),
-              const SizedBox(width: 12),
-              Text('광고', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const Spacer(),
-          Text('광고 문의: ', style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
-    );
-  }
-}
+// (삭제됨) _HomeCtaCard, _PromoCard: 현재 사용되지 않음
