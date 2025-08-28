@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
-import '../../services/api_service.dart';
+import '../../services/chat_service.dart';
 import '../chat_screen.dart';
 
 class ChatListPage extends StatefulWidget {
@@ -28,11 +28,19 @@ class _ChatListPageState extends State<ChatListPage> {
     });
 
     try {
-      final apiService = Provider.of<ApiService>(context, listen: false);
-      final chatRooms = await apiService.getChatRooms();
-      setState(() {
-        _chatRooms = chatRooms;
-      });
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final chatService = Provider.of<ChatService>(context, listen: false);
+      final userId = auth.currentUser?.id ?? '';
+      if (userId.isEmpty) {
+        setState(() {
+          _chatRooms = [];
+        });
+      } else {
+        final chatRooms = await chatService.getChatRooms(userId);
+        setState(() {
+          _chatRooms = chatRooms;
+        });
+      }
     } catch (e) {
       print('채팅방 로드 오류: $e');
     } finally {
@@ -204,7 +212,9 @@ class _ChatListPageState extends State<ChatListPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    chatRoom['title'],
+                    (chatRoom['displayName']?.toString().isNotEmpty ?? false)
+                        ? chatRoom['displayName'].toString()
+                        : '채팅',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -213,7 +223,7 @@ class _ChatListPageState extends State<ChatListPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    chatRoom['lastMessage'],
+                    (chatRoom['lastMessage']?.toString() ?? ''),
                     style: const TextStyle(
                       fontSize: 14,
                       color: CupertinoColors.secondaryLabel,
@@ -228,7 +238,7 @@ class _ChatListPageState extends State<ChatListPage> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  _formatTimestamp(chatRoom['timestamp']),
+                  _formatTimestamp(_parseTimestamp(chatRoom['createdat'] ?? chatRoom['created_at'] ?? chatRoom['createdAt'])),
                   style: const TextStyle(
                     fontSize: 12,
                     color: CupertinoColors.systemGrey,
@@ -258,6 +268,14 @@ class _ChatListPageState extends State<ChatListPage> {
         ),
       ),
     );
+  }
+
+  DateTime _parseTimestamp(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.now();
+    }
+    return DateTime.now();
   }
 
   String _formatTimestamp(DateTime timestamp) {
