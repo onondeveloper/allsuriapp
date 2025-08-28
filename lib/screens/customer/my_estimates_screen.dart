@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../chat/chat_list_page.dart';
 import '../estimate_detail_screen.dart';
+import 'bid_list_screen.dart';
 import '../../services/order_service.dart';
 import '../../services/auth_service.dart';
 import 'create_request_screen.dart';
@@ -424,7 +425,29 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
                 ),
               ],
             ),
-            trailing: const Icon(CupertinoIcons.chevron_right),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (estimates.isNotEmpty)
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minSize: 32,
+                    color: CupertinoColors.activeBlue,
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        CupertinoPageRoute(
+                          builder: (_) => BidListScreen(order: order, estimates: estimates),
+                        ),
+                      );
+                      await _loadData();
+                    },
+                    child: const Text('입찰된 견적', style: TextStyle(fontSize: 12, color: CupertinoColors.white)),
+                  ),
+                const SizedBox(width: 6),
+                const Icon(CupertinoIcons.chevron_right),
+              ],
+            ),
             onTap: () => _showOrderDetail(order, estimates),
           ),
           // 수정/삭제 버튼

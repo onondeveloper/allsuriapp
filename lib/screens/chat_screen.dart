@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../providers/user_provider.dart';
-import '../services/api_service.dart';
+import '../models/estimate.dart';
+import '../models/order.dart';
+import '../services/estimate_service.dart';
+import '../services/order_service.dart';
+import '../services/chat_service.dart';
 import '../widgets/common_app_bar.dart';
+import './estimate_detail_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatRoomId;
@@ -21,6 +26,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
+  final FocusNode _inputFocusNode = FocusNode();
   List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
   bool _isSending = false;
@@ -37,6 +43,12 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _showScrollToEnd = !atBottom);
       }
     });
+    // 화면 진입 시 입력창에 자동 포커스 -> 키보드 표시
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _inputFocusNode.requestFocus();
+      }
+    });
   }
 
   Future<void> _loadMessages() async {
@@ -45,10 +57,9 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      final apiService = Provider.of<ApiService>(context, listen: false);
-      final messages = await apiService.getMessages(widget.chatRoomId);
-      // 읽음 처리
-      await apiService.markChatRead(widget.chatRoomId);
+      final chatService = Provider.of<ChatService>(context, listen: false);
+      final messages = await chatService.getMessages(widget.chatRoomId);
+      await chatService.markChatRead(widget.chatRoomId);
       setState(() {
         _messages = messages;
       });
@@ -69,13 +80,28 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      final apiService = Provider.of<ApiService>(context, listen: false);
-      await apiService.sendMessage(widget.chatRoomId, _messageController.text.trim());
-      
-      // 메시지 전송 후 메시지 목록 다시 로드
-      await _loadMessages();
-      
+      final chatService = Provider.of<ChatService>(context, listen: false);
+      final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+      final text = _messageController.text.trim();
+      await chatService.sendMessage(widget.chatRoomId, text, me);
       _messageController.clear();
+      // 낙관적 UI 업데이트
+      setState(() {
+        _messages.add({
+          'text': text,
+          'timestamp': DateTime.now(),
+          'isFromMe': true,
+        });
+      });
+      // 스크롤 하단으로 이동
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (mounted) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 60,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
     } catch (e) {
       print('메시지 전송 오류: $e');
     } finally {
@@ -88,6 +114,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: CommonAppBar(
         title: widget.chatRoomTitle ?? '채팅',
         showBackButton: true,
@@ -95,6 +122,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          _buildChatHeader(),
           Expanded(
             child: Stack(
               children: [
@@ -105,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         : ListView.builder(
                             controller: _scrollController,
                             padding: const EdgeInsets.all(16),
-                            reverse: true,
+                            reverse: false,
                             itemCount: _messages.length,
                             itemBuilder: (context, index) {
                               final message = _messages[index];
@@ -125,7 +153,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: FloatingActionButton(
                       mini: true,
                       onPressed: () {
-                        _scrollController.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+                        _scrollController.animateTo(
+                          _scrollController.position.maxScrollExtent,
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOut,
+                        );
                       },
                       child: const Icon(Icons.keyboard_arrow_down),
                     ),
@@ -137,6 +169,63 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildChatHeader() {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: Provider.of<ChatService>(context, listen: false).getChatRoom(widget.chatRoomId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data == null) return const SizedBox.shrink();
+        final room = snapshot.data!;
+        final estimateId = (room['estimateid']?.toString() ?? '');
+        if (estimateId.isEmpty) return const SizedBox.shrink();
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: _loadEstimateAndOrder(estimateId),
+          builder: (context, snap) {
+            final info = snap.data;
+            if (info == null) return const SizedBox.shrink();
+            final order = info['order'] as Order?;
+            final title = order?.title ?? '견적';
+            return InkWell(
+              onTap: order == null ? null : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EstimateDetailScreen(order: order, estimate: info['estimate'] as Estimate),
+                  ),
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                color: Colors.grey.shade100,
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>?> _loadEstimateAndOrder(String estimateId) async {
+    try {
+      final sb = Provider.of<ChatService>(context, listen: false);
+      final estSvc = Provider.of<EstimateService>(context, listen: false);
+      final ordSvc = Provider.of<OrderService>(context, listen: false);
+      // estimate 조회
+      final estRows = await estSvc.getEstimates();
+      final estimate = estRows.firstWhere((e) => e.id == estimateId, orElse: () => Estimate.empty());
+      if (estimate.id.isEmpty) return null;
+      final order = await ordSvc.getOrder(estimate.orderId);
+      if (order == null) return null;
+      return {'estimate': estimate, 'order': order};
+    } catch (_) {
+      return null;
+    }
   }
 
   Widget _buildMessageBubble(Map<String, dynamic> message) {
@@ -232,6 +321,8 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: TextField(
               controller: _messageController,
+              focusNode: _inputFocusNode,
+              autofocus: true,
               decoration: const InputDecoration(
                 hintText: '메시지를 입력하세요...',
                 border: OutlineInputBorder(
@@ -306,6 +397,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _messageController.dispose();
+    _inputFocusNode.dispose();
     super.dispose();
   }
 }

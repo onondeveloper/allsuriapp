@@ -61,7 +61,7 @@ class EstimateService extends ChangeNotifier {
   }
 
   // 견적 생성
-  Future<void> createEstimate(Estimate estimate) async {
+  Future<String> createEstimate(Estimate estimate) async {
     try {
       // DB 스키마(컬럼명)에 맞춘 입력 맵을 구성합니다.
       // 필수값 검증
@@ -101,10 +101,12 @@ class EstimateService extends ChangeNotifier {
           .select('id, orderId, customerid, customername, businessid, businessname, businessphone, equipmenttype, amount, description, estimateddays, createdat, visitdate, status')
           .maybeSingle();
 
+      String createdId = estimate.id;
       if (row != null) {
         final m = Map<String, dynamic>.from(row);
+        createdId = (m['id']?.toString() ?? estimate.id);
         final created = Estimate(
-          id: (m['id']?.toString() ?? estimate.id),
+          id: createdId,
           orderId: (m['orderId']?.toString() ?? estimate.orderId),
           customerId: (m['customerid']?.toString() ?? ''),
           customerName: (m['customername']?.toString() ?? estimate.customerName),
@@ -137,6 +139,7 @@ class EstimateService extends ChangeNotifier {
           );
         } catch (_) {}
       }
+      return createdId;
     } catch (e) {
       print('견적 생성 오류: $e');
       // 고유 제약 위반(이미 같은 주문에 동일 사업자가 제출한 경우) 가독성 향상

@@ -38,9 +38,9 @@ class EstimateProvider extends ChangeNotifier {
 
   Future<String> createEstimate(Estimate estimate) async {
     try {
-      await _estimateService.createEstimate(estimate);
+      final id = await _estimateService.createEstimate(estimate);
       await loadEstimates(); // 목록 새로고침
-      return estimate.id; // 견적 ID 반환
+      return id; // 견적 ID 반환
     } catch (e) {
       _error = e.toString();
       notifyListeners();

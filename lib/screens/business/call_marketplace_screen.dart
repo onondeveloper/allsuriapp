@@ -9,6 +9,7 @@ import 'package:allsuriapp/services/chat_service.dart';
 import 'package:provider/provider.dart';
 import 'package:allsuriapp/models/estimate.dart';
 import 'package:allsuriapp/services/estimate_service.dart';
+import 'package:allsuriapp/screens/chat_screen.dart';
 
 class CallMarketplaceScreen extends StatefulWidget {
   final bool showSuccessMessage;
@@ -292,10 +293,11 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                                                     await ChatService().createChatRoom('call_$id', postedBy, me);
                                                   } catch (_) {}
                                                 }
+                                                String estimateId = '';
                                                 if (me != null && me.isNotEmpty && jobId.isNotEmpty) {
                                                   try {
                                                     final estimateSvc = context.read<EstimateService>();
-                                                    await estimateSvc.createEstimate(
+                                                    estimateId = await estimateSvc.createEstimate(
                                                       Estimate(
                                                         id: '',
                                                         orderId: jobId,
@@ -315,12 +317,31 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                                                     );
                                                   } catch (_) {}
                                                 }
-                                                Navigator.pushReplacement(
+                                                // 채팅방 UUID 확보 후 채팅으로 이동
+                                                String chatRoomId = '';
+                                                if (postedBy != null && postedBy.isNotEmpty && me != null && me.isNotEmpty) {
+                                                  try {
+                                                    chatRoomId = await ChatService().createChatRoom('call_$id', postedBy, me, estimateId: estimateId);
+                                                  } catch (_) {}
+                                                }
+                                                if (chatRoomId.isNotEmpty) {
+                                                  // 채팅으로 먼저 이동
+                                                  if (!mounted) return;
+                                                  Navigator.pushReplacement(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (_) => ChatScreen(chatRoomId: chatRoomId, chatRoomTitle: '원 사업자와 채팅'),
+                                                    ),
+                                                  );
+                                                } else {
+                                                  // 기존 흐름 유지
+                                                  Navigator.pushReplacement(
                                                   context,
                                                   MaterialPageRoute(
                                                     builder: (_) => const EstimateManagementScreen(initialStatus: Estimate.STATUS_COMPLETED),
                                                   ),
-                                                );
+                                                  );
+                                                }
                                               } else {
                                                 ScaffoldMessenger.of(context).showSnackBar(
                                                   const SnackBar(content: Text('이미 다른 사업자가 가져갔습니다')),

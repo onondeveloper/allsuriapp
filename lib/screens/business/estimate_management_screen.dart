@@ -290,12 +290,25 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(
-                    estimate.amount != null ? currencyFormat.format(estimate.amount) : '금액 없음',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade700,
-                        ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        // 제목: 주문의 title을 표시하려면 orderId로 조회 필요. 간단히 설명 첫 줄 사용
+                        estimate.description.split('\n').first,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        estimate.amount != null ? currencyFormat.format(estimate.amount) : '금액 없음',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                      ),
+                    ],
                   ),
                 ),
                 _buildStatusChip(estimate.status),
@@ -347,15 +360,22 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
                         }
                         final me = context.read<AuthService>().currentUser?.id;
                         if (me == null || me.isEmpty) return;
-                        final roomId = listingId.isNotEmpty ? 'call_$listingId' : 'call_${estimate.orderId}';
+                        final roomKey = listingId.isNotEmpty ? 'call_$listingId' : 'call_${estimate.orderId}';
+                        String chatRoomId = '';
                         try {
-                          await ChatService().createChatRoom(roomId, postedBy, me);
+                          chatRoomId = await ChatService().createChatRoom(roomKey, postedBy, me, estimateId: estimate.id);
                         } catch (_) {}
                         if (!mounted) return;
+                        if (chatRoomId.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('채팅방 생성에 실패했습니다. 다시 시도해 주세요.')),
+                          );
+                          return;
+                        }
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ChatScreen(chatRoomId: roomId, chatRoomTitle: '원 사업자와 채팅'),
+                            builder: (_) => ChatScreen(chatRoomId: chatRoomId, chatRoomTitle: '원 사업자와 채팅'),
                           ),
                         );
                       },
