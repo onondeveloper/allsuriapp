@@ -39,9 +39,15 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _callOpenCountFuture = _getCallOpenCount();
-    _estimateRequestsCountFuture = _getEstimateRequestsCount();
-    _totalWaitingFuture = _getTotalWaitingCount();
+    _refreshCounts();
+  }
+
+  void _refreshCounts() {
+    setState(() {
+      _callOpenCountFuture = _getCallOpenCount();
+      _estimateRequestsCountFuture = _getEstimateRequestsCount();
+      _totalWaitingFuture = _getTotalWaitingCount();
+    });
   }
 
   Future<int> _getCallOpenCount() async {
@@ -242,8 +248,10 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       '고객 견적',
                       Icons.search,
                       Colors.indigo,
-                      () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateRequestsScreen()));
+                      () async {
+                        await Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateRequestsScreen()));
+                        if (!mounted) return;
+                        _refreshCounts();
                       },
                     ),
                    _buildMenuCard(
@@ -251,8 +259,13 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       'Call 공사',
                       Icons.campaign_outlined,
                       Colors.deepPurple,
-                      () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const CallMarketplaceScreen(showSuccessMessage: false)));
+                      () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const CallMarketplaceScreen(showSuccessMessage: false)),
+                        );
+                        if (!mounted) return;
+                        _refreshCounts();
                       },
                     ),
                     _buildMenuCard(

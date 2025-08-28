@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../../models/order.dart' as app_models;
 import '../../services/order_service.dart';
 import '../../services/image_service.dart';
@@ -36,6 +39,11 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   List<String> _imageUrls = [];
   bool _isLoading = false;
   static const String _sessionKey = 'allsuri_session_id';
+  static const String _lastPhoneKey = 'allsuri_last_phone';
+  static const String kakaoRestApiKey = '';
+  final TextEditingController _addressQueryController = TextEditingController();
+  List<String> _addressResults = [];
+  final TextEditingController _addressDetailController = TextEditingController();
 
   @override
   void initState() {
@@ -51,6 +59,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     if (widget.editingOrder != null) {
       _loadOrderData();
     }
+    _prefillSavedPhone();
   }
   Future<String> _getOrCreateSessionId() async {
     // 로컬에 세션ID 저장
@@ -81,6 +90,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _addressQueryController.dispose();
+    _addressDetailController.dispose();
     super.dispose();
   }
 
@@ -92,6 +103,16 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   String _normalizePhoneNumber(String phone) {
     // 하이픈, 공백, 괄호 제거
     return phone.replaceAll(RegExp(r'[-\s()]'), '');
+  }
+
+  Future<void> _prefillSavedPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_lastPhoneKey);
+    if (saved != null && saved.isNotEmpty && _phoneController.text.isEmpty) {
+      setState(() {
+        _phoneController.text = saved;
+      });
+    }
   }
 
   Future<void> _submitRequest() async {
@@ -209,6 +230,10 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       }
       
       if (mounted) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_lastPhoneKey, _phoneController.text.trim());
+        } catch (_) {}
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -294,7 +319,6 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                   decoration: const InputDecoration(
                     labelText: '카테고리 *',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.category),
                   ),
                   items: app_models.Order.CATEGORIES.map((category) {
                     return DropdownMenuItem<String>(
@@ -323,7 +347,6 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                     labelText: '제목 *',
                     border: const OutlineInputBorder(),
                     hintText: '예: $_selectedCategory 수리 요청',
-                    prefixIcon: const Icon(Icons.title),
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
@@ -352,18 +375,40 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 const SizedBox(height: 16),
                 
                 // 주소 입력
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _addressController,
+                        readOnly: true,
+                        decoration: const InputDecoration(
+                          labelText: '주소 *',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return '주소를 입력해주세요';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: _openAddressPostcodeWebview,
+                      icon: const Icon(Icons.search),
+                      label: const Text('주소 검색'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
-                  controller: _addressController,
+                  controller: _addressDetailController,
                   decoration: const InputDecoration(
-                    labelText: '주소 *',
+                    labelText: '상세 주소 (동/호 등)',
                     border: OutlineInputBorder(),
+                    hintText: '예: 101동 1203호',
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '주소를 입력해주세요';
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 16),
                 
@@ -803,5 +848,189 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.year}년 ${date.month}월 ${date.day}일';
+  }
+
+  Future<void> _openAddressSearch() async {
+    // 간단한 바텀시트 검색 UI + 카카오 주소검색 REST 예시 (키 필요)
+    _addressResults = [];
+    _addressQueryController.clear();
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _addressQueryController,
+                  decoration: const InputDecoration(
+                    labelText: '주소 검색',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _searchAddress(),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _searchAddress,
+                    child: const Text('검색'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: StatefulBuilder(
+                    builder: (context, setModalState) {
+                      Future<void> rerender() async => setModalState(() {});
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: _addressResults.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final addr = _addressResults[index];
+                          return ListTile(
+                            title: Text(addr),
+                            onTap: () {
+                              _addressController.text = addr;
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _searchAddress() async {
+    final q = _addressQueryController.text.trim();
+    if (q.isEmpty) return;
+    try {
+      if (kakaoRestApiKey.isEmpty) {
+        // 키 미설정: 더미 결과
+        setState(() {
+          _addressResults = ['${q} 1', '${q} 2', '${q} 3'];
+        });
+        return;
+      }
+      final uri = Uri.parse('https://dapi.kakao.com/v2/local/search/address.json?query=${Uri.encodeQueryComponent(q)}');
+      final res = await http.get(uri, headers: {'Authorization': 'KakaoAK $kakaoRestApiKey'});
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body) as Map<String, dynamic>;
+        final docs = (data['documents'] as List?) ?? [];
+        final items = docs.map((e) => e['address_name']?.toString() ?? '').where((s) => s.isNotEmpty).cast<String>().toList();
+        setState(() {
+          _addressResults = items;
+        });
+      } else {
+        setState(() {
+          _addressResults = [];
+        });
+      }
+    } catch (_) {
+      setState(() {
+        _addressResults = [];
+      });
+    }
+  }
+
+  Future<void> _openAddressPostcodeWebview() async {
+    // HTML 문자열 + baseUrl(https)로 로드하여 postMessage origin 문제 회피
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel('flutter', onMessageReceived: (msg) {
+        try {
+          final Map<String, dynamic> data = json.decode(msg.message) as Map<String, dynamic>;
+          final addr = (data['roadAddress']?.toString().isNotEmpty ?? false)
+              ? data['roadAddress'].toString()
+              : (data['address']?.toString() ?? '');
+          setState(() {
+            _addressController.text = addr;
+          });
+        } catch (_) {}
+        if (mounted) {
+          Navigator.of(this.context, rootNavigator: true).pop();
+        }
+      });
+
+    final html = '''
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kakao Postcode</title>
+  <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+  <style>
+    html, body, #wrap { height: 100%; margin: 0; }
+    #wrap { display: flex; }
+    #container { flex: 1; }
+  </style>
+  <script>
+    function sendAddressToFlutter(payload) {
+      if (window.flutter && window.flutter.postMessage) {
+        window.flutter.postMessage(payload);
+      }
+    }
+    window.onload = function() {
+      new daum.Postcode({
+        oncomplete: function(data) {
+          var payload = JSON.stringify({
+            roadAddress: data.roadAddress || '',
+            jibunAddress: data.jibunAddress || '',
+            address: (data.roadAddress || data.address || ''),
+            zonecode: data.zonecode || ''
+          });
+          sendAddressToFlutter(payload);
+        },
+        width: '100%',
+        height: '100%'
+      }).embed(document.getElementById('container'));
+    };
+  </script>
+</head>
+<body>
+  <div id="wrap">
+    <div id="container"></div>
+  </div>
+</body>
+</html>
+''';
+
+    await controller.loadHtmlString(html, baseUrl: 'https://t1.daumcdn.net');
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        final size = MediaQuery.of(context).size;
+        final height = size.height * 0.85;
+        return SizedBox(
+          height: height,
+          width: size.width,
+          child: WebViewWidget(controller: controller),
+        );
+      },
+    );
   }
 } 
