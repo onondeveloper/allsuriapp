@@ -483,39 +483,369 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
 
   void _showEstimateDetails(Estimate estimate) {
     final currencyFormat = NumberFormat.currency(locale: 'ko_KR', symbol: '₩');
+    
+    // 수수료 계산 (기본 5% 가정)
+    final commissionRate = 0.05; // 5%
+    final commissionAmount = estimate.amount * commissionRate;
+    final netAmount = estimate.amount - commissionAmount;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('견적 상세 정보'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('견적 금액: ${estimate.amount != null ? currencyFormat.format(estimate.amount) : '-'}'),
-            const SizedBox(height: 8),
-            Text('예상 작업 기간: ${estimate.estimatedDays}일'),
-            const SizedBox(height: 8),
-            const Text('견적 설명:'),
-            Text(estimate.description),
-            const SizedBox(height: 8),
-            Text(
-                '제출일: ${DateFormat('yyyy-MM-dd HH:mm').format(estimate.createdAt)}'),
-            const SizedBox(height: 8),
-            Text('상태: ${_getStatusText(estimate.status)}'),
-          ],
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('닫기'),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 헤더 (고정)
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.description_outlined,
+                        color: Colors.blue.shade700,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '견적 상세 정보',
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          Text(
+                            '견적 ID: ${estimate.id.substring(0, 8)}...',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // 스크롤 가능한 내용
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: Column(
+                    children: [
+                      // 견적 금액 (강조)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.blue.shade50, Colors.blue.shade100],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.blue.shade200, width: 1),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '견적 금액',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: Colors.blue.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              estimate.amount != null ? currencyFormat.format(estimate.amount) : '금액 없음',
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // 수수료 정보 (새로 추가)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.account_balance_wallet,
+                                  size: 20,
+                                  color: Colors.orange.shade700,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '수수료 정보',
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInfoRow('수수료율', '${(commissionRate * 100).toInt()}%'),
+                            _buildInfoRow('수수료', currencyFormat.format(commissionAmount)),
+                            _buildInfoRow('실수령액', currencyFormat.format(netAmount)),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // 사업자 정보 섹션
+                      _buildInfoSection(
+                        title: '사업자 정보',
+                        icon: Icons.business,
+                        iconColor: Colors.green.shade600,
+                        children: [
+                          _buildInfoRow('상호명', estimate.businessName),
+                          _buildInfoRow('사업자 이름', estimate.businessName),
+                          _buildInfoRow('연락처', estimate.businessPhone),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // 견적 상세 정보 섹션
+                      _buildInfoSection(
+                        title: '견적 상세',
+                        icon: Icons.assignment,
+                        iconColor: Colors.orange.shade600,
+                        children: [
+                          _buildInfoRow('예상 작업 기간', '${estimate.estimatedDays}일'),
+                          _buildInfoRow('설비 유형', estimate.equipmentType),
+                          _buildInfoRow('상태', _getStatusText(estimate.status)),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // 견적 설명
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.notes,
+                                  size: 20,
+                                  color: Colors.grey.shade700,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '견적 설명',
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              estimate.description,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.grey.shade800,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // 날짜 정보
+                      _buildInfoSection(
+                        title: '날짜 정보',
+                        icon: Icons.calendar_today,
+                        iconColor: Colors.purple.shade600,
+                        children: [
+                          _buildInfoRow('제출일', DateFormat('yyyy년 MM월 dd일 HH:mm').format(estimate.createdAt)),
+                          _buildInfoRow('방문 예정일', DateFormat('yyyy년 MM월 dd일').format(estimate.visitDate)),
+                          if (estimate.awardedAt != null)
+                            _buildInfoRow('낙찰일', DateFormat('yyyy년 MM월 dd일').format(estimate.awardedAt!)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // 액션 버튼 (고정)
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        child: Text(
+                          '닫기',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // 정보 섹션 위젯
+  Widget _buildInfoSection({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade100,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: iconColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...children,
         ],
       ),
     );
   }
 
-  // Call 상세 제거됨
+  // 정보 행 위젯
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showEditEstimateDialog(Estimate estimate) {
     final priceController =

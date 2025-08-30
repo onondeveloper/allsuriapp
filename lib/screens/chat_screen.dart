@@ -115,10 +115,32 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      appBar: CommonAppBar(
-        title: widget.chatRoomTitle ?? '채팅',
-        showBackButton: true,
-        showHomeButton: false,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(widget.chatRoomTitle ?? '채팅'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              final svc = Provider.of<ChatService>(context, listen: false);
+              if (value == 'clear') {
+                await svc.deleteMessages(widget.chatRoomId);
+                await _loadMessages();
+              } else if (value == 'delete') {
+                // 소프트 삭제
+                final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+                await svc.softDeleteChatRoom(widget.chatRoomId, me);
+                if (mounted) Navigator.pop(context);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'clear', child: Text('메시지 비우기')),
+              const PopupMenuItem(value: 'delete', child: Text('채팅방 삭제')),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [

@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'notification_service.dart';
 
 class ChatService extends ChangeNotifier {
   final SupabaseClient _sb = Supabase.instance.client;
+  final NotificationService _notificationService = NotificationService();
 
   // 기존 코드 호환: roomKey를 title로 저장하고, 실제 id는 DB에서 생성/기존 채팅방 재사용
   Future<String> createChatRoom(String roomKey, String customerId, String businessId, {String? estimateId}) async {
@@ -94,49 +96,107 @@ class ChatService extends ChangeNotifier {
   // 메시지 전송 (임시 구현)
   Future<void> sendMessage(String chatRoomId, String message, String senderId) async {
     try {
+      print('=== sendMessage 시작 ===');
+      print('chatRoomId: $chatRoomId');
+      print('message: $message');
+      print('senderId: $senderId');
+      
       // If chatRoomId is not a UUID, try to resolve to a UUID via chat_rooms
       final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(chatRoomId);
       String resolvedId = chatRoomId;
+      
+      print('isUuid: $isUuid');
+      
       if (!isUuid) {
+        print('UUID가 아님, chat_rooms에서 ID 확인 시도...');
         try {
-          // id == chatRoomId
-          final byId = await _sb.from('chat_rooms').select('id').eq('id', chatRoomId).limit(1).maybeSingle();
-          if (byId != null && byId['id'] != null && byId['id'].toString().length == 36) {
-            resolvedId = byId['id'].toString();
+          final existingRoom = await _sb
+              .from('chat_rooms')
+              .select('id')
+              .eq('title', chatRoomId)
+              .limit(1)
+              .maybeSingle();
+          
+          if (existingRoom != null && existingRoom['id'] != null) {
+            resolvedId = existingRoom['id'].toString();
+            print('기존 채팅방 ID 찾음: $resolvedId');
           } else {
-            // title == chatRoomId
-            final byTitle = await _sb.from('chat_rooms').select('id').eq('title', chatRoomId).limit(1).maybeSingle();
-            if (byTitle != null && byTitle['id'] != null && byTitle['id'].toString().length == 36) {
-              resolvedId = byTitle['id'].toString();
-            } else if (chatRoomId.startsWith('call_')) {
-              final listingId = chatRoomId.substring(5);
-              final byListing = await _sb.from('chat_rooms').select('id').eq('listingid', listingId).limit(1).maybeSingle();
-              if (byListing != null && byListing['id'] != null && byListing['id'].toString().length == 36) {
-                resolvedId = byListing['id'].toString();
-              }
-            }
+            print('기존 채팅방을 찾을 수 없음');
           }
-        } catch (_) {}
+        } catch (e) {
+          print('기존 채팅방 검색 실패: $e');
+        }
       }
 
-      // messages 테이블에 우선 content 컬럼으로 시도, 실패 시 text 컬럼으로 재시도
-      final now = DateTime.now().toIso8601String();
-      try {
-        await _sb.from('messages').insert({
-          'roomid': resolvedId,
-          'senderid': senderId,
-          'content': message,
-          'createdat': now,
-        });
-        return;
-      } catch (_) {}
-      await _sb.from('messages').insert({
+      print('최종 resolvedId: $resolvedId');
+
+      // 메시지 저장
+      final nowIso = DateTime.now().toIso8601String();
+      print('메시지 저장 시도...');
+      print('테이블: messages');
+      print('데이터: {roomid: $resolvedId, senderid: $senderId, text: $message, createdat: $nowIso}');
+      
+      final insertResult = await _sb.from('messages').insert({
         'roomid': resolvedId,
         'senderid': senderId,
         'text': message,
-        'createdat': now,
-      });
+        'createdat': nowIso,
+      }).select();
+      
+      print('메시지 저장 성공: $insertResult');
+
+      // 채팅방 참가자 정보 가져오기
+      print('채팅방 정보 가져오기 시도...');
+      final chatRoom = await _sb
+          .from('chat_rooms')
+          .select('customerid, businessid, title')
+          .eq('id', resolvedId)
+          .single();
+      
+      print('채팅방 정보: $chatRoom');
+
+      // 발신자 정보 가져오기
+      print('발신자 프로필 가져오기 시도...');
+      final senderProfile = await _getUserProfile(senderId);
+      final senderName = senderProfile?['name'] ?? senderProfile?['businessname'] ?? '사용자';
+      print('발신자 이름: $senderName');
+
+      // 수신자 ID 결정 (발신자가 고객이면 사업자, 사업자면 고객)
+      String recipientId;
+      if (senderId == chatRoom['customerid']) {
+        recipientId = chatRoom['businessid'];
+        print('발신자가 고객, 수신자는 사업자: $recipientId');
+      } else {
+        recipientId = chatRoom['customerid'];
+        print('발신자가 사업자, 수신자는 고객: $recipientId');
+      }
+
+      // 채팅 알림 전송
+      print('채팅 알림 전송 시도...');
+      await _notificationService.sendChatNotification(
+        recipientUserId: recipientId,
+        senderName: senderName,
+        message: message,
+        chatRoomId: resolvedId,
+      );
+
+      print('=== 메시지 전송 및 알림 완료 ===');
+      print('chatRoomId: $resolvedId');
+      print('수신자: $recipientId');
+      print('발신자: $senderName');
+      
     } catch (e) {
+      print('=== sendMessage 실패 ===');
+      print('에러: $e');
+      print('에러 타입: ${e.runtimeType}');
+      if (e is PostgrestException) {
+        print('PostgrestException 상세:');
+        print('  message: ${e.message}');
+        print('  code: ${e.code}');
+        print('  details: ${e.details}');
+        print('  hint: ${e.hint}');
+      }
+      debugPrint('sendMessage failed: $e');
       rethrow;
     }
   }
@@ -172,8 +232,9 @@ class ChatService extends ChangeNotifier {
     try {
       final rows = await _sb
           .from('chat_rooms')
-          .select('id, title, createdat, customerid, businessid, estimateid')
+          .select('id, title, createdat, customerid, businessid, estimateid, active')
           .or('customerid.eq.$userId,businessid.eq.$userId')
+          .eq('active', true)
           .order('createdat', ascending: false);
       final list = <Map<String, dynamic>>[];
       for (final r in rows) {
@@ -231,6 +292,20 @@ class ChatService extends ChangeNotifier {
     }
   }
 
+  // 메시지 전체 삭제
+  Future<void> deleteMessages(String chatRoomId) async {
+    await _sb.from('messages').delete().eq('roomid', chatRoomId);
+  }
+
+  // 채팅방 삭제 (소프트 삭제: active=false)
+  Future<void> softDeleteChatRoom(String chatRoomId, String userId) async {
+    await _sb
+        .from('chat_rooms')
+        .update({'active': false})
+        .eq('id', chatRoomId)
+        .or('customerid.eq.$userId,businessid.eq.$userId');
+  }
+
   // 채팅방 활성화 (임시 구현)
   Future<void> activateChatRoom(String estimateId, String businessId) async {
     try {
@@ -241,6 +316,38 @@ class ChatService extends ChangeNotifier {
           .eq('businessid', businessId);
     } catch (e) {
       rethrow;
+    }
+  }
+
+  /// 사용자 프로필 정보 가져오기
+  Future<Map<String, dynamic>?> _getUserProfile(String userId) async {
+    try {
+      // 고객 프로필 확인
+      final customerProfile = await _sb
+          .from('customers')
+          .select('name')
+          .eq('id', userId)
+          .maybeSingle();
+      
+      if (customerProfile != null) {
+        return customerProfile;
+      }
+
+      // 사업자 프로필 확인
+      final businessProfile = await _sb
+          .from('businesses')
+          .select('businessname')
+          .eq('id', userId)
+          .maybeSingle();
+      
+      if (businessProfile != null) {
+        return businessProfile;
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('사용자 프로필 가져오기 실패: $e');
+      return null;
     }
   }
 } 

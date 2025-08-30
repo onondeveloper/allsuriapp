@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/notification.dart' as app_notification;
 import '../../models/user.dart';
 import '../../providers/user_provider.dart';
 import '../../services/notification_service.dart';
@@ -17,7 +16,7 @@ class NotificationScreen extends StatefulWidget {
 
 class _NotificationScreenState extends State<NotificationScreen> {
   final NotificationService _notificationService = NotificationService();
-  List<app_notification.NotificationModel> _notifications = [];
+  List<Map<String, dynamic>> _notifications = [];
   bool _isLoading = true;
   String? _error;
 
@@ -57,13 +56,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  Future<void> _markAsRead(app_notification.NotificationModel notification) async {
-    if (!notification.isRead) {
-      await _notificationService.markAsRead(notification.id);
+  Future<void> _markAsRead(Map<String, dynamic> notification) async {
+    if (notification['isread'] != true) {
+      await _notificationService.markAsRead(notification['id']);
       setState(() {
-        final index = _notifications.indexWhere((n) => n.id == notification.id);
+        final index = _notifications.indexWhere((n) => n['id'] == notification['id']);
         if (index != -1) {
-          _notifications[index] = _notifications[index].copyWith(isRead: true);
+          _notifications[index]['isread'] = true;
         }
       });
     }
@@ -76,12 +75,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
     if (user != null) {
       await _notificationService.markAllAsRead(user.id);
       setState(() {
-        _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+        _notifications = _notifications.map((n) => {...n, 'isread': true}).toList();
       });
     }
   }
 
-  String _formatTimeAgo(DateTime dateTime) {
+  String _formatTimeAgo(dynamic dateTimeValue) {
+    DateTime dateTime;
+    
+    // String인 경우 파싱, 이미 DateTime인 경우 그대로 사용
+    if (dateTimeValue is String) {
+      try {
+        dateTime = DateTime.parse(dateTimeValue);
+      } catch (e) {
+        return '시간 정보 없음';
+      }
+    } else if (dateTimeValue is DateTime) {
+      dateTime = dateTimeValue;
+    } else {
+      return '시간 정보 없음';
+    }
+    
     final now = DateTime.now();
     final difference = now.difference(dateTime);
 
@@ -130,7 +144,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         showBackButton: true,
         showHomeButton: true,
         actions: [
-          if (_notifications.any((n) => !n.isRead))
+          if (_notifications.any((n) => n['isread'] != true))
             IconButton(
               icon: const Icon(Icons.done_all),
               onPressed: _markAllAsRead,
@@ -188,38 +202,48 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
-  Widget _buildNotificationItem(app_notification.NotificationModel notification) {
+  Widget _buildNotificationItem(Map<String, dynamic> notification) {
+    // null 안전성을 위한 기본값 설정
+    final title = notification['title']?.toString() ?? '제목 없음';
+    final message = notification['body']?.toString() ?? notification['message']?.toString() ?? '내용 없음';
+    final type = notification['type']?.toString() ?? 'unknown';
+    final isRead = notification['isread'] == true;
+    final jobTitle = notification['jobtitle']?.toString();
+    final region = notification['region']?.toString();
+    final createdAt = notification['createdat'];
+    final jobId = notification['jobid']?.toString();
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: notification.isRead ? Colors.white : Colors.blue[50],
+      color: isRead ? Colors.white : Colors.blue[50],
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: _getNotificationColor(notification.type).withOpacity(0.1),
+          backgroundColor: _getNotificationColor(type).withOpacity(0.1),
           child: Icon(
-            _getNotificationIcon(notification.type),
-            color: _getNotificationColor(notification.type),
+            _getNotificationIcon(type),
+            color: _getNotificationColor(type),
           ),
         ),
         title: Text(
-          notification.title,
+          title,
           style: TextStyle(
-            fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
+            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
           ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(notification.message),
-            if ((notification.jobTitle?.isNotEmpty ?? false) || (notification.region?.isNotEmpty ?? false)) ...[
+            Text(message),
+            if ((jobTitle?.isNotEmpty ?? false) || (region?.isNotEmpty ?? false)) ...[
               const SizedBox(height: 4),
               Text(
-                '${notification.jobTitle ?? ''}${(notification.jobTitle?.isNotEmpty ?? false) && (notification.region?.isNotEmpty ?? false) ? ' · ' : ''}${notification.region ?? ''}',
+                '${jobTitle ?? ''}${(jobTitle?.isNotEmpty ?? false) && (region?.isNotEmpty ?? false) ? ' · ' : ''}${region ?? ''}',
                 style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600),
               ),
             ],
             const SizedBox(height: 4),
             Text(
-              _formatTimeAgo(notification.createdAt),
+              _formatTimeAgo(createdAt),
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey[600],
@@ -232,7 +256,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 onPressed: () async {
                   await _markAsRead(notification);
                   if (!mounted) return;
-                  if ((notification.type == 'call_assigned' || notification.type == 'call_update') && (notification.jobId?.isNotEmpty ?? false)) {
+                  if ((type == 'call_assigned' || type == 'call_update') && (jobId?.isNotEmpty ?? false)) {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const CallMarketplaceScreen()));
                   } else {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const JobManagementScreen()));
@@ -243,7 +267,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             )
           ],
         ),
-        trailing: notification.isRead
+        trailing: isRead
             ? null
             : Container(
                 width: 8,

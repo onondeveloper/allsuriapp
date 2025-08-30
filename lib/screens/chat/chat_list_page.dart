@@ -238,7 +238,11 @@ class _ChatListPageState extends State<ChatListPage> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  _formatTimestamp(_parseTimestamp(chatRoom['createdat'] ?? chatRoom['created_at'] ?? chatRoom['createdAt'])),
+                  _formatTimestamp(
+                    _parseTimestamp(
+                      chatRoom['lastMessageAt'] ?? chatRoom['createdat'] ?? chatRoom['created_at'] ?? chatRoom['createdAt'],
+                    ),
+                  ),
                   style: const TextStyle(
                     fontSize: 12,
                     color: CupertinoColors.systemGrey,
@@ -262,6 +266,41 @@ class _ChatListPageState extends State<ChatListPage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 8),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minSize: 28,
+                  onPressed: () async {
+                    final confirm = await showCupertinoDialog<bool>(
+                      context: context,
+                      builder: (context) => CupertinoAlertDialog(
+                        title: const Text('채팅방 삭제'),
+                        content: const Text('메시지 포함 채팅방을 삭제하시겠습니까?'),
+                        actions: [
+                          CupertinoDialogAction(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('취소'),
+                          ),
+                          CupertinoDialogAction(
+                            isDestructiveAction: true,
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('삭제'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      final userId = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
+                      final svc = Provider.of<ChatService>(context, listen: false);
+                      try {
+                        await svc.deleteMessages(chatRoom['id']);
+                        await svc.softDeleteChatRoom(chatRoom['id'], userId);
+                        await _loadChatRooms();
+                      } catch (_) {}
+                    }
+                  },
+                  child: const Text('삭제', style: TextStyle(fontSize: 12, color: CupertinoColors.destructiveRed)),
+                ),
               ],
             ),
           ],
