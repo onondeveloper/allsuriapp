@@ -13,6 +13,7 @@ import 'services/job_service.dart';
 import 'services/payment_service.dart';
 import 'services/api_service.dart';
 import 'services/chat_service.dart';
+import 'services/notification_service.dart';
 import 'providers/user_provider.dart';
 import 'providers/order_provider.dart';
 import 'screens/home/home_screen.dart';
@@ -29,6 +30,10 @@ void main() async {
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
   );
+  
+  // NotificationService 초기화
+  await NotificationService().initialize();
+  
   runApp(const MyApp());
 }
 

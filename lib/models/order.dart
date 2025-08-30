@@ -76,28 +76,28 @@ class Order {
   factory Order.fromMap(Map<String, dynamic> map) {
     return Order(
       id: map['id'],
-      customerId: map['customerId'],
+      customerId: map['customerid'] ?? map['customerId'], // 둘 다 시도
       title: map['title'] ?? '',
       description: map['description'] ?? '',
       address: map['address'] ?? '',
-      visitDate: map['visitDate'] != null 
-          ? (map['visitDate'] is DateTime 
-              ? map['visitDate'] 
-              : DateTime.parse(map['visitDate'].toString()))
+      visitDate: (map['visitDate'] ?? map['visitdate']) != null  // 둘 다 시도
+          ? ((map['visitDate'] ?? map['visitdate']) is DateTime 
+              ? (map['visitDate'] ?? map['visitdate']) 
+              : DateTime.parse((map['visitDate'] ?? map['visitdate']).toString()))
           : DateTime.now(),
       status: map['status'] ?? STATUS_PENDING,
-      createdAt: map['createdAt'] != null 
-          ? (map['createdAt'] is DateTime 
-              ? map['createdAt'] 
-              : DateTime.parse(map['createdAt'].toString()))
+      createdAt: (map['createdAt'] ?? map['createdat']) != null  // 둘 다 시도
+          ? ((map['createdAt'] ?? map['createdat']) is DateTime 
+              ? (map['createdAt'] ?? map['createdat']) 
+              : DateTime.parse((map['createdAt'] ?? map['createdat']).toString()))
           : DateTime.now(),
       images: List<String>.from(map['images'] ?? []),
-      estimatedPrice: (map['estimatedPrice'] ?? 0.0).toDouble(),
-      technicianId: map['technicianId'],
-      selectedEstimateId: map['selectedEstimateId'],
+      estimatedPrice: (map['estimatedPrice'] ?? map['estimatedprice'] ?? 0.0).toDouble(), // 둘 다 시도
+      technicianId: map['technicianId'] ?? map['technicianid'], // 둘 다 시도
+      selectedEstimateId: map['selectedEstimateId'] ?? map['selectedestimateid'], // 둘 다 시도
       category: map['category'] ?? '기타',
-      customerName: map['customerName'] ?? '',
-      customerPhone: map['customerPhone'] ?? '',
+      customerName: map['customerName'] ?? map['customername'] ?? '', // 둘 다 시도
+      customerPhone: map['customerPhone'] ?? map['customerphone'] ?? '', // 둘 다 시도
       customerEmail: map['customerEmail'],
       isAnonymous: map['isAnonymous'] ?? false,
       isAwarded: map['isAwarded'] ?? false,

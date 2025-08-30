@@ -14,7 +14,7 @@ import 'bid_list_screen.dart';
 import '../../services/order_service.dart';
 import '../../services/auth_service.dart';
 import 'create_request_screen.dart';
-import '../../services/marketplace_service.dart';
+ 
 
 class CustomerMyEstimatesScreen extends StatefulWidget {
   const CustomerMyEstimatesScreen({super.key});
@@ -28,8 +28,7 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
   Map<String, List<Estimate>> _orderEstimates = {};
   bool _isLoading = true;
   String _selectedStatus = 'all';
-  String _typeFilter = 'all'; // all | order | call
-  List<Map<String, dynamic>> _listings = [];
+  
 
   @override
   void initState() {
@@ -50,51 +49,66 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
       if (authService.currentUser != null) {
         final currentUser = authService.currentUser!;
         
+        print('🔍 현재 사용자: ${currentUser.id}');
+        print('🔍 사용자 전화번호: ${currentUser.phoneNumber}');
+        
         // 현재 사용자의 전화번호 가져오기
         String? userPhoneNumber = currentUser.phoneNumber;
         
         if (userPhoneNumber != null) {
           // 전화번호 정규화 (하이픈, 공백 제거)
           String normalizedUserPhone = userPhoneNumber.replaceAll(RegExp(r'[-\s()]'), '');
+          print('🔍 정규화된 전화번호: $normalizedUserPhone');
           
           // 모든 주문을 가져온 후 전화번호로 필터링
           await orderService.loadOrders(); // 모든 주문 로드
+          print('🔍 전체 주문 수: ${orderService.orders.length}');
           
           // 전화번호가 일치하는 주문만 필터링
           _orders = orderService.orders.where((order) {
             String normalizedOrderPhone = order.customerPhone.replaceAll(RegExp(r'[-\s()]'), '');
+            print('🔍 주문 전화번호: ${order.customerPhone} → 정규화: $normalizedOrderPhone');
             return normalizedOrderPhone == normalizedUserPhone;
           }).toList();
+          
+          print('🔍 필터링된 주문 수: ${_orders.length}');
         } else {
           // 전화번호가 없으면 customerId로 필터링 (기존 방식)
+          print('🔍 customerId로 주문 조회: ${currentUser.id}');
           await orderService.loadOrders(customerId: currentUser.id);
           _orders = orderService.orders;
+          print('🔍 customerId로 찾은 주문 수: ${_orders.length}');
         }
         
         // 각 주문에 대한 견적 목록 로드
         _orderEstimates.clear();
         for (final order in _orders) {
           if (order.id != null) {
+            print('🔍 주문 ${order.id}에 대한 견적 로드 중...');
             await estimateService.loadEstimates(orderId: order.id!);
             _orderEstimates[order.id!] = List.from(estimateService.estimates);
+            print('🔍 주문 ${order.id}의 견적 수: ${estimateService.estimates.length}');
           }
         }
+        
+        print('🔍 최종 결과: 주문 ${_orders.length}개, 견적 맵 ${_orderEstimates.length}개');
       } else {
         // 비로그인 사용자: 로컬 세션ID로 주문 조회
+        print('🔍 비로그인 사용자: 세션ID로 조회');
         final prefs = await SharedPreferences.getInstance();
         String? sessionId = prefs.getString('allsuri_session_id');
         sessionId ??= const Uuid().v4();
         await prefs.setString('allsuri_session_id', sessionId);
+        print('🔍 세션ID: $sessionId');
 
         await orderService.loadOrders(sessionId: sessionId);
         _orders = orderService.orders;
+        print('🔍 세션ID로 찾은 주문 수: ${_orders.length}');
       }
 
-      // 사업자 Call 목록 로드 (오픈 상태)
-      final ms = MarketplaceService();
-      _listings = await ms.listListings(status: 'open');
+      // 고객 화면에서는 사업자 Call 목록을 표시하지 않습니다 (요청사항 반영)
     } catch (e) {
-      print('데이터 로드 오류: $e');
+      print('❌ 데이터 로드 오류: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -142,26 +156,19 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_orders.isEmpty && _listings.isEmpty) {
+    if (_orders.isEmpty) {
       return _buildEmptyState();
     }
 
     return Column(
       children: [
-        // 타입 필터 (전체 / 내 견적 요청 / 사업자 Call)
+        // 상단 머지된 카테고리 라벨: 내 견적 현황
         Container(
+          width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildTypeFilter('전체', 'all'),
-                const SizedBox(width: 8),
-                _buildTypeFilter('내 견적 요청', 'order'),
-                const SizedBox(width: 8),
-                _buildTypeFilter('사업자 Call', 'call'),
-              ],
-            ),
+          child: const Text(
+            '내 견적 현황',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
         ),
         // 상태 필터
@@ -192,13 +199,8 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                if (_typeFilter == 'all' || _typeFilter == 'order') ...[
-                  for (final order in filteredOrders)
-                    _buildOrderCard(order, _orderEstimates[order.id ?? ''] ?? []),
-                ],
-                if (_typeFilter == 'all' || _typeFilter == 'call') ...[
-                  for (final listing in _listings) _buildCallCard(listing),
-                ],
+                for (final order in filteredOrders)
+                  _buildOrderCard(order, _orderEstimates[order.id ?? ''] ?? []),
               ],
             ),
           ),
@@ -502,161 +504,6 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
     );
   }
 
-  Widget _buildTypeFilter(String label, String type) {
-    final isSelected = _typeFilter == type;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _typeFilter = type;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? CupertinoColors.activeBlue : CupertinoColors.systemGrey6,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? CupertinoColors.white : CupertinoColors.black,
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCallCard(Map<String, dynamic> listing) {
-    final String title = (listing['title']?.toString() ?? '제목 없음');
-    final String region = (listing['region']?.toString() ?? '지역 미정');
-    final String category = (listing['category']?.toString() ?? '분류 없음');
-    final double? budget = (listing['budget_amount'] is num) ? (listing['budget_amount'] as num).toDouble() : null;
-    DateTime? createdAt;
-    try {
-      createdAt = listing['createdat'] != null ? DateTime.tryParse(listing['createdat'].toString()) : null;
-    } catch (_) {}
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.systemGrey.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: CupertinoListTile(
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemPurple.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: CupertinoColors.systemPurple),
-              ),
-              child: const Text(
-                '사업자 Call',
-                style: TextStyle(fontSize: 11, color: CupertinoColors.systemPurple),
-              ),
-            ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(CupertinoIcons.location, size: 14, color: CupertinoColors.systemGrey),
-                const SizedBox(width: 4),
-                Expanded(child: Text(region, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey))),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(CupertinoIcons.tag, size: 14, color: CupertinoColors.systemGrey),
-                const SizedBox(width: 4),
-                Expanded(child: Text(category, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey))),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(CupertinoIcons.money_yen_circle, size: 14, color: CupertinoColors.systemGrey),
-                const SizedBox(width: 4),
-                Expanded(child: Text('예산: ${budget != null ? '${budget.toStringAsFixed(0)}원' : '-'}', style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey))),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(CupertinoIcons.calendar, size: 14, color: CupertinoColors.systemGrey),
-                const SizedBox(width: 4),
-                Expanded(child: Text('게시일: ${createdAt != null ? createdAt.toString().split(' ')[0] : '-'}', style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey))),
-              ],
-            ),
-          ],
-        ),
-        trailing: const Icon(CupertinoIcons.chevron_right),
-        onTap: () => _showCallDetails(listing),
-      ),
-    );
-  }
-
-  void _showCallDetails(Map<String, dynamic> listing) {
-    final title = listing['title']?.toString() ?? '제목 없음';
-    final desc = listing['description']?.toString() ?? '';
-    final region = listing['region']?.toString() ?? '지역 미정';
-    final category = listing['category']?.toString() ?? '분류 없음';
-    final double? budget = (listing['budget_amount'] is num) ? (listing['budget_amount'] as num).toDouble() : null;
-    final createdAt = listing['createdat'] != null ? DateTime.tryParse(listing['createdat'].toString()) : null;
-
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Call 상세 정보'),
-        content: Column(
-          children: [
-            Text('제목: $title'),
-            const SizedBox(height: 6),
-            Text('지역: $region'),
-            const SizedBox(height: 6),
-            Text('분류: $category'),
-            const SizedBox(height: 6),
-            Text('예산: ${budget != null ? '${budget.toStringAsFixed(0)}원' : '-'}'),
-            const SizedBox(height: 6),
-            const Text('설명:'),
-            Text(desc.isNotEmpty ? desc : '없음'),
-            const SizedBox(height: 6),
-            Text('게시일: ${createdAt != null ? createdAt.toString().split(' ')[0] : '-'}'),
-          ],
-        ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('닫기'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildStatusBadge(Order order, List<Estimate> estimates) {
     String text;
