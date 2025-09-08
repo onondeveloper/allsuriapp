@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart';
 import '../providers/user_provider.dart';
 import '../models/estimate.dart';
@@ -32,11 +34,13 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSending = false;
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToEnd = false;
+  StreamSubscription<List<Map<String, dynamic>>>? _messagesSub; // realtime 구독
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
+    _subscribeRealtime();
     _scrollController.addListener(() {
       final atBottom = _scrollController.offset <= 100;
       if (_showScrollToEnd == atBottom) {
@@ -72,6 +76,51 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _subscribeRealtime() {
+    try {
+      final client = Supabase.instance.client;
+      final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+
+      // messages 테이블의 roomid별 스트림 구독 (createdat 기준 정렬)
+      _messagesSub = client
+          .from('messages')
+          .stream(primaryKey: ['roomid', 'createdat'])
+          .eq('roomid', widget.chatRoomId)
+          .order('createdat', ascending: true)
+          .listen((rows) {
+        final mapped = rows.map((r) {
+          final m = Map<String, dynamic>.from(r);
+          final created = m['createdat'] ?? m['createdAt'] ?? m['created_at'];
+          final text = (m['content'] ?? m['text'] ?? '').toString();
+          final isFromMe = (m['senderid']?.toString() ?? m['senderId']?.toString() ?? m['sender_id']?.toString() ?? '') == me;
+          return {
+            'text': text,
+            'timestamp': DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now(),
+            'isFromMe': isFromMe,
+          };
+        }).toList();
+
+        if (!mounted) return;
+        setState(() {
+          _messages = mapped;
+        });
+
+        // 새로운 메시지가 오면 하단으로 스크롤
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final max = _scrollController.position.maxScrollExtent;
+          _scrollController.animateTo(
+            max + 60,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        });
+      });
+    } catch (e) {
+      print('실시간 구독 설정 실패: $e');
+    }
+  }
+
   Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
@@ -85,7 +134,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final text = _messageController.text.trim();
       await chatService.sendMessage(widget.chatRoomId, text, me);
       _messageController.clear();
-      // 낙관적 UI 업데이트
+      // 낙관적 UI 업데이트 (실시간 스트림으로 곧 동기화됨)
       setState(() {
         _messages.add({
           'text': text,
@@ -418,6 +467,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _messagesSub?.cancel();
     _messageController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
