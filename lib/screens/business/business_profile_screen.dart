@@ -7,7 +7,11 @@ import '../../widgets/common_app_bar.dart';
 import 'package:go_router/go_router.dart';
 import '../../utils/navigation_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../widgets/star_rating.dart';
+import '../../services/review_service.dart';
+import '../../services/media_service.dart';
 import 'package:app_settings/app_settings.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BusinessProfileScreen extends StatefulWidget {
   const BusinessProfileScreen({Key? key}) : super(key: key);
@@ -32,6 +36,9 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   List<String> _selectedServiceAreas = [];
   List<String> _selectedSpecialties = [];
   bool _isLoading = false;
+  double _avgRating = 0;
+  int _reviewCount = 0;
+  String? _avatarUrl;
 
   @override
   void initState() {
@@ -51,9 +58,25 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       _addressController.text = currentUser.address ?? '';
       _selectedServiceAreas = List.from(currentUser.serviceAreas);
       _selectedSpecialties = List.from(currentUser.specialties);
+      _avatarUrl = currentUser.avatarUrl;
     }
     // 로컬 결제/정산 정보 로드
     Future.microtask(_loadBillingInfoFromLocal);
+    // 리뷰 통계 로드
+    Future.microtask(_loadRatingStats);
+  }
+
+  Future<void> _loadRatingStats() async {
+    try {
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final userId = auth.currentUser?.id ?? '';
+      if (userId.isEmpty) return;
+      final stats = await ReviewService().getBusinessStats(userId);
+      if (mounted) setState(() {
+        _avgRating = stats?.averageRating ?? 0;
+        _reviewCount = stats?.totalReviews ?? 0;
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadBillingInfoFromLocal() async {
@@ -252,8 +275,17 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.storefront, size: 20),
-                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _onChangeAvatar,
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundImage: (_avatarUrl != null && _avatarUrl!.isNotEmpty) ? NetworkImage(_avatarUrl!) : null,
+                        child: (_avatarUrl == null || _avatarUrl!.isEmpty)
+                            ? const Icon(Icons.storefront, size: 20)
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         _businessNameController.text.isNotEmpty
@@ -267,6 +299,15 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 8),
+              if (_avgRating > 0 || _reviewCount > 0)
+                Row(
+                  children: [
+                    StarRating(rating: _avgRating, size: 18),
+                    const SizedBox(width: 6),
+                    Text('$_avgRating ($_reviewCount)', style: Theme.of(context).textTheme.bodyMedium),
+                  ],
+                ),
               const SizedBox(height: 16),
               // 기본 정보 섹션
               _buildSection(
@@ -553,6 +594,22 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
         ),
       ),
     ));
+  }
+
+  Future<void> _onChangeAvatar() async {
+    try {
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final me = auth.currentUser;
+      if (me == null) return;
+      final media = MediaService();
+      final file = await media.pickImageFromGallery();
+      if (file == null) return;
+      final url = await media.uploadProfileImage(userId: me.id, file: file);
+      if (url == null) return;
+      await Supabase.instance.client.from('users').update({'avatar_url': url}).eq('id', me.id);
+      if (!mounted) return;
+      setState(() => _avatarUrl = url);
+    } catch (_) {}
   }
 
   Widget _buildSection(String title, List<Widget> children) {

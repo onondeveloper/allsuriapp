@@ -215,6 +215,7 @@ class User {
   final String? address;
   final List<String> serviceAreas;
   final List<String> specialties;
+  final String? avatarUrl;
 
   // uid는 id의 별칭
   String get uid => id;
@@ -233,6 +234,7 @@ class User {
     this.address,
     this.serviceAreas = const [],
     this.specialties = const [],
+    this.avatarUrl,
   });
 
   factory User.fromMap(Map<String, dynamic> map) {
@@ -250,6 +252,7 @@ class User {
       address: map['address'],
       serviceAreas: List<String>.from(map['serviceAreas'] ?? const []),
       specialties: List<String>.from(map['specialties'] ?? const []),
+      avatarUrl: map['avatar_url'] ?? map['avatarUrl'],
     );
   }
 
@@ -268,6 +271,7 @@ class User {
       'address': address,
       'serviceAreas': serviceAreas,
       'specialties': specialties,
+      'avatar_url': avatarUrl,
     };
   }
 
@@ -285,6 +289,7 @@ class User {
     String? address,
     List<String>? serviceAreas,
     List<String>? specialties,
+    String? avatarUrl,
   }) {
     return User(
       id: id ?? this.id,
@@ -300,6 +305,7 @@ class User {
       address: address ?? this.address,
       serviceAreas: serviceAreas ?? this.serviceAreas,
       specialties: specialties ?? this.specialties,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
 }

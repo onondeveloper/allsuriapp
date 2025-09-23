@@ -1,9 +1,11 @@
 // API 기본 URL
 const API_BASE = '/api/admin';
 const MARKET_API_BASE = '/api/market';
+const ADS_API_BASE = '/api/ads';
 
 // 관리자 토큰 (.env 파일의 ADMIN_TOKEN과 일치해야 함)
 const ADMIN_TOKEN = 'devtoken';
+let ADMIN_ROLE = 'developer';
 
 // API 호출 헬퍼 함수
 async function apiCall(endpoint, options = {}) {
@@ -40,6 +42,7 @@ async function apiCall(endpoint, options = {}) {
         // 대시보드 데이터 로드
         async function loadDashboard() {
             try {
+                await loadAdminMe();
                 const data = await apiCall('/dashboard');
                 
                 document.getElementById('totalUsers').textContent = data.totalUsers;
@@ -58,6 +61,25 @@ async function apiCall(endpoint, options = {}) {
                 console.error('대시보드 로드 오류:', error);
             }
         }
+
+// 권한 조회 및 UI 제어
+async function loadAdminMe() {
+    try {
+        const me = await apiCall('/me');
+        ADMIN_ROLE = me.role || 'business';
+        // 권한에 따라 UI 버튼 제어
+        if (!(me.permissions?.canManageUsers)) {
+            const userSection = document.querySelector('h2:nth-of-type(1)'); // 사용자 관리 섹션 헤더 탐색 (간단)
+            // no-op for brevity
+        }
+        if (!(me.permissions?.canManageAds)) {
+            const btnNewAd = document.getElementById('btnNewAd');
+            if (btnNewAd) btnNewAd.style.display = 'none';
+        }
+    } catch (e) {
+        console.warn('관리자 권한 조회 실패:', e);
+    }
+}
 
 // 사용자 목록 로드
 async function loadUsers() {
@@ -364,6 +386,16 @@ async function deleteUser(userId) {
             if (typeof loadCalls === 'function') {
                 loadCalls();
             }
+            // 광고 로드 및 버튼 바인딩
+            if (typeof loadAds === 'function') {
+                loadAds();
+            }
+            const reloadAdsBtn = document.getElementById('btnReloadAds');
+            if (reloadAdsBtn) reloadAdsBtn.addEventListener('click', loadAds);
+            const newAdBtn = document.getElementById('btnNewAd');
+            if (newAdBtn) newAdBtn.addEventListener('click', openAdCreateModal);
+            const statsAdBtn = document.getElementById('btnAdsStats');
+            if (statsAdBtn) statsAdBtn.addEventListener('click', showAdsStats);
         });
 
         // 쿼리 파라미터 구성
@@ -923,4 +955,134 @@ function displayCalls(calls) {
         </table>
     `;
     container.innerHTML = table;
+}
+
+// ===== 광고 관리 =====
+async function loadAds() {
+    try {
+        const ads = await apiCall(`${ADS_API_BASE}`);
+        displayAds(ads);
+    } catch (e) {
+        const c = document.getElementById('adsTableContainer');
+        if (c) c.innerHTML = '<div class="error">광고 목록을 불러오는데 실패했습니다.</div>';
+    }
+}
+
+function displayAds(items) {
+    const c = document.getElementById('adsTableContainer');
+    if (!c) return;
+    if (!items || items.length === 0) {
+        c.innerHTML = '<div class="loading">등록된 광고가 없습니다.</div>';
+        return;
+    }
+    const table = `
+      <table class="table">
+        <thead>
+          <tr>
+            <th>제목</th>
+            <th>슬러그</th>
+            <th>HTML 경로</th>
+            <th>상태</th>
+            <th>우선순위</th>
+            <th>작업</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(ad => `
+            <tr>
+              <td>${ad.title || '-'}</td>
+              <td>${ad.slug || '-'}</td>
+              <td>${ad.html_path || '-'}</td>
+              <td>${ad.status || '-'}</td>
+              <td>${ad.priority ?? 0}</td>
+              <td>
+                <button class="btn btn-primary" onclick='openAdEditModal(${JSON.stringify(ad)})'>수정</button>
+                <button class="btn btn-danger" onclick='deleteAd("${ad.id}")'>삭제</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    c.innerHTML = table;
+}
+
+function openAdCreateModal() {
+    const title = prompt('광고 제목');
+    if (title == null) return;
+    const slug = prompt('슬러그(영문 소문자, 식별자)');
+    if (slug == null) return;
+    const html_path = prompt('HTML 파일 경로(/ads/경로.html)');
+    if (html_path == null) return;
+    const priority = parseInt(prompt('우선순위(숫자, 높을수록 먼저)') || '0', 10);
+    const status = prompt('상태(active/inactive)', 'active');
+    createAd({ title, slug, html_path, priority, status });
+}
+
+function openAdEditModal(ad) {
+    try { ad = (typeof ad === 'string') ? JSON.parse(ad) : ad; } catch(_) {}
+    const title = prompt('광고 제목', ad.title || '');
+    if (title == null) return;
+    const slug = prompt('슬러그', ad.slug || '');
+    if (slug == null) return;
+    const html_path = prompt('HTML 파일 경로', ad.html_path || '');
+    if (html_path == null) return;
+    const priority = parseInt(prompt('우선순위', String(ad.priority ?? 0)) || '0', 10);
+    const status = prompt('상태(active/inactive)', ad.status || 'active');
+    updateAd(ad.id, { title, slug, html_path, priority, status });
+}
+
+async function createAd(payload) {
+    try {
+        const res = await apiCall('/ads', { method: 'POST', body: JSON.stringify(payload) });
+        alert('광고가 생성되었습니다.');
+        loadAds();
+    } catch (e) {
+        alert('광고 생성 실패');
+    }
+}
+
+async function updateAd(id, payload) {
+    try {
+        const res = await apiCall(`/ads/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        alert('광고가 업데이트되었습니다.');
+        loadAds();
+    } catch (e) {
+        alert('광고 업데이트 실패');
+    }
+}
+
+async function deleteAd(id) {
+    if (!confirm('정말로 이 광고를 삭제하시겠습니까?')) return;
+    try {
+        await apiCall(`/ads/${id}`, { method: 'DELETE' });
+        loadAds();
+    } catch (e) {
+        alert('광고 삭제 실패');
+    }
+}
+
+async function showAdsStats() {
+    try {
+        const stats = await apiCall('/ads/stats');
+        const byAd = {};
+        for (const row of stats) {
+            const id = row.ad_id;
+            if (!byAd[id]) byAd[id] = { impressions: 0, clicks: 0 };
+            if (row.type === 'impression') byAd[id].impressions = row.count || 0;
+            if (row.type === 'click') byAd[id].clicks = row.count || 0;
+        }
+        let html = '<h3>광고 통계</h3><table class="table"><thead><tr><th>Ad ID</th><th>노출</th><th>클릭</th><th>CTR</th></tr></thead><tbody>';
+        for (const [id, m] of Object.entries(byAd)) {
+            const ctr = m.impressions > 0 ? ((m.clicks / m.impressions) * 100).toFixed(2) + '%' : '-';
+            html += `<tr><td>${id}</td><td>${m.impressions}</td><td>${m.clicks}</td><td>${ctr}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        const modal = document.getElementById('statsModal');
+        document.getElementById('statsModalTitle').textContent = '광고 통계';
+        document.getElementById('statsModalBody').innerHTML = html;
+        modal.style.display = 'block';
+    } catch (e) {
+        alert('광고 통계 조회 실패');
+    }
 }

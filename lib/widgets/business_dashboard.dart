@@ -15,6 +15,8 @@ import 'interactive_card.dart';
 import 'package:lottie/lottie.dart';
 import 'package:allsuriapp/services/marketplace_service.dart';
 import '../services/order_service.dart';
+import '../screens/community/community_board_screen.dart';
+import '../screens/labs/ai_assistant_screen.dart';
 
 class BusinessDashboard extends StatefulWidget {
   const BusinessDashboard({Key? key}) : super(key: key);
@@ -284,6 +286,24 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       Colors.amber,
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
+                      },
+                    ),
+                    _buildMenuCard(
+                      context,
+                      '커뮤니티',
+                      Icons.groups_2_outlined,
+                      Colors.purple,
+                      () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const CommunityBoardScreen()));
+                      },
+                    ),
+                    _buildMenuCard(
+                      context,
+                      'AI 질문',
+                      Icons.auto_awesome,
+                      Colors.pink,
+                      () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const AiAssistantScreen()));
                       },
                     ),
                   ],

@@ -1,5 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import '../models/user.dart';
+import '../providers/user_provider.dart';
+import '../services/media_service.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart';
@@ -29,6 +36,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
+  final ImagePicker _picker = ImagePicker();
   List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
   bool _isSending = false;
@@ -389,6 +397,11 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
+          IconButton(
+            onPressed: _isSending ? null : _pickAndSendImage,
+            icon: const Icon(Icons.photo),
+            color: Colors.blue[600],
+          ),
           Expanded(
             child: TextField(
               controller: _messageController,
@@ -422,6 +435,29 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickAndSendImage() async {
+    try {
+      final x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (x == null) return;
+      final file = File(x.path);
+      final media = MediaService();
+      final url = await media.uploadMessageImage(roomId: widget.chatRoomId, userId: Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '', file: file);
+      if (url == null) return;
+      // Save as image message
+      final nowIso = DateTime.now().toIso8601String();
+      final sb = Supabase.instance.client;
+      await sb.from('messages').insert({
+        'roomid': widget.chatRoomId,
+        'senderid': Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '',
+        'type': 'image',
+        'image_url': url,
+        'createdat': nowIso,
+      });
+    } catch (e) {
+      debugPrint('이미지 전송 실패: $e');
+    }
   }
 
   String _formatTimestamp(DateTime timestamp) {

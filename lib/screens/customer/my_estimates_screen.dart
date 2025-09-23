@@ -14,6 +14,9 @@ import 'bid_list_screen.dart';
 import '../../services/order_service.dart';
 import '../../services/auth_service.dart';
 import 'create_request_screen.dart';
+import '../../services/review_service.dart';
+import '../../widgets/star_rating.dart';
+import '../../services/marketplace_service.dart';
  
 
 class CustomerMyEstimatesScreen extends StatefulWidget {
@@ -629,11 +632,38 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          estimate.businessName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  estimate.businessName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              FutureBuilder(
+                                future: ReviewService().getBusinessStats(estimate.businessId),
+                                builder: (context, snapshot) {
+                                  final stats = snapshot.data;
+                                  final avg = stats?.averageRating ?? 0.0;
+                                  final cnt = stats?.totalReviews ?? 0;
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      StarRating(rating: avg, size: 14),
+                                      const SizedBox(width: 4),
+                                      Text('($cnt)', style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ),
                         if (order.isAwarded && estimate.id == order.awardedEstimateId)
@@ -725,6 +755,13 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      // 요청: "상세 보기" 하단에 취소 버튼 추가
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        onPressed: () => _confirmCancelOrder(order, estimate),
+                        child: const Text('취소', style: TextStyle(color: CupertinoColors.systemRed)),
+                      ),
                     ],
                   ],
                 ),
@@ -734,6 +771,83 @@ class _CustomerMyEstimatesScreenState extends State<CustomerMyEstimatesScreen> {
         ),
       ),
     );
+  }
+
+  void _confirmCancelOrder(Order order, Estimate estimate) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('취소 확인'),
+        content: const Text('이 공사를 취소하시겠습니까? 취소하면 Call 리스트로 다시 올라갑니다.'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('아니오'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.pop(context);
+              await _performCancelOrder(order, estimate);
+            },
+            child: const Text('예'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performCancelOrder(Order order, Estimate estimate) async {
+    try {
+      // 1) 주문 상태 되돌리기: 진행중 -> 대기 또는 estimating 등으로 복귀
+      final orderService = Provider.of<OrderService>(context, listen: false);
+      final updatedOrder = order.copyWith(
+        isAwarded: false,
+        awardedAt: null,
+        awardedEstimateId: null,
+        status: Order.STATUS_PENDING,
+      );
+      await orderService.updateOrder(updatedOrder);
+
+      // 2) 견적 상태 롤백 (채택 → 거절 또는 pending 처리)
+      final estimateService = Provider.of<EstimateService>(context, listen: false);
+      await estimateService.updateEstimateStatus(estimate.id, Estimate.STATUS_REJECTED);
+
+      // 3) Call 리스트 재오픈 (마켓플레이스)
+      // orderId를 jobId로 사용 중인 테이블과 매핑이 있을 수 있으므로, 서비스에서 job 상태 원복 로직 제공 이용
+      try {
+        final market = MarketplaceService();
+        await market.withdrawClaimForJob(order.id ?? '');
+      } catch (_) {}
+
+      // 4) 새로고침 및 피드백
+      await _loadData();
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => const CupertinoAlertDialog(
+            title: Text('취소 완료'),
+            content: Text('공사가 취소되어 Call 리스트로 되돌렸습니다.'),
+            actions: [
+              CupertinoDialogAction(child: Text('확인')),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('오류'),
+            content: Text('취소 처리 중 오류가 발생했습니다: $e'),
+            actions: [
+              CupertinoDialogAction(child: const Text('확인'), onPressed: () => Navigator.pop(context)),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   void _editOrder(Order order) {

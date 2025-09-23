@@ -955,6 +955,18 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     // HTML 문자열 + baseUrl(https)로 로드하여 postMessage origin 문제 회피
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (request) {
+          final url = request.url;
+          // 화이트리스트: daumcdn, postcode.daum, kakao 도메인만 허용
+          final allowed = url.startsWith('https://t1.daumcdn.net') ||
+                          url.startsWith('https://postcode.map.daum.net') ||
+                          url.startsWith('https://map.daum.net') ||
+                          url.startsWith('https://kakao.com') ||
+                          url.startsWith('https://www.kakao.com');
+          return allowed ? NavigationDecision.navigate : NavigationDecision.prevent;
+        },
+      ))
       ..addJavaScriptChannel('flutter', onMessageReceived: (msg) {
         try {
           final Map<String, dynamic> data = json.decode(msg.message) as Map<String, dynamic>;

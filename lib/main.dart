@@ -14,6 +14,7 @@ import 'services/payment_service.dart';
 import 'services/api_service.dart';
 import 'services/chat_service.dart';
 import 'services/notification_service.dart';
+import 'services/community_service.dart';
 import 'providers/user_provider.dart';
 import 'providers/order_provider.dart';
 import 'screens/home/home_screen.dart';
@@ -53,6 +54,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => JobService()),
         ChangeNotifierProvider(create: (context) => PaymentService()),
         ChangeNotifierProvider(create: (context) => ChatService()),
+        ChangeNotifierProvider(create: (context) => CommunityService()),
         // UserProvider는 AuthService에 의존하므로 마지막에 생성
         ChangeNotifierProxyProvider<AuthService, UserProvider>(
           create: (context) => UserProvider(Provider.of<AuthService>(context, listen: false)),

@@ -8,7 +8,7 @@ class ApiService extends ChangeNotifier {
   // API 기본 URL
   static const String baseUrl = kReleaseMode
       ? 'https://api.allsuriapp.com'
-      : 'http://172.30.1.16:3001/api';
+      : 'http://10.0.2.2:3001/api';
 
   // GET 요청
   Future<Map<String, dynamic>> get(String endpoint) async {
@@ -188,6 +188,27 @@ class ApiService extends ChangeNotifier {
       return List<Map<String, dynamic>>.from(response['data'] ?? []);
     }
     return [];
+  }
+
+  // 광고 목록 조회 (활성 광고)
+  Future<List<Map<String, dynamic>>> getActiveAds() async {
+    final response = await get('/ads');
+    if (response['success']) {
+      return List<Map<String, dynamic>>.from(response['data'] ?? []);
+    }
+    return [];
+  }
+
+  Future<void> trackAdImpression(String adId) async {
+    try {
+      await post('/ads/$adId/impression', {});
+    } catch (_) {}
+  }
+
+  Future<void> trackAdClick(String adId) async {
+    try {
+      await post('/ads/$adId/click', {});
+    } catch (_) {}
   }
 
   Future<List<Map<String, dynamic>>> getMessages(String chatRoomId) async {

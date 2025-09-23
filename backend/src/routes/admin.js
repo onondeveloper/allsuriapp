@@ -8,29 +8,39 @@ const AdminStatistics = require('../models/admin-statistics');
 const { supabase } = require('../config/supabase');
 
 // 미들웨어: 관리자 권한 확인 (헤더 토큰 + 환경변수 검증)
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
-if (!ADMIN_TOKEN) {
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN; // legacy token -> developer 취급
+const ADMIN_DEVELOPER_TOKEN = process.env.ADMIN_DEVELOPER_TOKEN;
+const ADMIN_STAFF_TOKEN = process.env.ADMIN_STAFF_TOKEN;
+const ADMIN_BUSINESS_TOKEN = process.env.ADMIN_BUSINESS_TOKEN;
+if (!ADMIN_TOKEN && !ADMIN_DEVELOPER_TOKEN && !ADMIN_STAFF_TOKEN && !ADMIN_BUSINESS_TOKEN) {
   // eslint-disable-next-line no-console
-  console.warn('[admin] ADMIN_TOKEN not set. Any non-empty admin-token header will be accepted (dev only).');
+  console.warn('[admin] No admin tokens set. Any non-empty admin-token header will be accepted (dev only).');
 }
 
 const requireAdmin = (req, res, next) => {
   try {
-    // 허용: 헤더(admin-token|x-admin-token) 또는 쿼리 파라미터(admin_token|token)
     const token =
       req.headers['admin-token'] ||
       req.headers['x-admin-token'] ||
       req.query.admin_token ||
       req.query.token;
-    
-    // 디버그 로그 추가
+
+    // 디버그 로그 (필요 시 축소 가능)
     console.log('[ADMIN AUTH] Request headers:', req.headers);
     console.log('[ADMIN AUTH] Query params:', req.query);
     console.log('[ADMIN AUTH] Extracted token:', token);
-    console.log('[ADMIN AUTH] Expected token:', ADMIN_TOKEN);
-    
+
     if (!token) return res.status(401).json({ message: '관리자 권한이 필요합니다' });
-    if (ADMIN_TOKEN && token !== ADMIN_TOKEN) return res.status(401).json({ message: '관리자 권한이 필요합니다' });
+
+    let role = null;
+    if (ADMIN_DEVELOPER_TOKEN && token === ADMIN_DEVELOPER_TOKEN) role = 'developer';
+    else if (ADMIN_STAFF_TOKEN && token === ADMIN_STAFF_TOKEN) role = 'staff';
+    else if (ADMIN_BUSINESS_TOKEN && token === ADMIN_BUSINESS_TOKEN) role = 'business';
+    else if (ADMIN_TOKEN && token === ADMIN_TOKEN) role = 'developer'; // legacy 호환
+    else if (!ADMIN_TOKEN && !ADMIN_DEVELOPER_TOKEN && !ADMIN_STAFF_TOKEN && !ADMIN_BUSINESS_TOKEN) role = 'developer'; // dev fallback
+
+    if (!role) return res.status(401).json({ message: '관리자 권한이 필요합니다' });
+    req.admin = { role };
     next();
   } catch (error) {
     res.status(401).json({ message: '인증 실패' });
@@ -39,6 +49,85 @@ const requireAdmin = (req, res, next) => {
 
 // 모든 라우트에 관리자 권한 미들웨어 적용
 router.use(requireAdmin);
+
+// 권한 체크 미들웨어
+const requireRole = (...allowed) => (req, res, next) => {
+  const role = req.admin?.role || 'business';
+  if (allowed.includes(role) || allowed.includes('any')) return next();
+  return res.status(403).json({ message: '권한이 없습니다' });
+};
+
+// 현재 관리자 정보
+router.get('/me', (req, res) => {
+  const role = req.admin?.role || 'business';
+  const permissions = {
+    canViewDashboard: true,
+    canManageUsers: role === 'developer' || role === 'staff',
+    canManageAds: role === 'developer' || role === 'staff',
+    canViewEstimates: true,
+    canEditEstimates: role === 'developer' || role === 'staff',
+    canViewBillings: role === 'developer',
+    canManageSettings: role === 'developer',
+  };
+  res.json({ role, permissions });
+});
+
+// 광고 CRUD (Supabase ads 테이블 사용: id, title, slug, html_path, status, priority, createdat)
+router.get('/ads', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('ads').select('*').order('createdat', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (e) {
+    res.status(500).json({ message: '광고 목록 조회 실패' });
+  }
+});
+
+router.post('/ads', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const payload = req.body || {};
+    payload.createdat = new Date().toISOString();
+    const { data, error } = await supabase.from('ads').insert(payload).select('*').single();
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (e) {
+    res.status(500).json({ message: '광고 생성 실패' });
+  }
+});
+
+router.put('/ads/:id', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('ads').update(req.body || {}).eq('id', req.params.id).select('*').maybeSingle();
+    if (error) throw error;
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ message: '광고 업데이트 실패' });
+  }
+});
+
+router.delete('/ads/:id', requireRole('developer'), async (req, res) => {
+  try {
+    const { error } = await supabase.from('ads').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ message: '광고 삭제 완료' });
+  } catch (e) {
+    res.status(500).json({ message: '광고 삭제 실패' });
+  }
+});
+
+// 광고 통계 (간단 집계)
+router.get('/ads/stats', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('ads_events')
+      .select('ad_id, type, count:count(*)')
+      .group('ad_id, type');
+    if (error) throw error;
+    res.json(data || []);
+  } catch (e) {
+    res.status(500).json({ message: '광고 통계 조회 실패' });
+  }
+});
 
 // 대시보드 데이터
 router.get('/dashboard', async (req, res) => {

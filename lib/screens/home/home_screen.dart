@@ -12,6 +12,8 @@ import '../role_selection_screen.dart';
 import '../../models/order.dart' as app_models;
 import '../customer/create_request_screen.dart';
 import '../customer/my_estimates_screen.dart';
+import '../../services/api_service.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -230,25 +232,19 @@ class HomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // 사용자 리뷰/광고 예정 영역 (중간 비우기용 플레이스홀더)
+                // 광고 영역
+                const SizedBox(height: 8),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '사용자 리뷰 · 광고 영역 (준비중)',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                    ),
+                  child: FutureBuilder<List<Map<String, dynamic>>>(
+                    future: ApiService().getActiveAds(),
+                    builder: (context, snapshot) {
+                      final items = snapshot.data ?? [];
+                      if (items.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return _AdsCarousel(items: items);
+                    },
                   ),
                 ),
 
@@ -418,4 +414,160 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// (삭제됨) _HomeCtaCard, _PromoCard: 현재 사용되지 않음
+class _AdsCarousel extends StatefulWidget {
+  final List<Map<String, dynamic>> items;
+  const _AdsCarousel({required this.items});
+
+  @override
+  State<_AdsCarousel> createState() => _AdsCarouselState();
+}
+
+class _AdsCarouselState extends State<_AdsCarousel> {
+  final PageController _pageController = PageController(viewportFraction: 0.92);
+  int _current = 0;
+  final Set<String> _impressed = {};
+  late final ApiService _api;
+
+  @override
+  void initState() {
+    super.initState();
+    _api = ApiService();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sendImpressionIfNeeded(0);
+    });
+    // Auto rotate every 5s
+    _startAutoRotate();
+  }
+
+  void _startAutoRotate() {
+    Future.doWhile(() async {
+      if (!mounted) return false;
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted) return false;
+      final next = (_current + 1) % widget.items.length;
+      _pageController.animateToPage(next, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+      return true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        SizedBox(
+          height: 120,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (idx) {
+              setState(() => _current = idx);
+              _sendImpressionIfNeeded(idx);
+            },
+            itemCount: widget.items.length,
+            itemBuilder: (context, index) {
+              final ad = widget.items[index];
+              final adId = (ad['id']?.toString() ?? '');
+              final title = (ad['title']?.toString() ?? '광고');
+              final htmlPath = (ad['html_path']?.toString() ?? '');
+              return GestureDetector(
+                onTap: () async {
+                  if (adId.isNotEmpty) {
+                    await _api.trackAdClick(adId);
+                  }
+                  if (!context.mounted) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => _AdFullScreenPage(title: title, htmlPath: htmlPath)),
+                  );
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Center(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(widget.items.length, (i) {
+            final active = i == _current;
+            return Container(
+              width: active ? 10 : 6,
+              height: active ? 10 : 6,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline,
+                shape: BoxShape.circle,
+              ),
+            );
+          }),
+        )
+      ],
+    );
+  }
+
+  Future<void> _sendImpressionIfNeeded(int idx) async {
+    if (idx < 0 || idx >= widget.items.length) return;
+    final ad = widget.items[idx];
+    final adId = (ad['id']?.toString() ?? '');
+    if (adId.isEmpty) return;
+    if (_impressed.contains(adId)) return;
+    _impressed.add(adId);
+    await _api.trackAdImpression(adId);
+  }
+}
+
+class _AdFullScreenPage extends StatelessWidget {
+  final String title;
+  final String htmlPath; // e.g., /ads/summer_promo.html
+  const _AdFullScreenPage({super.key, required this.title, required this.htmlPath});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (req) {
+          final url = req.url;
+          final allowed = url.startsWith('https://api.allsuriapp.com/ads') ||
+              url.startsWith('http://10.0.2.2:3001/ads');
+          return allowed ? NavigationDecision.navigate : NavigationDecision.prevent;
+        },
+      ))
+      ..loadRequest(Uri.parse(_adUrl()));
+
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: SafeArea(child: WebViewWidget(controller: controller)),
+    );
+  }
+
+  String _adUrl() {
+    // Use release vs debug base to load static ad HTML served by backend
+    if (bool.fromEnvironment('dart.vm.product')) {
+      return 'https://api.allsuriapp.com$htmlPath';
+    }
+    return 'http://10.0.2.2:3001$htmlPath';
+  }
+}

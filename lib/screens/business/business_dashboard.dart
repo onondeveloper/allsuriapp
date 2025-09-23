@@ -6,6 +6,7 @@ import '../business/my_estimates_screen.dart';
 import '../chat/chat_list_page.dart';
 import '../profile/profile_screen.dart';
 import '../home/home_screen.dart';
+import '../community/community_board_screen.dart';
 
 class BusinessDashboard extends StatelessWidget {
   const BusinessDashboard({super.key});
@@ -142,6 +143,20 @@ class BusinessDashboard extends StatelessWidget {
                           context,
                           CupertinoPageRoute(
                             builder: (context) => const ProfileScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMenuCard(
+                      context,
+                      '커뮤니티',
+                      CupertinoIcons.group_solid,
+                      CupertinoColors.systemPurple,
+                      () {
+                        Navigator.push(
+                          context,
+                          CupertinoPageRoute(
+                            builder: (context) => const CommunityBoardScreen(),
                           ),
                         );
                       },

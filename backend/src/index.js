@@ -12,6 +12,9 @@ const orderRoutes = require('./routes/orders');
 const notificationRoutes = require('./routes/notifications');
 const adminRoutes = require('./routes/admin');
 const marketRoutes = require('./routes/market');
+const aiRoutes = require('./routes/ai');
+const path = require('path');
+let adsPublicRoutes;
 
 const app = express();
 
@@ -23,6 +26,8 @@ app.use(morgan('dev'));
 
 // 정적 파일 제공 (관리자 대시보드)
 app.use('/admin', express.static(path.join(__dirname, '..', 'public')));
+// 광고 정적 파일 제공 (광고 전용 경로)
+app.use('/ads', express.static(path.join(__dirname, '..', 'public', 'ads')));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -31,6 +36,13 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/market', marketRoutes);
+app.use('/api/ai', aiRoutes);
+try {
+  adsPublicRoutes = require('./routes/ads_public');
+  app.use('/api/ads', adsPublicRoutes);
+} catch (e) {
+  console.warn('ads_public route not loaded:', e?.message);
+}
 
 // 관리자 대시보드 라우트
 app.get('/admin', (req, res) => {
@@ -48,8 +60,9 @@ app.use((err, req, res, next) => {
 // Database connection (optional)
 const startServer = () => {
   const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`서버가 포트 ${port}에서 실행 중입니다`);
+  const host = process.env.HOST || '0.0.0.0';
+  app.listen(port, host, () => {
+    console.log(`서버가 ${host}:${port} 에서 실행 중입니다`);
   });
 };
 
