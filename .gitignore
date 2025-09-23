@@ -78,3 +78,7 @@ node_modules/
 .env
 .env.local
 .env.production
+.env.*
+
+# Local config containing secrets
+lib/config/aws_config.dart

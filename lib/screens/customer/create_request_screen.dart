@@ -40,7 +40,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   bool _isLoading = false;
   static const String _sessionKey = 'allsuri_session_id';
   static const String _lastPhoneKey = 'allsuri_last_phone';
-  static const String kakaoRestApiKey = '';
+  // Build-time injection via --dart-define
+  static const String kakaoRestApiKey = String.fromEnvironment('KAKAO_REST_API_KEY', defaultValue: '');
   final TextEditingController _addressQueryController = TextEditingController();
   List<String> _addressResults = [];
   final TextEditingController _addressDetailController = TextEditingController();
