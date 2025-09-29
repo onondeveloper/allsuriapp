@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 // Supabase Auth 전환: Firebase/GoogleSignIn 제거
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
+import 'api_service.dart';
 import '../models/user.dart' as app_models;
 
 class AuthService extends ChangeNotifier {
@@ -96,20 +98,44 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signInWithGoogle({String? redirectUrl}) async {
+    throw UnsupportedError('Google sign-in is disabled. Use signInWithKakao instead.');
+  }
+
+  Future<bool> signInWithKakao() async {
     _isLoading = true;
     notifyListeners();
     try {
-      final res = await _sb.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: redirectUrl, // ex) 'io.supabase.flutter://login-callback/'
-        queryParams: const {
-          'prompt': 'consent select_account',
-          'access_type': 'offline',
-        },
-      );
-      // 이후 onAuthStateChange로 사용자 로드
+      // Kakao 로그인 (톡 우선)
+      kakao.OAuthToken token;
+      if (await kakao.isKakaoTalkInstalled()) {
+        token = await kakao.UserApi.instance.loginWithKakaoTalk();
+      } else {
+        token = await kakao.UserApi.instance.loginWithKakaoAccount();
+      }
+
+      // 백엔드로 토큰 교환
+      final api = ApiService();
+      final resp = await api.post('/auth/kakao/login', {
+        'access_token': token.accessToken,
+      });
+      if (resp['success'] == true) {
+        final data = resp['data'] as Map<String, dynamic>;
+        final backendToken = data['token'] as String?;
+        if (backendToken != null && backendToken.isNotEmpty) {
+          ApiService.setBearerToken(backendToken);
+          // 백엔드가 user를 반환하므로 메모리에 반영 (필요 시 Supabase users 테이블과 동기화)
+          final user = data['user'] as Map<String, dynamic>?;
+          if (user != null) {
+            final uid = user['id'] as String;
+            await _loadUserData(uid);
+          }
+          return true;
+        }
+      }
+      return false;
     } catch (e) {
-      print('Google OAuth 로그인 오류: $e');
+      print('Kakao 로그인 오류: $e');
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();

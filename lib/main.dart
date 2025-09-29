@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,6 +27,11 @@ import 'utils/navigation_utils.dart';
 //126e5d87-94e0-4ad2-94ba-51b9c2454a4a
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Kakao SDK 초기화 (dart-define)
+  final kakaoKey = const String.fromEnvironment('KAKAO_NATIVE_APP_KEY', defaultValue: '');
+  if (kakaoKey.isNotEmpty) {
+    kakao.KakaoSdk.init(nativeAppKey: kakaoKey);
+  }
   // Supabase 초기화 (Auth 포함)
   await Supabase.initialize(
     url: SupabaseConfig.url,

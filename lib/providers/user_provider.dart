@@ -127,7 +127,7 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _authService?.signInWithGoogle(redirectUrl: 'io.supabase.flutter://login-callback/');
+      await _authService?.signInWithKakao();
     } catch (e) {
       rethrow;
     } finally {

@@ -207,7 +207,7 @@ class LoginRequiredDialog extends StatelessWidget {
   static Future<void> _performGoogleLogin(BuildContext context, UserRole role) async {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final success = await authService.signInWithGoogle(redirectUrl: 'io.supabase.flutter://login-callback/');
+      final success = await authService.signInWithKakao();
       
       if (success && context.mounted) {
         // 로그인 성공 시 사용자 정보 업데이트
@@ -231,7 +231,7 @@ class LoginRequiredDialog extends StatelessWidget {
       } else if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Google 로그인이 취소되었습니다.'),
+            content: Text('카카오 로그인이 취소되었습니다.'),
             backgroundColor: Colors.orange,
           ),
         );

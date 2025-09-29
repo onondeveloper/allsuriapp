@@ -381,9 +381,7 @@ class HomeScreen extends StatelessWidget {
               Navigator.pop(context);
               try {
                 // Google 로그인
-                await Provider.of<AuthService>(context, listen: false).signInWithGoogle(
-                  redirectUrl: 'io.supabase.flutter://login-callback/',
-                );
+                await Provider.of<AuthService>(context, listen: false).signInWithKakao();
                 if (context.mounted) {
                   // 로그인 성공 시 바로 사업자 대시보드로 이동
                   Navigator.pushAndRemoveUntil(

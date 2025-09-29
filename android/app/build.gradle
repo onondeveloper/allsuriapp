@@ -56,17 +56,24 @@ android {
 
     signingConfigs {
         release {
-            // Use environment variables or gradle.properties for secure keys
-            // storeFile file(System.getenv("KEYSTORE_FILE") ?: "")
-            // storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
-            // keyAlias System.getenv("KEY_ALIAS") ?: ""
-            // keyPassword System.getenv("KEY_PASSWORD") ?: ""
+            // Use environment variables for secure keys when available
+            def ksFile = System.getenv("KEYSTORE_FILE")
+            def ksPass = System.getenv("KEYSTORE_PASSWORD")
+            def keyAliasEnv = System.getenv("KEY_ALIAS")
+            def keyPass = System.getenv("KEY_PASSWORD")
+            if (ksFile && ksPass && keyAliasEnv && keyPass) {
+                storeFile file(ksFile)
+                storePassword ksPass
+                keyAlias keyAliasEnv
+                keyPassword keyPass
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            // If release keystore env vars are not provided, fall back to debug keystore for local builds
+            signingConfig System.getenv("KEYSTORE_FILE") ? signingConfigs.release : signingConfigs.debug
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

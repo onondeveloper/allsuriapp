@@ -10,12 +10,21 @@ class ApiService extends ChangeNotifier {
       ? 'https://api.allsuriapp.com'
       : 'http://10.0.2.2:3001/api';
 
+  static String? _bearerToken;
+  static void setBearerToken(String? token) {
+    _bearerToken = token;
+  }
+  Map<String, String> _headers() => {
+        'Content-Type': 'application/json',
+        if (_bearerToken != null && _bearerToken!.isNotEmpty) 'Authorization': 'Bearer $_bearerToken',
+      };
+
   // GET 요청
   Future<Map<String, dynamic>> get(String endpoint) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl$endpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
       );
       
       if (response.statusCode == 200) {
@@ -44,7 +53,7 @@ class ApiService extends ChangeNotifier {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl$endpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: json.encode(data),
       );
       
@@ -74,7 +83,7 @@ class ApiService extends ChangeNotifier {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl$endpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: json.encode(data),
       );
       
@@ -104,7 +113,7 @@ class ApiService extends ChangeNotifier {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl$endpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
       );
       
       if (response.statusCode == 200 || response.statusCode == 204) {

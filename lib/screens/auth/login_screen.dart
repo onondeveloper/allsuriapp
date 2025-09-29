@@ -116,9 +116,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           setState(() => _isLoading = true);
                           try {
                             final authService = context.read<AuthService>();
-                            await authService.signInWithGoogle(
-                              redirectUrl: 'io.supabase.flutter://login-callback/',
-                            );
+                            final ok = await authService.signInWithKakao();
+                            if (!ok && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('카카오 로그인 실패')),
+                              );
+                            }
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('오류: $e')),
