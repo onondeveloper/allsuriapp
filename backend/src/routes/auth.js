@@ -19,6 +19,23 @@ router.post('/kakao/login', async (req, res) => {
     const { access_token } = req.body || {};
     if (!access_token) return res.status(400).json({ message: 'access_token is required' });
 
+    // Dev bypass for emulator testing (guarded by env)
+    if (process.env.ALLOW_TEST_KAKAO === 'true' && access_token === 'TEST_BYPASS') {
+      const userId = 'kakao:test';
+      const userRow = {
+        id: userId,
+        email: 'kakao_test@example.local',
+        name: '카카오 테스트 사용자',
+        role: 'customer',
+        createdAt: new Date().toISOString(),
+      };
+      const { error: upsertErr } = await supabase.from('users').upsert(userRow, { onConflict: 'id' });
+      if (upsertErr) throw upsertErr;
+      const secret = process.env.JWT_SECRET || 'change_me';
+      const token = jwt.sign({ sub: userId, provider: 'kakao' }, secret, { expiresIn: '30d' });
+      return res.json({ ok: true, token, user: { id: userId, name: userRow.name, email: userRow.email } });
+    }
+
     // Kakao 사용자 정보 조회
     const kakaoRes = await fetch('https://kapi.kakao.com/v2/user/me', {
       headers: { Authorization: `Bearer ${access_token}` },

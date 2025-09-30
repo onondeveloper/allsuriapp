@@ -250,41 +250,85 @@ class HomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // Move business login CTA to bottom
+                // Kakao 공식 스타일 버튼 (노란색, 카카오톡 우선 자동 로그인)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                  child: InteractiveCard(
-                    onTap: () {
-                      if (authService.isAuthenticated) {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const BusinessDashboard()));
-                      } else {
-                        _showBusinessLoginDialog(context);
-                      }
-                    },
-                    child: Row(children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.secondaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(Icons.business, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                  child: SizedBox(
+                    height: 72,
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        foregroundColor: Colors.black,
+                        elevation: 0,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(authService.isAuthenticated ? '사업자 대시보드' : '사업자 로그인',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 4),
-                            Text('전문가 센터로 이동',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                          ],
+                      onPressed: () async {
+                        try {
+                          if (authService.isAuthenticated) {
+                            if (authService.currentUser?.role != 'business') {
+                              await authService.updateRole('business');
+                            }
+                            if (context.mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const BusinessDashboard()),
+                              );
+                            }
+                            return;
+                          }
+
+                          // 카카오톡 설치 시 앱 자동 로그인, 미설치 시 카카오계정 로그인
+                          final ok = await Provider.of<AuthService>(context, listen: false).signInWithKakao();
+                          if (ok) {
+                            await Provider.of<AuthService>(context, listen: false).updateRole('business');
+                            if (context.mounted) {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(builder: (_) => const BusinessDashboard()),
+                                (route) => false,
+                              );
+                            }
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('카카오 로그인에 실패했습니다')),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('오류가 발생했습니다: $e')),
+                            );
+                          }
+                        }
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          alignment: Alignment.center,
+                          color: Colors.transparent,
+                          child: Image.asset(
+                            'assets/images/kakao_login_image.png', // 제공된 이미지로 교체
+                            fit: BoxFit.none, // 원본 크기 유지
+                            filterQuality: FilterQuality.high,
+                            errorBuilder: (context, error, stack) {
+                              // 에셋이 없으면 노란 배경 + 로고만(원본 크기) 표시
+                              return Container(
+                                color: const Color(0xFFFEE500),
+                                alignment: Alignment.center,
+                                child: Image.asset(
+                                  'assets/images/kakao_logo.png',
+                                  fit: BoxFit.none,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    ]),
+                    ),
                   ),
                 ),
               ],

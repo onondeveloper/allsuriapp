@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../supabase_config.dart';
 import '../models/order.dart' as app_models;
 
 class OrderService extends ChangeNotifier {
@@ -33,6 +34,12 @@ class OrderService extends ChangeNotifier {
     _notifyListenersSafely();
 
     try {
+      // 환경 미설정 시 조용히 스킵 (디버그 장비에서 dart-define 누락 보호)
+      if (SupabaseConfig.url.isEmpty || SupabaseConfig.anonKey.isEmpty) {
+        print('⚠️ Supabase 설정이 비어 있어 주문 로드를 건너뜁니다');
+        _orders = [];
+        return;
+      }
       print('🔍 OrderService.loadOrders 시작');
       print('🔍 파라미터: customerId=$customerId, status=$status, sessionId=$sessionId');
       

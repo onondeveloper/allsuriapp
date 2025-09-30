@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'api_service.dart';
+import '../supabase_config.dart';
 import '../models/user.dart' as app_models;
 
 class AuthService extends ChangeNotifier {
@@ -105,11 +106,57 @@ class AuthService extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      // Kakao 로그인 (톡 우선)
-      kakao.OAuthToken token;
-      if (await kakao.isKakaoTalkInstalled()) {
-        token = await kakao.UserApi.instance.loginWithKakaoTalk();
+      // Ensure Kakao SDK is initialized even if app was launched without dart-define
+      final nativeAppKey = const String.fromEnvironment('KAKAO_NATIVE_APP_KEY', defaultValue: '');
+      if (nativeAppKey.isNotEmpty) {
+        try { kakao.KakaoSdk.init(nativeAppKey: nativeAppKey); } catch (_) {}
       } else {
+        // If no key provided and test bypass is enabled, go straight to bypass
+        if (const bool.fromEnvironment('ALLOW_TEST_KAKAO', defaultValue: false)) {
+          final api = ApiService();
+          final resp = await api.post('/auth/kakao/login', { 'access_token': 'TEST_BYPASS' });
+          if (resp['success'] == true) {
+            final data = resp['data'] as Map<String, dynamic>;
+            final backendToken = data['token'] as String?;
+            if (backendToken != null && backendToken.isNotEmpty) {
+              ApiService.setBearerToken(backendToken);
+              final user = data['user'] as Map<String, dynamic>?;
+              if (user != null) {
+                final uid = user['id'] as String;
+                if (SupabaseConfig.url.isEmpty || SupabaseConfig.anonKey.isEmpty) {
+                  _currentUser = app_models.User(
+                    id: uid,
+                    name: (user['name']?.toString() ?? '사용자'),
+                    email: (user['email']?.toString() ?? ''),
+                    role: (user['role']?.toString() ?? 'customer'),
+                    phoneNumber: null,
+                    createdAt: DateTime.now(),
+                  );
+                  _needsRoleSelection = true;
+                  notifyListeners();
+                  return true;
+                }
+                await _loadUserData(uid);
+              }
+              return true;
+            }
+          }
+        }
+        // No key and no bypass: fail gracefully
+        print('Kakao SDK key missing. Provide KAKAO_NATIVE_APP_KEY via --dart-define.');
+        return false;
+      }
+
+      // Kakao 로그인 (톡 우선). 실패 시 계정 로그인으로 폴백
+      kakao.OAuthToken token;
+      try {
+        if (await kakao.isKakaoTalkInstalled()) {
+          token = await kakao.UserApi.instance.loginWithKakaoTalk();
+        } else {
+          token = await kakao.UserApi.instance.loginWithKakaoAccount();
+        }
+      } catch (_) {
+        // 앱 미설치/취소 등 케이스에서 계정 로그인 재시도
         token = await kakao.UserApi.instance.loginWithKakaoAccount();
       }
 
@@ -127,6 +174,20 @@ class AuthService extends ChangeNotifier {
           final user = data['user'] as Map<String, dynamic>?;
           if (user != null) {
             final uid = user['id'] as String;
+            // Supabase 환경 미설정 시, 서버 응답 기반 최소 사용자 세팅 후 반환
+            if (SupabaseConfig.url.isEmpty || SupabaseConfig.anonKey.isEmpty) {
+              _currentUser = app_models.User(
+                id: uid,
+                name: (user['name']?.toString() ?? '사용자'),
+                email: (user['email']?.toString() ?? ''),
+                role: (user['role']?.toString() ?? 'customer'),
+                phoneNumber: null,
+                createdAt: DateTime.now(),
+              );
+              _needsRoleSelection = true;
+              notifyListeners();
+              return true;
+            }
             await _loadUserData(uid);
           }
           return true;
@@ -135,6 +196,28 @@ class AuthService extends ChangeNotifier {
       return false;
     } catch (e) {
       print('Kakao 로그인 오류: $e');
+      // 에뮬레이터/테스트 장비 우회를 위한 개발용 백도어 (서버에서 ALLOW_TEST_KAKAO=true 설정 필요)
+      if (const bool.fromEnvironment('ALLOW_TEST_KAKAO', defaultValue: false)) {
+        try {
+          final api = ApiService();
+          final resp = await api.post('/auth/kakao/login', {
+            'access_token': 'TEST_BYPASS',
+          });
+          if (resp['success'] == true) {
+            final data = resp['data'] as Map<String, dynamic>;
+            final backendToken = data['token'] as String?;
+            if (backendToken != null && backendToken.isNotEmpty) {
+              ApiService.setBearerToken(backendToken);
+              final user = data['user'] as Map<String, dynamic>?;
+              if (user != null) {
+                final uid = user['id'] as String;
+                await _loadUserData(uid);
+              }
+              return true;
+            }
+          }
+        } catch (_) {}
+      }
       return false;
     } finally {
       _isLoading = false;

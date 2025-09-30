@@ -13,7 +13,6 @@ const notificationRoutes = require('./routes/notifications');
 const adminRoutes = require('./routes/admin');
 const marketRoutes = require('./routes/market');
 const aiRoutes = require('./routes/ai');
-const path = require('path');
 let adsPublicRoutes;
 
 const app = express();
