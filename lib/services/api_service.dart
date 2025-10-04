@@ -13,6 +13,13 @@ class ApiService extends ChangeNotifier {
             : 'http://10.0.2.2:3001/api',
       );
 
+  ApiService() {
+    // 앱 시작 시 현재 API_BASE_URL 값을 로그로 출력
+    // (release 빌드에선 로그가 보이지 않을 수 있으니 debug로 실행 권장)
+    // ignore: avoid_print
+    print('API_BASE_URL -> $baseUrl');
+  }
+
   static String? _bearerToken;
   static void setBearerToken(String? token) {
     _bearerToken = token;
@@ -54,11 +61,14 @@ class ApiService extends ChangeNotifier {
   // POST 요청
   Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
     try {
+      final uri = Uri.parse('$baseUrl$endpoint');
+      print('[API][POST] $uri body=${data.keys.toList()}');
       final response = await http.post(
-        Uri.parse('$baseUrl$endpoint'),
+        uri,
         headers: _headers(),
         body: json.encode(data),
       );
+      print('[API][POST] ${response.statusCode} ${response.reasonPhrase}');
       
       if (response.statusCode == 200 || response.statusCode == 201) {
         return {

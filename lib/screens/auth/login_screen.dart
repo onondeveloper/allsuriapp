@@ -117,7 +117,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           try {
                             final authService = context.read<AuthService>();
                             final ok = await authService.signInWithKakao();
-                            if (!ok && context.mounted) {
+                            if (ok) {
+                              // 사업자 로그인 의도: 역할을 즉시 사업자로 설정해 홈이 자동 전환되도록 함
+                              await authService.updateRole('business');
+                            } else if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('카카오 로그인 실패')),
                               );

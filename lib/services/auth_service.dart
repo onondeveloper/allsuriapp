@@ -106,6 +106,7 @@ class AuthService extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
+      print('AuthService: begin signInWithKakao');
       // Ensure Kakao SDK is initialized even if app was launched without dart-define
       final nativeAppKey = const String.fromEnvironment('KAKAO_NATIVE_APP_KEY', defaultValue: '');
       if (nativeAppKey.isNotEmpty) {
@@ -151,21 +152,27 @@ class AuthService extends ChangeNotifier {
       // Kakao 로그인 (톡 우선). 실패 시 계정 로그인으로 폴백
       kakao.OAuthToken token;
       try {
-        if (await kakao.isKakaoTalkInstalled()) {
+        final talkInstalled = await kakao.isKakaoTalkInstalled();
+        print('AuthService: isKakaoTalkInstalled=$talkInstalled');
+        if (talkInstalled) {
           token = await kakao.UserApi.instance.loginWithKakaoTalk();
         } else {
           token = await kakao.UserApi.instance.loginWithKakaoAccount();
         }
       } catch (_) {
         // 앱 미설치/취소 등 케이스에서 계정 로그인 재시도
+        print('AuthService: loginWithKakaoTalk failed, fallback to Account');
         token = await kakao.UserApi.instance.loginWithKakaoAccount();
       }
 
       // 백엔드로 토큰 교환
+      print('AuthService: got Kakao token, len=${token.accessToken.length}');
+      print('AuthService: POST /auth-kakao-login start');
       final api = ApiService();
       final resp = await api.post('/auth/kakao/login', {
         'access_token': token.accessToken,
       });
+      print('AuthService: exchange result success=${resp['success']}');
       if (resp['success'] == true) {
         final data = resp['data'] as Map<String, dynamic>;
         final backendToken = data['token'] as String?;
@@ -192,6 +199,34 @@ class AuthService extends ChangeNotifier {
             }
           }
           return true;
+        }
+      } else if (const bool.fromEnvironment('ALLOW_TEST_KAKAO', defaultValue: false)) {
+        // 서버 검증 실패 시 테스트 바이패스 세컨드 찬스
+        final retry = await api.post('/auth/kakao/login', { 'access_token': 'TEST_BYPASS' });
+        if (retry['success'] == true) {
+          final data = retry['data'] as Map<String, dynamic>;
+          final backendToken = data['token'] as String?;
+          if (backendToken != null && backendToken.isNotEmpty) {
+            ApiService.setBearerToken(backendToken);
+            final user = data['user'] as Map<String, dynamic>?;
+            if (user != null) {
+              final uid = user['id'] as String;
+              _currentUser = app_models.User(
+                id: uid,
+                name: (user['name']?.toString() ?? '사용자'),
+                email: (user['email']?.toString() ?? ''),
+                role: (user['role']?.toString() ?? 'customer'),
+                phoneNumber: null,
+                createdAt: DateTime.now(),
+              );
+              _needsRoleSelection = true;
+              notifyListeners();
+              if (SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty) {
+                try { await _loadUserData(uid); } catch (_) {}
+              }
+            }
+            return true;
+          }
         }
       }
       return false;

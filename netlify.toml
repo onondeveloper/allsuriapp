@@ -3,15 +3,15 @@
   publish = "backend/public"
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  # Explicit mapping must come BEFORE the generic /api/* rule
+  from = "/api/auth/kakao/login"
+  to = "/.netlify/functions/auth-kakao-login"
   status = 200
   force = true
 
 [[redirects]]
-  # App posts here: /api/auth/kakao/login → map explicitly to the function file
-  from = "/api/auth/kakao/login"
-  to = "/.netlify/functions/auth-kakao-login"
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
   status = 200
   force = true
 
@@ -21,4 +21,8 @@
   status = 200
   force = true
 
-
+[[redirects]]
+from = "/api/auth/kakao/login"
+to = "/.netlify/functions/auth-kakao-login"
+status = 200
+force = true
