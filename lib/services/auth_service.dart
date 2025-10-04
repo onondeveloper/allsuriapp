@@ -123,20 +123,21 @@ class AuthService extends ChangeNotifier {
               final user = data['user'] as Map<String, dynamic>?;
               if (user != null) {
                 final uid = user['id'] as String;
-                if (SupabaseConfig.url.isEmpty || SupabaseConfig.anonKey.isEmpty) {
-                  _currentUser = app_models.User(
-                    id: uid,
-                    name: (user['name']?.toString() ?? '사용자'),
-                    email: (user['email']?.toString() ?? ''),
-                    role: (user['role']?.toString() ?? 'customer'),
-                    phoneNumber: null,
-                    createdAt: DateTime.now(),
-                  );
-                  _needsRoleSelection = true;
-                  notifyListeners();
-                  return true;
+                // 1) 먼저 로컬 사용자 세팅(즉시 화면 전환 보장)
+                _currentUser = app_models.User(
+                  id: uid,
+                  name: (user['name']?.toString() ?? '사용자'),
+                  email: (user['email']?.toString() ?? ''),
+                  role: (user['role']?.toString() ?? 'customer'),
+                  phoneNumber: null,
+                  createdAt: DateTime.now(),
+                );
+                _needsRoleSelection = true;
+                notifyListeners();
+                // 2) Supabase가 설정되어 있으면 추가 로드(실패해도 무시)
+                if (SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty) {
+                  try { await _loadUserData(uid); } catch (_) {}
                 }
-                await _loadUserData(uid);
               }
               return true;
             }
@@ -174,21 +175,21 @@ class AuthService extends ChangeNotifier {
           final user = data['user'] as Map<String, dynamic>?;
           if (user != null) {
             final uid = user['id'] as String;
-            // Supabase 환경 미설정 시, 서버 응답 기반 최소 사용자 세팅 후 반환
-            if (SupabaseConfig.url.isEmpty || SupabaseConfig.anonKey.isEmpty) {
-              _currentUser = app_models.User(
-                id: uid,
-                name: (user['name']?.toString() ?? '사용자'),
-                email: (user['email']?.toString() ?? ''),
-                role: (user['role']?.toString() ?? 'customer'),
-                phoneNumber: null,
-                createdAt: DateTime.now(),
-              );
-              _needsRoleSelection = true;
-              notifyListeners();
-              return true;
+            // 1) 먼저 로컬 사용자 세팅(즉시 화면 전환 보장)
+            _currentUser = app_models.User(
+              id: uid,
+              name: (user['name']?.toString() ?? '사용자'),
+              email: (user['email']?.toString() ?? ''),
+              role: (user['role']?.toString() ?? 'customer'),
+              phoneNumber: null,
+              createdAt: DateTime.now(),
+            );
+            _needsRoleSelection = true;
+            notifyListeners();
+            // 2) Supabase가 설정되어 있으면 추가 로드(실패해도 무시)
+            if (SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty) {
+              try { await _loadUserData(uid); } catch (_) {}
             }
-            await _loadUserData(uid);
           }
           return true;
         }
@@ -318,15 +319,25 @@ class AuthService extends ChangeNotifier {
         'role': role,
         if (role == 'business') 'businessStatus': 'pending',
       };
-      await _sb.from('users').update(update).eq('id', _currentUser!.id);
+      final supaReady = SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty;
+      if (supaReady) {
+        await _sb.from('users').update(update).eq('id', _currentUser!.id);
+      }
+      // Always update local state so UI can transition immediately
       _currentUser = _currentUser!.copyWith(
         role: role,
         businessStatus: role == 'business' ? 'pending' : _currentUser!.businessStatus,
       );
-      _needsRoleSelection = false; // 역할 선택이 완료되었으므로 플래그 초기화
-      print('사용자 역할이 업데이트되었습니다: $role');
+      _needsRoleSelection = false; // 역할 선택 완료
+      print('사용자 역할이 업데이트되었습니다(로컬 적용${supaReady ? '' : ' - Supabase 미설정'}): $role');
     } catch (e) {
-      print('역할 업데이트 오류: $e');
+      // 비정상 상황에서도 로컬 업데이트를 반영하여 화면 전환 보장
+      _currentUser = _currentUser!.copyWith(
+        role: role,
+        businessStatus: role == 'business' ? 'pending' : _currentUser!.businessStatus,
+      );
+      _needsRoleSelection = false;
+      print('역할 업데이트 오류(로컬로 계속): $e');
     } finally {
       _isLoading = false;
       notifyListeners();

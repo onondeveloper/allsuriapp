@@ -108,8 +108,8 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.login),
-                  label: const Text('Google로 로그인'),
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('카카오로 로그인'),
                   onPressed: _isLoading
                       ? null
                       : () async {

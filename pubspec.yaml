@@ -32,7 +32,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.2
   provider: ^6.1.1
-  google_sign_in: ^6.2.1
+  # google_sign_in: ^6.2.1  # 제거(카카오 로그인으로 전환)
   image_picker: ^1.0.4
   intl: ^0.18.1
   path_provider: ^2.1.1

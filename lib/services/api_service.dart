@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService extends ChangeNotifier {
-  // API 기본 URL
-  static const String baseUrl = kReleaseMode
-      ? 'https://api.allsuriapp.com'
-      : 'http://10.0.2.2:3001/api';
+  // API 기본 URL (dart-define로 덮어쓰기 가능)
+  static const String baseUrl = String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: kReleaseMode
+            ? 'https://api.allsuriapp.com/api'
+            : 'http://10.0.2.2:3001/api',
+      );
 
   static String? _bearerToken;
   static void setBearerToken(String? token) {

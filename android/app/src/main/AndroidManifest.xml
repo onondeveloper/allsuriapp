@@ -12,7 +12,7 @@
         android:name=".MainApplication"
         android:icon="@mipmap/launcher_icon"
         android:enableOnBackInvokedCallback="true"
-        android:usesCleartextTraffic="false"
+        android:usesCleartextTraffic="true"
         android:allowBackup="false"
         android:fullBackupContent="false">
             
@@ -37,13 +37,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             
-            <!-- Supabase callback -->
-            <intent-filter>
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="io.supabase.flutter" android:host="login-callback" />
-            </intent-filter>
+            <!-- Removed Supabase OAuth callback (not used with Kakao) to avoid deep-link handling conflicts -->
 
             <!-- KakaoTalk login callback: kakao{NATIVE_APP_KEY} -->
             <intent-filter>
@@ -68,7 +62,7 @@
             <data android:mimeType="text/plain" />
         </intent>
         <!-- KakaoTalk package visibility for login -->
-        <package android:name="com.kakao.talk" />
+        <package android:name="com.ononcompany.allsuriapp" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="kakaolink" />

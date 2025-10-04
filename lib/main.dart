@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'package:flutter/services.dart';
@@ -27,6 +28,10 @@ import 'utils/navigation_utils.dart';
 //126e5d87-94e0-4ad2-94ba-51b9c2454a4a
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (FlutterErrorDetails details) {
+    // 무시 가능한 외부 딥링크 예외(Supabase OAuth 등)를 앱 크래시 없이 로그만 남김
+    debugPrint('FlutterError: \\n${details.exceptionAsString()}');
+  };
   // Kakao SDK 초기화 (dart-define)
   final kakaoKey = const String.fromEnvironment('KAKAO_NATIVE_APP_KEY', defaultValue: '');
   if (kakaoKey.isNotEmpty) {
@@ -41,7 +46,12 @@ void main() async {
   // NotificationService 초기화
   await NotificationService().initialize();
   
-  runApp(const MyApp());
+  await runZonedGuarded(() async {
+    runApp(const MyApp());
+  }, (error, stack) {
+    // 백그라운드 비동기 예외로 앱이 중단되지 않도록 보호
+    debugPrint('Top-level error caught: $error');
+  });
 }
 
 class MyApp extends StatelessWidget {

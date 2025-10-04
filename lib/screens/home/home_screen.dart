@@ -254,7 +254,6 @@ class HomeScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   child: SizedBox(
-                    height: 72,
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -262,6 +261,8 @@ class HomeScreen extends StatelessWidget {
                         foregroundColor: Colors.black,
                         elevation: 0,
                         padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () async {
@@ -270,12 +271,7 @@ class HomeScreen extends StatelessWidget {
                             if (authService.currentUser?.role != 'business') {
                               await authService.updateRole('business');
                             }
-                            if (context.mounted) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const BusinessDashboard()),
-                              );
-                            }
+                            // 화면은 자동으로 BusinessDashboard로 전환됨 (HomeScreen 빌더에서 역할에 따라 위젯 교체)
                             return;
                           }
 
@@ -283,13 +279,7 @@ class HomeScreen extends StatelessWidget {
                           final ok = await Provider.of<AuthService>(context, listen: false).signInWithKakao();
                           if (ok) {
                             await Provider.of<AuthService>(context, listen: false).updateRole('business');
-                            if (context.mounted) {
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(builder: (_) => const BusinessDashboard()),
-                                (route) => false,
-                              );
-                            }
+                            // 화면은 자동으로 BusinessDashboard로 전환됨 (HomeScreen 빌더에서 역할에 따라 위젯 교체)
                           } else {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
