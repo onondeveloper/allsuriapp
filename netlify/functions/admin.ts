@@ -18,7 +18,12 @@ function withAuth(headers: Record<string, string>): boolean {
 export const handler: Handler = async (event) => {
   try {
     // method/path
-    const path = event.path.replace(/^\/\.netlify\/functions\/admin/, '') || '/'
+    const path = (() => {
+      const p = event.path || '/'
+      const a = p.replace(/^\/\.netlify\/functions\/admin/, '')
+      const b = a.replace(/^\/api\/admin/, '')
+      return b || '/'
+    })()
 
     if (!withAuth(event.headers as any)) {
       return unauthorized()
@@ -99,8 +104,15 @@ export const handler: Handler = async (event) => {
 
     // Estimates list
     if (event.httpMethod === 'GET' && path.startsWith('/estimates')) {
-      const qs = event.rawQuery ? `?${event.rawQuery}` : ''
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/estimates${qs}&select=*`, {
+      const qs = (() => {
+        const qp = event.queryStringParameters || {}
+        const sp = new URLSearchParams()
+        for (const [k, v] of Object.entries(qp)) if (v != null) sp.append(k, String(v))
+        const s = sp.toString()
+        return s ? `?${s}` : ''
+      })()
+      const sep = qs ? (qs.includes('?') ? '&' : '?') : '?'
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/estimates${qs}${sep}select=*`, {
         headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
       })
       const json = await res.json()
