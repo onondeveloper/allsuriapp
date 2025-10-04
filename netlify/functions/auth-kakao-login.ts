@@ -56,7 +56,10 @@ export const handler: Handler = async (event) => {
     })
     if (!up.ok) {
       const t = await up.text()
-      return { statusCode: 500, body: JSON.stringify({ message: 'Supabase upsert failed', detail: t }) }
+      console.error('Supabase upsert failed:', t)
+      // Proceed anyway to unblock login flow; include warning in response
+      const token = await issueJwt(uid)
+      return ok({ token, user: { id: uid, name, email: email || `${uid}@example.local` }, warning: 'supabase_upsert_failed' })
     }
 
     const token = await issueJwt(uid)
