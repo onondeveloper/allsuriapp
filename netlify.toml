@@ -10,6 +10,18 @@
   force = true
 
 [[redirects]]
+  from = "/api/admin/*"
+  to = "/.netlify/functions/admin/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/market/*"
+  to = "/.netlify/functions/market/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

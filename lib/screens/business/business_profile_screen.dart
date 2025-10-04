@@ -107,6 +107,24 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       return;
     }
 
+    // 추가 필수/형식 검증
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final bizName = _businessNameController.text.trim();
+    if (name.isEmpty || phone.isEmpty || bizName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이름, 전화번호, 상호명은 필수입니다.')),
+      );
+      return;
+    }
+    final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (phoneDigits.length < 9) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('전화번호 형식을 확인해 주세요.')),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -114,9 +132,9 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     try {
       final auth = Provider.of<AuthService>(context, listen: false);
       await auth.updateBusinessProfile(
-        name: _nameController.text.trim(),
-        phoneNumber: _phoneController.text.trim(),
-        businessName: _businessNameController.text.trim(),
+        name: name,
+        phoneNumber: phone,
+        businessName: bizName,
         businessNumber: _businessNumberController.text.trim(),
         address: _addressController.text.trim(),
         serviceAreas: _selectedServiceAreas,
@@ -132,12 +150,14 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       context.pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('프로필 저장 중 오류가 발생했습니다: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        final msg = e.toString();
+        String friendly = '프로필 저장 중 오류가 발생했습니다.';
+        if (msg.contains('invalid input syntax for type uuid')) {
+          friendly = '임시 계정(ID) 형식 문제로 서버 저장을 건너뛰었습니다. 프로필은 기기에 저장되었습니다.';
+        } else if (msg.contains('required') || msg.contains('null value')) {
+          friendly = '필수 입력 항목을 확인해 주세요.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendly), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) {

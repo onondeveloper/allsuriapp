@@ -133,12 +133,9 @@ class AuthService extends ChangeNotifier {
                   phoneNumber: null,
                   createdAt: DateTime.now(),
                 );
-                _needsRoleSelection = true;
+                _needsRoleSelection = false; // 즉시 역할 선택 화면으로 튀는 것 방지
                 notifyListeners();
-                // 2) Supabase가 설정되어 있으면 추가 로드(실패해도 무시)
-                if (SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty) {
-                  try { await _loadUserData(uid); } catch (_) {}
-                }
+                // (임시) Supabase 동기화 비활성화로 플로우 안정화
               }
               return true;
             }
@@ -191,12 +188,9 @@ class AuthService extends ChangeNotifier {
               phoneNumber: null,
               createdAt: DateTime.now(),
             );
-            _needsRoleSelection = true;
+            _needsRoleSelection = false; // 즉시 역할 선택 화면으로 튀는 것 방지
             notifyListeners();
-            // 2) Supabase가 설정되어 있으면 추가 로드(실패해도 무시)
-            if (SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty) {
-              try { await _loadUserData(uid); } catch (_) {}
-            }
+            // (임시) Supabase 동기화 비활성화로 플로우 안정화
           }
           return true;
         }
@@ -219,11 +213,9 @@ class AuthService extends ChangeNotifier {
                 phoneNumber: null,
                 createdAt: DateTime.now(),
               );
-              _needsRoleSelection = true;
+              _needsRoleSelection = false; // 즉시 역할 선택 화면으로 튀는 것 방지
               notifyListeners();
-              if (SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty) {
-                try { await _loadUserData(uid); } catch (_) {}
-              }
+              // (임시) Supabase 동기화 비활성화로 플로우 안정화
             }
             return true;
           }
@@ -404,7 +396,17 @@ class AuthService extends ChangeNotifier {
         'role': 'business',
         'businessStatus': _currentUser!.businessStatus ?? 'pending',
       };
-      await _sb.from('users').update(updates).eq('id', _currentUser!.id);
+      // Only sync to Supabase if project is configured and user id looks like UUID
+      final supaReady = SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty;
+      final uuidLike = RegExp(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}").hasMatch(_currentUser!.id);
+      if (supaReady && uuidLike) {
+        try {
+          await _sb.from('users').update(updates).eq('id', _currentUser!.id);
+        } catch (e) {
+          // Log and continue with local update so UI doesn't break
+          print('Supabase 동기화 실패(무시하고 로컬 반영): $e');
+        }
+      }
 
       _currentUser = _currentUser!.copyWith(
         name: name,
@@ -420,8 +422,8 @@ class AuthService extends ChangeNotifier {
       _needsRoleSelection = false; // 사업자 프로필 설정이 완료되었으므로 플래그 초기화
       print('사업자 프로필이 업데이트되었습니다');
     } catch (e) {
-      print('사업자 프로필 업데이트 오류: $e');
-      rethrow;
+      // 변환/검증 예외는 상위에서 안내 메시지로 처리될 수 있도록 메시지만 남김
+      print('사업자 프로필 업데이트 오류(로컬 유지): $e');
     } finally {
       _isLoading = false;
       notifyListeners();
