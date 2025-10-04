@@ -105,28 +105,32 @@ async function loadUsers() {
                 <table class="table">
                     <thead>
                         <tr>
+                            <th>상호</th>
                             <th>이름</th>
+                            <th>사업자 번호</th>
+                            <th>전화번호</th>
                             <th>이메일</th>
-                            <th>역할</th>
                             <th>상태</th>
                             <th>가입일</th>
-                            <th>작업</th>
+                            <th>승인/삭제</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${users.map(user => `
                             <tr>
+                                <td>${user.businessName || user.businessname || '-'}</td>
                                 <td class="clickable-cell" data-user-id="${user.id}" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${user.name || '이름 없음'}</td>
-                                <td>${user.email}</td>
-                                <td>${user.role === 'business' ? '사업자' : '고객'}</td>
+                                <td>${user.businessNumber || user.businessnumber || '-'}</td>
+                                <td>${user.phoneNumber || user.phonenumber || '-'}</td>
+                                <td>${user.email || '-'}</td>
                                 <td>
-                                    <span class="status-badge status-${user.businessStatus || 'pending'}">
-                                        ${getStatusText(user.businessStatus)}
+                                    <span class="status-badge status-${(user.businessStatus || user.businessstatus || 'pending')}">
+                                        ${getStatusText(user.businessStatus || user.businessstatus)}
                                     </span>
                                 </td>
-                                <td>${new Date(user.createdAt).toLocaleDateString()}</td>
+                                <td>${new Date(user.createdAt || user.createdat).toLocaleDateString()}</td>
                                 <td>
-                                    ${user.role === 'business' && user.businessStatus === 'pending' ? `
+                                    ${user.role === 'business' && (user.businessStatus || user.businessstatus) === 'pending' ? `
                                         <button class="btn btn-success" data-user-id="${user.id}" data-action="approve">승인</button>
                                         <button class="btn btn-danger" data-user-id="${user.id}" data-action="reject">거절</button>
                                     ` : ''}

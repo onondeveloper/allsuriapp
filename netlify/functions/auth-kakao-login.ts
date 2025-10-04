@@ -36,34 +36,66 @@ export const handler: Handler = async (event) => {
     const email = account.email || ''
     const name = (account.profile && account.profile.nickname) || '카카오 사용자'
 
-    // Upsert into Supabase (service role)
+    // Persist/find user in Supabase (service role), prefer returning UUID id
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      // If supabase not configured, still issue app JWT to allow frontend flow
-      const uid = `kakao:${kakaoId}`
-      const token = await issueJwt(uid)
-      return ok({ token, user: { id: uid, name, email: email || `${uid}@example.local` } })
-    }
-    const uid = `kakao:${kakaoId}`
-    const up = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        Prefer: 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({ id: uid, email: email || `${uid}@example.local`, name, role: 'customer', createdAt: new Date().toISOString() }),
-    })
-    if (!up.ok) {
-      const t = await up.text()
-      console.error('Supabase upsert failed:', t)
-      // Proceed anyway to unblock login flow; include warning in response
-      const token = await issueJwt(uid)
-      return ok({ token, user: { id: uid, name, email: email || `${uid}@example.local` }, warning: 'supabase_upsert_failed' })
+      const localId = `kakao:${kakaoId}`
+      const token = await issueJwt(localId)
+      return ok({ token, user: { id: localId, name, email: email || `${localId}@example.local`, role: 'customer' } })
     }
 
-    const token = await issueJwt(uid)
-    return ok({ token, user: { id: uid, name, email: email || `${uid}@example.local` } })
+    const externalId = `kakao:${kakaoId}`
+    const nowIso = new Date().toISOString()
+
+    // 1) Try find by email first (most stable), else by external_id if column exists
+    let row: any | null = null
+    if (email) {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=*`, {
+        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+      })
+      const arr = await r.json()
+      if (Array.isArray(arr) && arr.length > 0) row = arr[0]
+    }
+    if (!row) {
+      const r2 = await fetch(`${SUPABASE_URL}/rest/v1/users?external_id=eq.${encodeURIComponent(externalId)}&select=*`, {
+        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+      })
+      if (r2.ok) {
+        const arr2 = await r2.json()
+        if (Array.isArray(arr2) && arr2.length > 0) row = arr2[0]
+      }
+    }
+
+    // 2) If not found, insert minimal row (let Supabase generate UUID id). Include columns if they exist.
+    if (!row) {
+      const payload: Record<string, any> = {
+        email: email || `${externalId}@example.local`,
+        name,
+        role: 'customer',
+        createdAt: nowIso,
+      }
+      // Optional fields if table has them
+      payload['provider'] = 'kakao'
+      payload['external_id'] = externalId
+
+      const ins = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify(payload),
+      })
+      if (ins.ok) {
+        const arr = await ins.json()
+        row = Array.isArray(arr) ? arr[0] : arr
+      } else {
+        // As a last resort, continue without DB persistence
+        const localId = externalId
+        const token = await issueJwt(localId)
+        return ok({ token, user: { id: localId, name, email: email || `${localId}@example.local`, role: 'customer' }, warning: 'supabase_insert_failed' })
+      }
+    }
+
+    const userId = (row && row.id) || externalId
+    const token = await issueJwt(userId)
+    return ok({ token, user: { id: userId, name, email: email || row?.email || `${externalId}@example.local`, role: row?.role || 'customer' } })
   } catch (e: any) {
     return { statusCode: 500, body: JSON.stringify({ message: 'Kakao login failed', error: String(e) }) }
   }
