@@ -1,0 +1,9 @@
+{
+    "name": "allsuri-netlify",
+    "private": true,
+    "version": "1.0.0",
+    "license": "UNLICENSED",
+    "dependencies": {
+    "@netlify/functions": "^2.6.0"
+    }
+}

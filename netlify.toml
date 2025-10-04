@@ -1,9 +1,23 @@
 [build]
   functions = "netlify/functions"
+  publish = "backend/public"
 
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  # App posts here: /api/auth/kakao/login → map explicitly to the function file
+  from = "/api/auth/kakao/login"
+  to = "/.netlify/functions/auth-kakao-login"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/"
+  to = "/admin.html"
   status = 200
   force = true
 
