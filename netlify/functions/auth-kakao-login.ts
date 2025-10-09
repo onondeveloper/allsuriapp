@@ -33,8 +33,26 @@ export const handler: Handler = async (event) => {
     const kakao = await me.json()
     const kakaoId = String(kakao.id)
     const account = kakao.kakao_account || {}
+    const profile = account.profile || {}
+    
+    // 카카오에서 제공하는 모든 정보 수집
     const email = account.email || ''
-    const name = (account.profile && account.profile.nickname) || '카카오 사용자'
+    const name = profile.nickname || '카카오 사용자'
+    const profileImage = profile.profile_image_url || profile.thumbnail_image_url || ''
+    const phoneNumber = account.phone_number ? account.phone_number.replace(/\+82\s?/, '0').replace(/\s|-/g, '') : ''
+    const ageRange = account.age_range || ''
+    const birthday = account.birthday || ''
+    const gender = account.gender || ''
+    
+    console.log('📱 카카오 사용자 정보 수집:', {
+      kakaoId,
+      name,
+      email,
+      hasProfileImage: !!profileImage,
+      hasPhone: !!phoneNumber,
+      ageRange,
+      gender
+    })
 
     // Persist/find user in Supabase (service role), prefer returning UUID id
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -74,6 +92,12 @@ export const handler: Handler = async (event) => {
         createdat: nowIso, // 소문자로 통일 (Supabase 테이블 스키마에 맞춤)
         provider: 'kakao',
         external_id: externalId,
+        kakao_id: kakaoId, // 카카오 고유 ID
+        profile_image: profileImage, // 프로필 이미지
+        phonenumber: phoneNumber || null, // 전화번호
+        age_range: ageRange || null, // 연령대
+        birthday: birthday || null, // 생일
+        gender: gender || null, // 성별
       }
 
       const ins = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
@@ -107,9 +131,50 @@ export const handler: Handler = async (event) => {
             email: email || `${externalId}@example.local`, 
             role: 'customer',
             external_id: externalId,
+            kakao_id: kakaoId,
           }, 
           warning: 'supabase_insert_failed_using_temp_uuid' 
         })
+      }
+    } else {
+      // 기존 사용자 정보 업데이트 (카카오 정보가 변경되었을 수 있음)
+      const updatePayload: Record<string, any> = {
+        name, // 최신 닉네임
+      }
+      
+      // 프로필 이미지가 있으면 업데이트
+      if (profileImage) {
+        updatePayload.profile_image = profileImage
+      }
+      
+      // 전화번호는 있을 때만 업데이트 (카카오에서 제공하지 않으면 기존 값 유지)
+      if (phoneNumber && !row.phonenumber) {
+        updatePayload.phonenumber = phoneNumber
+      }
+      
+      // 카카오 ID가 없으면 추가
+      if (!row.kakao_id) {
+        updatePayload.kakao_id = kakaoId
+      }
+      
+      // 업데이트할 내용이 있으면 실행
+      if (Object.keys(updatePayload).length > 1) { // name 외에 다른 필드가 있으면
+        const upd = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(row.id)}`, {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify(updatePayload),
+        })
+        
+        if (upd.ok) {
+          const updated = await upd.json()
+          row = Array.isArray(updated) && updated.length > 0 ? updated[0] : row
+          console.log('✅ 카카오 정보 업데이트 성공:', row.id)
+        }
       }
     }
 

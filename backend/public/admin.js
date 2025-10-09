@@ -134,7 +134,7 @@ async function loadUsers() {
                                 <th>이름</th>
                                 <th>사업자 번호</th>
                                 <th>전화번호</th>
-                                <th>이메일</th>
+                                <th>카카오 ID</th>
                                 <th>상태</th>
                                 <th>가입일</th>
                                 <th>작업</th>
@@ -151,7 +151,7 @@ async function loadUsers() {
                                     </td>
                                     <td>${user.businessNumber || user.businessnumber || '-'}</td>
                                     <td>${user.phoneNumber || user.phonenumber || '-'}</td>
-                                    <td>${user.email || '-'}</td>
+                                    <td><code>${user.kakao_id || user.external_id || '-'}</code></td>
                                     <td>
                                         <span class="status-badge ${(user.businessStatus || user.businessstatus || 'pending')}">
                                             ${getStatusText(user.businessStatus || user.businessstatus)}
