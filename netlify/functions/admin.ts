@@ -29,23 +29,47 @@ export const handler: Handler = async (event) => {
       return unauthorized()
     }
 
-    // Dashboard aggregate (minimal mock via Supabase counts)
+    // Dashboard aggregate (direct Supabase queries)
     if (event.httpMethod === 'GET' && path === '/dashboard') {
-      const counts = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_dashboard_counts`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      })
-      if (!counts.ok) {
-        // Fallback: zero metrics
-        return ok({ totalUsers: 0, totalBusinessUsers: 0, totalCustomers: 0, pendingEstimates: 0, totalEstimates: 0, completedEstimates: 0 })
+      const headers = { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }
+      
+      // Fetch users
+      const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=role,businessStatus`, { headers })
+      const users = await usersRes.json()
+      const totalUsers = Array.isArray(users) ? users.length : 0
+      const totalBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business').length : 0
+      const totalCustomers = Array.isArray(users) ? users.filter((u: any) => u.role === 'customer').length : 0
+      const pendingBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business' && (u.businessStatus || u.businessstatus) === 'pending').length : 0
+      
+      // Fetch estimates/orders (try both table names)
+      let estimatesRes = await fetch(`${SUPABASE_URL}/rest/v1/estimates?select=status,estimatedPrice`, { headers })
+      if (!estimatesRes.ok) {
+        estimatesRes = await fetch(`${SUPABASE_URL}/rest/v1/orders?select=status,estimatedPrice`, { headers })
       }
-      const data = await counts.json()
-      return ok(data)
+      const estimates = await estimatesRes.json()
+      const totalEstimates = Array.isArray(estimates) ? estimates.length : 0
+      const pendingEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'pending').length : 0
+      const approvedEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'approved').length : 0
+      const completedEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'completed').length : 0
+      const inProgressEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'in_progress').length : 0
+      const awardedEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'awarded').length : 0
+      const transferredEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'transferred').length : 0
+      const totalRevenue = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'completed').reduce((sum: number, e: any) => sum + ((e.estimatedPrice || 0) * 0.05), 0) : 0
+      
+      return ok({
+        totalUsers,
+        totalBusinessUsers,
+        totalCustomers,
+        approvedUsers: totalBusinessUsers - pendingBusinessUsers,
+        totalEstimates,
+        pendingEstimates,
+        approvedEstimates,
+        completedEstimates,
+        inProgressEstimates,
+        awardedEstimates,
+        transferredEstimates,
+        totalRevenue
+      })
     }
 
     // Admin me
@@ -136,6 +160,22 @@ export const handler: Handler = async (event) => {
       })
       if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '견적 상태 업데이트 실패' }) }
       return ok({ success: true })
+    }
+
+    // Market/Call listings
+    if (path.startsWith('/market')) {
+      const sub = path.replace(/^\/market/, '')
+      if (event.httpMethod === 'GET' && (sub === '/listings' || sub.startsWith('/listings'))) {
+        const qp = event.queryStringParameters || {}
+        const status = qp.status || ''
+        let url = `${SUPABASE_URL}/rest/v1/marketplace_listings?select=*`
+        if (status && status !== 'all') {
+          url += `&status=eq.${encodeURIComponent(status)}`
+        }
+        const res = await fetch(url, { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } })
+        const json = await res.json()
+        return ok(Array.isArray(json) ? json : [])
+      }
     }
 
     // Ads endpoints via Supabase

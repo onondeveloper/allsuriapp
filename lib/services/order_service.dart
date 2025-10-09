@@ -126,7 +126,7 @@ class OrderService extends ChangeNotifier {
     }
   }
 
-  Future<void> createOrder(app_models.Order order) async {
+  Future<app_models.Order> createOrder(app_models.Order order) async {
     _isLoading = true;
     _notifyListenersSafely();
 
@@ -134,6 +134,7 @@ class OrderService extends ChangeNotifier {
       final inserted = await _sb.from('orders').insert(order.toMap()).select().single();
       final created = app_models.Order.fromMap(Map<String, dynamic>.from(inserted));
       _orders.add(created);
+      return created;
     } catch (e) {
       print('주문 생성 오류: $e');
       rethrow;

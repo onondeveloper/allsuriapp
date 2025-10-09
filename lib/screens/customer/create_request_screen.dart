@@ -10,6 +10,7 @@ import '../../models/order.dart' as app_models;
 import '../../services/order_service.dart';
 import '../../services/image_service.dart';
 import '../../services/messaging_service.dart';
+import '../../services/kakao_share_service.dart';
 import '../../providers/user_provider.dart';
 import '../../utils/responsive_utils.dart';
 import '../../widgets/common_app_bar.dart';
@@ -208,7 +209,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           sessionId: sessionId,
         );
 
-        await orderService.createOrder(order);
+        final createdOrder = await orderService.createOrder(order);
         print('✅ 견적 요청 생성 성공!');
         
         // 푸시 알림 전송 (사업자들에게)
@@ -227,6 +228,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               backgroundColor: Colors.green,
             ),
           );
+          
+          // 카카오톡 공유 다이얼로그 표시
+          _showKakaoShareDialog(createdOrder);
         }
       }
       
@@ -266,6 +270,121 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 카카오톡 공유 다이얼로그 표시
+  void _showKakaoShareDialog(app_models.Order order) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/kakao_logo.png',
+              height: 24,
+            ),
+            const SizedBox(width: 8),
+            const Text('카카오톡으로 공유'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '견적 요청을 카카오톡으로 공유하시겠어요?',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      SizedBox(width: 4),
+                      Text('나에게 보내기로 기록 보관'),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      SizedBox(width: 4),
+                      Text('오픈채팅방 링크 포함'),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      SizedBox(width: 4),
+                      Text('더 많은 사업자와 상담 가능'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // 다이얼로그 닫기
+              Navigator.of(context).pop(); // 견적 요청 화면 닫기
+            },
+            child: const Text('나중에'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop(); // 다이얼로그 닫기
+              
+              // 카카오톡 공유 실행
+              final kakaoShareService = KakaoShareService();
+              final success = await kakaoShareService.shareEstimate(
+                estimateId: order.id ?? 'unknown',
+                title: order.title,
+                category: order.category,
+                address: order.address,
+                description: order.description,
+              );
+              
+              if (mounted) {
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('카카오톡 공유가 완료되었습니다'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('카카오톡 공유에 실패했습니다'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+                Navigator.of(context).pop(); // 견적 요청 화면 닫기
+              }
+            },
+            icon: const Icon(Icons.share),
+            label: const Text('공유하기'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFFEE500),
+              foregroundColor: Colors.black,
+            ),
           ),
         ],
       ),

@@ -1,7 +1,14 @@
 // API 기본 URL
 const API_BASE = '/api/admin';
-const MARKET_API_BASE = '/api/market';
-const ADS_API_BASE = '/api/ads';
+const MARKET_API_BASE = '/api/admin/market';
+const ADS_API_BASE = '/api/admin/ads';
+
+// 페이지네이션 및 정렬 상태
+let estimatesPage = 1;
+const estimatesPerPage = 15;
+let estimatesSortColumn = null;
+let estimatesSortDirection = 'asc';
+let allEstimates = [];
 
 // 관리자 토큰 (.env 파일의 ADMIN_TOKEN과 일치해야 함)
 const ADMIN_TOKEN = 'devtoken';
@@ -181,62 +188,133 @@ async function loadEstimates() {
     try {
         const params = buildEstimateQueryParams();
         const qs = params ? `?${params}` : '';
-        const estimates = await apiCall(`/estimates${qs}`);
-        displayEstimates(estimates);
+        allEstimates = await apiCall(`/estimates${qs}`);
+        estimatesPage = 1; // Reset to first page
+        displayEstimates();
     } catch (error) {
         document.getElementById('estimateTableContainer').innerHTML = 
             '<div class="error">견적 목록을 불러오는데 실패했습니다.</div>';
     }
 }
 
-        // 견적 표시
-        function displayEstimates(estimates) {
+        // 견적 표시 (페이지네이션 및 정렬 포함)
+        function displayEstimates() {
             const container = document.getElementById('estimateTableContainer');
             
-            if (estimates.length === 0) {
+            if (allEstimates.length === 0) {
                 container.innerHTML = '<div class="loading">등록된 견적이 없습니다.</div>';
                 return;
             }
 
+            // 정렬 적용
+            let sortedEstimates = [...allEstimates];
+            if (estimatesSortColumn) {
+                sortedEstimates.sort((a, b) => {
+                    let aVal = a[estimatesSortColumn];
+                    let bVal = b[estimatesSortColumn];
+                    
+                    // 날짜 처리
+                    if (estimatesSortColumn === 'createdAt' || estimatesSortColumn === 'createdat') {
+                        aVal = new Date(a.createdAt || a.createdat || 0).getTime();
+                        bVal = new Date(b.createdAt || b.createdat || 0).getTime();
+                    }
+                    
+                    // 금액 처리
+                    if (estimatesSortColumn === 'amount' || estimatesSortColumn === 'estimatedPrice') {
+                        aVal = a.amount || a.estimatedPrice || 0;
+                        bVal = b.amount || b.estimatedPrice || 0;
+                    }
+                    
+                    // 문자열 비교
+                    if (typeof aVal === 'string') {
+                        aVal = (aVal || '').toLowerCase();
+                        bVal = (bVal || '').toLowerCase();
+                    }
+                    
+                    if (aVal < bVal) return estimatesSortDirection === 'asc' ? -1 : 1;
+                    if (aVal > bVal) return estimatesSortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            // 페이지네이션 적용
+            const totalPages = Math.ceil(sortedEstimates.length / estimatesPerPage);
+            const startIdx = (estimatesPage - 1) * estimatesPerPage;
+            const endIdx = startIdx + estimatesPerPage;
+            const paginatedEstimates = sortedEstimates.slice(startIdx, endIdx);
+
             const table = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>제목</th>
-                            <th>고객</th>
-                            <th>사업자</th>
-                            <th>금액</th>
-                            <th>상태</th>
-                            <th>생성일</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${estimates.map(e => {
-                            const title = e.title || e.description || '제목 없음';
-                            const customerName = e.customerName || e.customername || '고객명 없음';
-                            const businessName = e.businessName || e.businessname || '사업자명 없음';
-                            const amountRaw = (e.amount !== undefined && e.amount !== null) ? e.amount : (e.estimatedPrice !== undefined ? e.estimatedPrice : null);
-                            const amountText = (typeof amountRaw === 'number') ? amountRaw.toLocaleString() + '원' : '금액 없음';
-                            const createdAt = e.createdAt || e.createdat;
-                            const createdAtText = createdAt ? new Date(createdAt).toLocaleDateString() : '-';
-                            const status = e.status || '-';
-                            return `
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
                             <tr>
-                                <td class="clickable-title" data-estimate-id="${e.id}" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${title}</td>
-                                <td>${customerName}</td>
-                                <td>${businessName}</td>
-                                <td>${amountText}</td>
-                                <td>
-                                    <span class="status-badge status-${status}">${getStatusText(status)}</span>
-                                </td>
-                                <td>${createdAtText}</td>
-                            </tr>`;
-                        }).join('')}
-                    </tbody>
-                </table>
+                                <th class="sortable" data-column="title">제목</th>
+                                <th class="sortable" data-column="customerName">고객</th>
+                                <th class="sortable" data-column="businessName">사업자</th>
+                                <th class="sortable" data-column="amount">금액</th>
+                                <th class="sortable" data-column="status">상태</th>
+                                <th class="sortable" data-column="createdAt">생성일</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${paginatedEstimates.map(e => {
+                                const title = e.title || e.description || '제목 없음';
+                                const customerName = e.customerName || e.customername || '고객명 없음';
+                                const businessName = e.businessName || e.businessname || '사업자명 없음';
+                                const amountRaw = (e.amount !== undefined && e.amount !== null) ? e.amount : (e.estimatedPrice !== undefined ? e.estimatedPrice : null);
+                                const amountText = (typeof amountRaw === 'number') ? amountRaw.toLocaleString() + '원' : '금액 없음';
+                                const createdAt = e.createdAt || e.createdat;
+                                const createdAtText = createdAt ? new Date(createdAt).toLocaleDateString() : '-';
+                                const status = e.status || '-';
+                                return `
+                                <tr>
+                                    <td class="clickable-title" data-estimate-id="${e.id}" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${title}</td>
+                                    <td>${customerName}</td>
+                                    <td>${businessName}</td>
+                                    <td>${amountText}</td>
+                                    <td>
+                                        <span class="status-badge status-${status}">${getStatusText(status)}</span>
+                                    </td>
+                                    <td>${createdAtText}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <button onclick="changeEstimatePage(-1)" ${estimatesPage === 1 ? 'disabled' : ''}>이전</button>
+                    <span>페이지 ${estimatesPage} / ${totalPages} (전체 ${sortedEstimates.length}건)</span>
+                    <button onclick="changeEstimatePage(1)" ${estimatesPage >= totalPages ? 'disabled' : ''}>다음</button>
+                </div>
             `;
             
             container.innerHTML = table;
+            
+            // 정렬 표시 업데이트
+            if (estimatesSortColumn) {
+                const headers = container.querySelectorAll('th');
+                headers.forEach(th => {
+                    const col = th.getAttribute('data-column');
+                    if (col === estimatesSortColumn) {
+                        th.classList.add(estimatesSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                    }
+                });
+            }
+            
+            // 컬럼 헤더 클릭 이벤트 리스너
+            const headers = container.querySelectorAll('th.sortable');
+            headers.forEach(th => {
+                th.addEventListener('click', () => {
+                    const column = th.getAttribute('data-column');
+                    if (estimatesSortColumn === column) {
+                        estimatesSortDirection = estimatesSortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        estimatesSortColumn = column;
+                        estimatesSortDirection = 'asc';
+                    }
+                    displayEstimates();
+                });
+            });
             
             // 견적 제목 클릭 이벤트 리스너 설정
             const clickableTitles = container.querySelectorAll('.clickable-title');
@@ -246,6 +324,13 @@ async function loadEstimates() {
                     showEstimateDetail(estimateId);
                 });
             });
+        }
+
+        // 페이지 변경
+        function changeEstimatePage(delta) {
+            const totalPages = Math.ceil(allEstimates.length / estimatesPerPage);
+            estimatesPage = Math.max(1, Math.min(estimatesPage + delta, totalPages));
+            displayEstimates();
         }
 
 // 상태 텍스트 변환
@@ -913,13 +998,18 @@ async function loadCalls() {
     try {
         const status = document.getElementById('callStatusFilter')?.value || 'all';
         const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
-        const res = await fetch(`${MARKET_API_BASE}/listings${qs}`);
+        const res = await fetch(`${MARKET_API_BASE}/listings${qs}`, {
+            headers: {
+                'admin-token': ADMIN_TOKEN,
+            }
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const calls = await res.json();
         displayCalls(calls);
     } catch (e) {
+        console.error('Call 로드 오류:', e);
         const container = document.getElementById('callTableContainer');
-        if (container) container.innerHTML = '<div class="error">Call 목록을 불러오는데 실패했습니다.</div>';
+        if (container) container.innerHTML = '<div class="error">Call 목록을 불러오는데 실패했습니다: ' + e.message + '</div>';
     }
 }
 
@@ -964,11 +1054,12 @@ function displayCalls(calls) {
 // ===== 광고 관리 =====
 async function loadAds() {
     try {
-        const ads = await apiCall(`${ADS_API_BASE}`);
+        const ads = await apiCall('/ads');
         displayAds(ads);
     } catch (e) {
+        console.error('광고 로드 오류:', e);
         const c = document.getElementById('adsTableContainer');
-        if (c) c.innerHTML = '<div class="error">광고 목록을 불러오는데 실패했습니다.</div>';
+        if (c) c.innerHTML = '<div class="error">광고 목록을 불러오는데 실패했습니다: ' + e.message + '</div>';
     }
 }
 

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>클린코트 페인트·도장 공사 — 젊은 기술자의 정직한 시공</title>
+  <meta name="description" content="젊은 기술자들이 만드는 깔끔한 마감. 아파트·상가·사무실 페인트/도장 공사, 합리적 견적과 확실한 A/S." />
+  <meta property="og:title" content="클린코트 페인트·도장 공사" />
+  <meta property="og:description" content="전문성과 깔끔한 마감, 젊은 기술자의 정직한 시공." />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ko_KR" />
+  <style>
+    :root {
+      --bg:#0b0f19;           /* 깊은 남청색 배경 */
+      --card:#111729;         /* 카드 배경 */
+      --soft:#1a2238;         /* 섹션 배경 */
+      --line:#24304a;         /* 경계선 */
+      --txt:#e8eefc;          /* 본문 텍스트 */
+      --muted:#a7b3cc;        /* 보조 텍스트 */
+      --brand:#4f86ff;        /* 메인 포인트 (푸른색) */
+      --accent:#ffb74a;       /* 보조 포인트 (따뜻한 주황) */
+      --ok:#46e0a1;           /* 성공/포인트 */
+      --radius:18px;
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Pretendard,Apple SD Gothic Neo,Noto Sans KR,Arial,sans-serif;}
+    a{color:inherit;text-decoration:none}
+    img{max-width:100%;display:block}
+    .wrap{max-width:1120px;margin:0 auto;padding:24px}
+    .nav{display:flex;align-items:center;justify-content:space-between;padding:14px 0}
+    .brand{display:flex;gap:10px;align-items:center}
+    .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--accent));box-shadow:0 6px 18px rgba(79,134,255,.35)}
+    .brand h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.3px}
+    .nav .cta{display:flex;gap:10px}
+    .btn{padding:12px 16px;border-radius:12px;border:1px solid var(--line);background:#00000033;color:var(--txt);backdrop-filter:blur(6px);transition:.25s;}
+    .btn:hover{transform:translateY(-2px);border-color:var(--brand)}
+    .btn.primary{background:linear-gradient(135deg,var(--brand),#7aa8ff);border:none;box-shadow:0 10px 24px rgba(79,134,255,.35);font-weight:700}
+
+    .hero{position:relative;overflow:hidden;border-radius:24px;background:radial-gradient(1200px 600px at 80% 10%,#1b2550 0%,#0b0f19 60%);
+      padding:64px 28px;margin-top:10px;box-shadow:var(--shadow)}
+    .hero-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:28px;align-items:center}
+    .kicker{color:var(--accent);font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:12px;}
+    .hero h2{font-size:42px;line-height:1.12;margin:8px 0 8px}
+    .hero p{color:var(--muted);font-size:16px;margin:0 0 24px}
+    .badges{display:flex;gap:10px;flex-wrap:wrap}
+    .badge{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:rgba(255,255,255,.03);padding:10px 12px;border-radius:999px;font-size:13px;color:#cbd6ee}
+    .hero-illustration{position:relative;height:100%;}
+    .canvas{aspect-ratio:4/3;border-radius:18px;background:
+      linear-gradient(120deg,rgba(79,134,255,.25),rgba(255,183,74,.25)),
+      url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="%234f86ff"/><stop offset="1" stop-color="%23ffb74a"/></linearGradient></defs><rect width="100%" height="100%" fill="%23111729"/><g fill="none" stroke="url(%23g)" stroke-width="6" opacity="0.35"><path d="M0 520 Q 220 420 450 520 T 900 520"/><path d="M0 400 Q 220 300 450 400 T 900 400"/><path d="M0 280 Q 220 180 450 280 T 900 280"/></g><g fill="%23e8eefc" opacity="0.08"><rect x="60" y="70" width="260" height="160" rx="16"/><rect x="360" y="120" width="240" height="130" rx="16"/><rect x="640" y="60" width="180" height="110" rx="16"/></g></svg>') center/cover;
+      box-shadow:0 14px 30px rgba(0,0,0,.35)}
+
+    .section{margin:56px 0}
+    .section h3{font-size:26px;margin:0 0 14px}
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+    .card h4{margin:0 0 8px;font-size:18px}
+    .card p{margin:0;color:var(--muted);font-size:14px}
+
+    .process{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+    .step{background:var(--soft);border:1px dashed var(--line);border-radius:14px;padding:16px;}
+    .step b{display:inline-block;font-size:13px;color:var(--accent);margin-bottom:8px}
+    .step h5{margin:0 0 6px}
+    .step p{margin:0;color:var(--muted);font-size:13px}
+
+    .grid-2{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}
+    .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .shot{aspect-ratio:1/1;border-radius:14px;background:linear-gradient(135deg,#1a2238,#101827);border:1px solid var(--line);position:relative;overflow:hidden}
+    .shot::after{content:"AFTER";position:absolute;right:10px;top:10px;font-size:11px;color:#0b0f19;background:var(--ok);padding:4px 8px;border-radius:999px;font-weight:700}
+    .shot.before::after{content:"BEFORE";background:#ff6b6b;color:white}
+
+    .quote{background:linear-gradient(180deg,rgba(79,134,255,.12),rgba(79,134,255,0));border:1px solid var(--line);padding:20px;border-radius:16px}
+    .quote p{margin:0 0 6px}
+    .quote small{color:var(--muted)}
+
+    .cta-band{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;background:linear-gradient(90deg,#16203a,#131a2f);border:1px solid var(--line);padding:22px;border-radius:18px}
+
+    form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .full{grid-column:1/-1}
+    input,textarea,select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#0f1525;color:var(--txt);outline:none}
+    textarea{min-height:110px}
+    .submit{background:linear-gradient(135deg,var(--accent),#ffd68a);color:#111;font-weight:800;border:none}
+
+    footer{margin:40px 0 10px;color:var(--muted);font-size:12px}
+
+    /* Responsive */
+    @media (max-width: 960px){
+      .hero-grid,.grid-2{grid-template-columns:1fr;}
+      .cards{grid-template-columns:1fr 1fr}
+      .process{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width: 600px){
+      .cards,.process{grid-template-columns:1fr}
+      .nav .cta{display:none}
+      .hero h2{font-size:32px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="nav">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <h1>클린코트 페인트·도장 공사</h1>
+      </div>
+      <div class="cta">
+        <a class="btn" href="tel:010-1234-5678">📞 010-1234-5678</a>
+        <a class="btn primary" href="#quote">무료 견적 요청</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div class="hero-grid">
+        <div>
+          <div class="kicker">PRO PAINTING & COATING</div>
+          <h2>젊은 기술자의 <span style="color:var(--ok)">깔끔한 마감</span>,<br/>보는 순간 차이가 납니다.</h2>
+          <p>아파트, 상가, 사무실, 외벽까지. 전문 작업 공정으로 빠르고 정확하게 시공합니다. 
+            합리적인 견적과 확실한 A/S, 약속 시간 준수는 기본입니다.</p>
+          <div class="badges">
+            <span class="badge">✅ 먼지·養生 완벽 관리</span>
+            <span class="badge">🎯 컬러 컨설팅 제공</span>
+            <span class="badge">🧰 친환경 자재 사용</span>
+            <span class="badge">🧑‍🔧 젊은 숙련팀 상주</span>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+            <a class="btn primary" href="#quote">즉시 견적 요청</a>
+            <a class="btn" href="#works">시공 사례 보기</a>
+          </div>
+        </div>
+        <div class="hero-illustration">
+          <div class="canvas" role="img" aria-label="페인트 롤러와 깔끔한 마감의 추상 일러스트"></div>
+        </div>
+      </div>
+    </header>
+
+    <section class="section" id="services">
+      <h3>어떤 작업을 하나요?</h3>
+      <div class="cards">
+        <div class="card">
+          <h4>실내 도장 (아파트·주택)</h4>
+          <p>거실/방/천장/몰딩, 얼룩·크랙 보수, 친환경 수성페인트 사용.</p>
+        </div>
+        <div class="card">
+          <h4>상가·사무실</h4>
+          <p>야간 시공, 냄새 최소화, 바닥 라인·로고 마킹까지 원스톱.</p>
+        </div>
+        <div class="card">
+          <h4>외벽·방수·에폭시</h4>
+          <p>노출콘크리트·석재 코팅, 우레탄/에폭시 바닥, 난반사 코팅.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="process">
+      <h3>전문 공정으로 깔끔하게</h3>
+      <div class="process">
+        <div class="step">
+          <b>STEP 01</b>
+          <h5>현장 컨설팅</h5>
+          <p>상태 진단·색상 제안·자재 선택. 사진만으로도 견적 가능.</p>
+        </div>
+        <div class="step">
+          <b>STEP 02</b>
+          <h5>면처리 &養生</h5>
+          <p>사포·퍼티·크랙보수, 가구·바닥 보호. 마감 품질을 좌우합니다.</p>
+        </div>
+        <div class="step">
+          <b>STEP 03</b>
+          <h5>프라이머 & 도장</h5>
+          <p>접착력 확보 후 균일 도장. 롤러·분사 병행으로 결자국 최소화.</p>
+        </div>
+        <div class="step">
+          <b>STEP 04</b>
+          <h5>검수 & A/S</h5>
+          <p>체크리스트 기반 검수, 하자 발생 시 신속 A/S.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section grid-2" id="works">
+      <div>
+        <h3>시공 사례 (Before / After)</h3>
+        <p class="muted">실제 현장 사진으로 업데이트해 주세요. 이미지는 드래그해 교체할 수 있도록 설계되었습니다.</p>
+        <div class="gallery" style="margin-top:10px">
+          <div class="shot before"></div>
+          <div class="shot"></div>
+          <div class="shot before"></div>
+          <div class="shot"></div>
+          <div class="shot before"></div>
+          <div class="shot"></div>
+        </div>
+      </div>
+      <div>
+        <div class="quote">
+          <p>“약속한 시간에 정확히 도착하고, 바닥 보호부터 마감까지 정말 깔끔했습니다. 다음에도 재의뢰할게요!”</p>
+          <small>— 고객 후기, 성수동 오피스</small>
+        </div>
+        <div class="quote" style="margin-top:10px">
+          <p>“젊은 기술자분들이 체계적으로 움직여서 믿음이 갔습니다. 색상 상담도 큰 도움이 됐어요.”</p>
+          <small>— 고객 후기, 판교 주거</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="quote">
+      <div class="cta-band">
+        <div>
+          <h3 style="margin:0 0 6px">지금, 무료 견적을 받아보세요</h3>
+          <p style="margin:0;color:var(--muted)">사진 3~4장만 보내주셔도 빠르게 상담해 드립니다. 카톡/전화 모두 가능해요.</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn" href="tel:010-1234-5678">📞 전화</a>
+          <a class="btn" href="https://pf.kakao.com/_YOURID" target="_blank">💬 카카오 상담</a>
+          <a class="btn primary" href="#form">양식 제출</a>
+        </div>
+      </div>
+
+      <div id="form" style="margin-top:16px" class="card">
+        <form action="#" method="post" onsubmit="event.preventDefault(); this.reset(); alert('제출이 완료되었습니다! 곧 연락드릴게요.');">
+          <input type="text" name="name" placeholder="성함" required />
+          <input type="tel" name="phone" placeholder="연락처" required />
+          <select name="type" required>
+            <option value="" disabled selected>작업 유형 선택</option>
+            <option>실내 도장</option>
+            <option>상가·사무실</option>
+            <option>외벽·방수</option>
+            <option>에폭시 바닥</option>
+          </select>
+          <input type="text" name="area" placeholder="현장 위치 (구/동)" />
+          <textarea class="full" name="desc" placeholder="원하시는 색상 / 일정 / 특이사항을 적어주세요"></textarea>
+          <button class="btn submit full" type="submit">무료 견적 요청하기</button>
+        </form>
+      </div>
+    </section>
+
+    <footer>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+        <div>© <span id="y"></span> 클린코트 페인트·도장 공사 · 사업자등록번호: 000-00-00000</div>
+        <div>상담: <a href="tel:010-1234-5678">010-1234-5678</a> · 카톡: <a href="https://pf.kakao.com/_YOURID" target="_blank">@클린코트</a></div>
+      </div>
+    </footer>
+  </div>
+  <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
