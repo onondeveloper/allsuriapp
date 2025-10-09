@@ -91,11 +91,21 @@ async function loadAdminMe() {
 // 사용자 목록 로드
 async function loadUsers() {
     try {
+        console.log('[loadUsers] 사용자 목록 로딩 시작...');
         const users = await apiCall('/users');
+        console.log('[loadUsers] 받은 사용자 수:', users.length);
+        console.log('[loadUsers] 사용자 목록:', users);
+        
+        if (!Array.isArray(users)) {
+            console.error('[loadUsers] 응답이 배열이 아닙니다:', users);
+            throw new Error('잘못된 응답 형식');
+        }
+        
         displayUsers(users);
     } catch (error) {
+        console.error('[loadUsers] 에러:', error);
         document.getElementById('userTableContainer').innerHTML = 
-            '<div class="error">사용자 목록을 불러오는데 실패했습니다.</div>';
+            '<div class="error">사용자 목록을 불러오는데 실패했습니다: ' + error.message + '</div>';
     }
 }
 
