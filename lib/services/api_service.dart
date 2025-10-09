@@ -8,9 +8,7 @@ class ApiService extends ChangeNotifier {
   // API 기본 URL (dart-define로 덮어쓰기 가능)
   static const String baseUrl = String.fromEnvironment(
         'API_BASE_URL',
-        defaultValue: kReleaseMode
-            ? 'https://api.allsuriapp.com/api'
-            : 'http://10.0.2.2:3001/api',
+        defaultValue: 'https://api.allsuri.app/api',
       );
 
   ApiService() {

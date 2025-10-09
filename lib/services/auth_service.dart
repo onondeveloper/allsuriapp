@@ -142,42 +142,40 @@ class AuthService extends ChangeNotifier {
       }
 
       // Kakao 로그인 (톡 우선, 실패 시 계정)
-      // isKakaoTalkInstalled() 체크 제거로 속도 향상 (300-500ms 절약)
       kakao.OAuthToken token;
       try {
         token = await kakao.UserApi.instance.loginWithKakaoTalk();
       } catch (_) {
-        // 톡 로그인 실패 시 계정 로그인으로 자동 폴백
         token = await kakao.UserApi.instance.loginWithKakaoAccount();
       }
 
-      // 백엔드로 토큰 교환
+      // 백엔드로 토큰 교환 (타임아웃 설정)
       final api = ApiService();
       final resp = await api.post('/auth/kakao/login', {
         'access_token': token.accessToken,
-      });
+      }).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => {'success': false, 'error': 'timeout'},
+      );
       
       if (resp['success'] == true) {
         final data = resp['data'] as Map<String, dynamic>;
         final backendToken = data['token'] as String?;
         if (backendToken != null && backendToken.isNotEmpty) {
           ApiService.setBearerToken(backendToken);
-          // 백엔드가 user를 반환하므로 메모리에 반영 (필요 시 Supabase users 테이블과 동기화)
           final user = data['user'] as Map<String, dynamic>?;
           if (user != null) {
-            final uid = user['id'] as String;
-            // 1) 먼저 로컬 사용자 세팅(즉시 화면 전환 보장)
+            // UI 즉시 업데이트
             _currentUser = app_models.User(
-              id: uid,
+              id: user['id'] as String,
               name: (user['name']?.toString() ?? '사용자'),
               email: (user['email']?.toString() ?? ''),
               role: (user['role']?.toString() ?? 'customer'),
               phoneNumber: null,
               createdAt: DateTime.now(),
             );
-            _needsRoleSelection = false; // 즉시 역할 선택 화면으로 튀는 것 방지
+            _needsRoleSelection = false;
             notifyListeners();
-            // (임시) Supabase 동기화 비활성화로 플로우 안정화
           }
           return true;
         }

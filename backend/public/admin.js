@@ -92,7 +92,9 @@ async function loadAdminMe() {
 async function loadUsers() {
     try {
         console.log('[loadUsers] 사용자 목록 로딩 시작...');
-        const users = await apiCall('/users');
+        // 캐시 방지를 위해 타임스탬프 추가
+        const timestamp = new Date().getTime();
+        const users = await apiCall(`/users?t=${timestamp}`);
         console.log('[loadUsers] 받은 사용자 수:', users.length);
         console.log('[loadUsers] 사용자 목록:', users);
         
@@ -367,11 +369,14 @@ function getStatusText(status) {
                 });
                 console.log('승인 응답:', response);
                 
-                // 즉시 UI 업데이트를 위해 약간의 딜레이 후 새로고침
-                alert('사용자가 승인되었습니다.');
-                await new Promise(resolve => setTimeout(resolve, 300));
-                await loadUsers();
-                await loadDashboard();
+                // 서버 응답이 성공하면 즉시 UI 업데이트
+                if (response.success) {
+                    alert('사용자가 승인되었습니다.');
+                    // Promise.all로 병렬 실행
+                    await Promise.all([loadUsers(), loadDashboard()]);
+                } else {
+                    throw new Error('승인 실패');
+                }
             } catch (error) {
                 console.error('승인 오류:', error);
                 alert('사용자 승인에 실패했습니다: ' + error.message);
@@ -388,11 +393,14 @@ function getStatusText(status) {
                 });
                 console.log('거절 응답:', response);
                 
-                // 즉시 UI 업데이트를 위해 약간의 딜레이 후 새로고침
-                alert('사용자가 거절되었습니다.');
-                await new Promise(resolve => setTimeout(resolve, 300));
-                await loadUsers();
-                await loadDashboard();
+                // 서버 응답이 성공하면 즉시 UI 업데이트
+                if (response.success) {
+                    alert('사용자가 거절되었습니다.');
+                    // Promise.all로 병렬 실행
+                    await Promise.all([loadUsers(), loadDashboard()]);
+                } else {
+                    throw new Error('거절 실패');
+                }
             } catch (error) {
                 console.error('거절 오류:', error);
                 alert('사용자 거절에 실패했습니다: ' + error.message);
