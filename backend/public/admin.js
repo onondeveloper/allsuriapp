@@ -1020,6 +1020,28 @@ function displayCalls(calls) {
         container.innerHTML = '<div class="loading">등록된 Call이 없습니다.</div>';
         return;
     }
+    
+    // 상태 매핑 함수
+    const getCallStatusText = (status) => {
+        if (status === 'open') return '대기';
+        if (status === 'assigned' || status === 'completed') return '완료';
+        return status || '-';
+    };
+    
+    // 날짜 포맷 함수 (yyyy-MM-dd)
+    const formatDate = (dateStr) => {
+        if (!dateStr) return '-';
+        try {
+            const date = new Date(dateStr);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        } catch (e) {
+            return '-';
+        }
+    };
+    
     const table = `
         <table class="table">
             <thead>
@@ -1027,9 +1049,10 @@ function displayCalls(calls) {
                     <th>제목</th>
                     <th>지역</th>
                     <th>카테고리</th>
-                    <th>예산</th>
+                    <th>견적 금액</th>
                     <th>상태</th>
-                    <th>게시자</th>
+                    <th>게시자 (Kakao Name)</th>
+                    <th>Call을 가져간 Kakao Name</th>
                     <th>생성일</th>
                 </tr>
             </thead>
@@ -1039,10 +1062,15 @@ function displayCalls(calls) {
                         <td>${item.title || '-'}</td>
                         <td>${item.region || '-'}</td>
                         <td>${item.category || '-'}</td>
-                        <td>${typeof item.budget_amount === 'number' ? item.budget_amount.toLocaleString() : '-'}</td>
-                        <td>${item.status || '-'}</td>
-                        <td>${item.posted_by || '-'}</td>
-                        <td>${item.createdat ? new Date(item.createdat).toLocaleString() : '-'}</td>
+                        <td>${typeof item.budget_amount === 'number' ? item.budget_amount.toLocaleString() + '원' : '-'}</td>
+                        <td>
+                            <span class="status-badge status-${item.status || 'pending'}">
+                                ${getCallStatusText(item.status)}
+                            </span>
+                        </td>
+                        <td>${item.posted_by || item.posted_by_name || '-'}</td>
+                        <td>${item.assigned_to || item.assigned_to_name || item.accepted_by || item.accepted_by_name || '-'}</td>
+                        <td>${formatDate(item.createdat || item.created_at)}</td>
                     </tr>
                 `).join('')}
             </tbody>
