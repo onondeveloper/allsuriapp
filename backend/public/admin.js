@@ -366,9 +366,12 @@ function getStatusText(status) {
                     body: JSON.stringify({ status: 'approved' })
                 });
                 console.log('승인 응답:', response);
+                
+                // 즉시 UI 업데이트를 위해 약간의 딜레이 후 새로고침
                 alert('사용자가 승인되었습니다.');
-                loadUsers();
-                loadDashboard();
+                await new Promise(resolve => setTimeout(resolve, 300));
+                await loadUsers();
+                await loadDashboard();
             } catch (error) {
                 console.error('승인 오류:', error);
                 alert('사용자 승인에 실패했습니다: ' + error.message);
@@ -384,9 +387,12 @@ function getStatusText(status) {
                     body: JSON.stringify({ status: 'rejected' })
                 });
                 console.log('거절 응답:', response);
+                
+                // 즉시 UI 업데이트를 위해 약간의 딜레이 후 새로고침
                 alert('사용자가 거절되었습니다.');
-                loadUsers();
-                loadDashboard();
+                await new Promise(resolve => setTimeout(resolve, 300));
+                await loadUsers();
+                await loadDashboard();
             } catch (error) {
                 console.error('거절 오류:', error);
                 alert('사용자 거절에 실패했습니다: ' + error.message);
