@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>올수리 관리자 대시보드</title>
+    <!-- Google Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -11,152 +14,567 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #1557b0;
+            --primary-light: #e8f0fe;
+            --success: #34a853;
+            --success-light: #e6f4ea;
+            --warning: #fbbc04;
+            --warning-light: #fef7e0;
+            --danger: #ea4335;
+            --danger-light: #fce8e6;
+            --info: #4285f4;
+            --info-light: #e8f0fe;
+            --gray-50: #f8f9fa;
+            --gray-100: #f1f3f4;
+            --gray-200: #e8eaed;
+            --gray-300: #dadce0;
+            --gray-400: #bdc1c6;
+            --gray-500: #9aa0a6;
+            --gray-600: #80868b;
+            --gray-700: #5f6368;
+            --gray-800: #3c4043;
+            --gray-900: #202124;
+            --shadow-sm: 0 1px 2px 0 rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
+            --shadow-md: 0 1px 3px 0 rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15);
+            --shadow-lg: 0 8px 16px 0 rgba(60,64,67,.3), 0 16px 24px 8px rgba(60,64,67,.15);
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
-            color: #333;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-100);
+            color: var(--gray-800);
+            line-height: 1.6;
         }
 
-        .header {
-            background: #1a73e8;
+        /* Layout */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: white;
+            box-shadow: var(--shadow-md);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
-            padding: 1rem 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
-        .header h1 {
+        .sidebar-header .material-icons {
+            font-size: 2rem;
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .sidebar-menu {
+            padding: 1rem 0;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.875rem 1.5rem;
+            color: var(--gray-700);
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+
+        .menu-item:hover {
+            background: var(--gray-50);
+            color: var(--primary);
+        }
+
+        .menu-item.active {
+            background: var(--primary-light);
+            color: var(--primary);
+            border-left-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .menu-item .material-icons {
             font-size: 1.5rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 260px;
+            min-height: 100vh;
+        }
+
+        .top-bar {
+            background: white;
+            padding: 1rem 2rem;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+
+        .refresh-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1.25rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
             font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+        .refresh-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .content-area {
             padding: 2rem;
+            max-width: 1400px;
         }
 
-        .dashboard-grid {
+        /* Dashboard Cards */
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
 
-        .card {
+        .stat-card {
             background: white;
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 1.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s;
+            border-left: 4px solid var(--primary);
         }
 
-        .card h3 {
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .stat-card.success { border-left-color: var(--success); }
+        .stat-card.warning { border-left-color: var(--warning); }
+        .stat-card.danger { border-left-color: var(--danger); }
+        .stat-card.info { border-left-color: var(--info); }
+
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
             margin-bottom: 1rem;
-            color: #1a73e8;
-            font-size: 1.1rem;
         }
 
-        .stat-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
+        .stat-card-title {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .stat-item {
-            text-align: center;
-            padding: 1rem;
-            background: #f8f9fa;
-            border-radius: 6px;
+        .stat-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary-light);
+            color: var(--primary);
         }
 
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #1a73e8;
+        .stat-card.success .stat-card-icon {
+            background: var(--success-light);
+            color: var(--success);
         }
 
-        .stat-label {
-            font-size: 0.9rem;
-            color: #666;
+        .stat-card.warning .stat-card-icon {
+            background: var(--warning-light);
+            color: var(--warning);
+        }
+
+        .stat-card.danger .stat-card-icon {
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+
+        .stat-card-icon .material-icons {
+            font-size: 1.75rem;
+        }
+
+        .stat-card-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            line-height: 1;
+        }
+
+        .stat-card-change {
+            font-size: 0.875rem;
             margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
         }
 
+        .stat-card-change.positive {
+            color: var(--success);
+        }
+
+        .stat-card-change.negative {
+            color: var(--danger);
+        }
+
+        /* Section */
         .section {
             background: white;
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 1.5rem;
             margin-bottom: 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-sm);
         }
 
-        .section h2 {
-            margin-bottom: 1rem;
-            color: #333;
-            border-bottom: 2px solid #1a73e8;
-            padding-bottom: 0.5rem;
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--gray-100);
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-title .material-icons {
+            color: var(--primary);
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 1rem;
         }
 
         .table {
             width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
+            border-collapse: separate;
+            border-spacing: 0;
         }
 
-        .table th,
-        .table td {
-            padding: 0.75rem;
+        .table thead th {
+            background: var(--gray-50);
+            padding: 1rem;
             text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .table th {
-            background: #f8f9fa;
             font-weight: 600;
-            color: #333;
+            font-size: 0.875rem;
+            color: var(--gray-700);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--gray-200);
+            white-space: nowrap;
+        }
+
+        .table tbody td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--gray-100);
+            color: var(--gray-800);
+            font-size: 0.875rem;
+        }
+
+        .table tbody tr {
+            transition: background 0.2s;
+        }
+
+        .table tbody tr:hover {
+            background: var(--gray-50);
+        }
+
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.375rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge.pending {
+            background: var(--warning-light);
+            color: #b45309;
+        }
+
+        .status-badge.approved {
+            background: var(--success-light);
+            color: #15803d;
+        }
+
+        .status-badge.rejected {
+            background: var(--danger-light);
+            color: #b91c1c;
+        }
+
+        .status-badge.completed {
+            background: var(--info-light);
+            color: #1557b0;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
             cursor: pointer;
-            user-select: none;
-            position: relative;
+            transition: all 0.2s;
+            text-decoration: none;
         }
 
-        .table th:hover {
-            background: #e9ecef;
+        .btn-primary {
+            background: var(--primary);
+            color: white;
         }
 
-        .table th.sortable::after {
-            content: ' ⇅';
-            opacity: 0.3;
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
         }
 
-        .table th.sort-asc::after {
-            content: ' ↑';
-            opacity: 1;
+        .btn-success {
+            background: var(--success);
+            color: white;
         }
 
-        .table th.sort-desc::after {
-            content: ' ↓';
-            opacity: 1;
+        .btn-success:hover {
+            background: #2e7d32;
         }
 
-        .table-container {
-            max-height: 600px;
-            overflow-y: auto;
-            position: relative;
+        .btn-danger {
+            background: var(--danger);
+            color: white;
         }
 
+        .btn-danger:hover {
+            background: #c5221f;
+        }
+
+        .btn-secondary {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-200);
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.8125rem;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            border: 3px solid var(--gray-200);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--gray-500);
+        }
+
+        .empty-state .material-icons {
+            font-size: 4rem;
+            color: var(--gray-300);
+            margin-bottom: 1rem;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            animation: fadeIn 0.2s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            max-width: 600px;
+            margin: 5% auto;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--gray-500);
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: var(--gray-100);
+            color: var(--gray-900);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        /* Pagination */
         .pagination {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 10px;
-            margin-top: 1rem;
-            padding: 1rem 0;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
         }
 
         .pagination button {
-            padding: 0.5rem 1rem;
-            border: 1px solid #ddd;
+            min-width: 36px;
+            height: 36px;
+            border: 1px solid var(--gray-300);
             background: white;
+            border-radius: 6px;
             cursor: pointer;
-            border-radius: 4px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
         }
 
         .pagination button:disabled {
@@ -164,462 +582,409 @@
             cursor: not-allowed;
         }
 
-        .pagination button:hover:not(:disabled) {
-            background: #f8f9fa;
-        }
-
-        .pagination span {
-            color: #666;
-        }
-
-        .table tr:hover {
-            background: #f8f9fa;
-        }
-
-        .status-badge {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            text-transform: uppercase;
-        }
-
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .status-approved {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-rejected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .status-completed {
-            background: #d1ecf1;
-            color: #0c5460;
-        }
-
-        .btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            margin-right: 0.5rem;
-        }
-
-        .btn-success {
-            background: #28a745;
+        .pagination button.active {
+            background: var(--primary);
             color: white;
+            border-color: var(--primary);
         }
 
-        .btn-danger {
-            background: #dc3545;
-            color: white;
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .content-area {
+                padding: 1rem;
+            }
         }
 
-        .search-box {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-bottom: 1rem;
-            font-size: 1rem;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            color: #666;
-        }
-
-
-
-        .table th,
-        .table td {
-            padding: 0.75rem;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-
-        .table th {
-            background: #f8f9fa;
-            font-weight: 600;
-        }
-
-        .btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 4px;
+        /* Utility Classes */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .mt-1 { margin-top: 0.5rem; }
+        .mt-2 { margin-top: 1rem; }
+        .mt-3 { margin-top: 1.5rem; }
+        .mb-1 { margin-bottom: 0.5rem; }
+        .mb-2 { margin-bottom: 1rem; }
+        .mb-3 { margin-bottom: 1.5rem; }
+        .hidden { display: none; }
+        
+        /* Clickable */
+        .clickable {
             cursor: pointer;
-            font-size: 0.9rem;
-            margin: 0 0.25rem;
+            transition: color 0.2s;
         }
 
-        .btn-primary {
-            background: #1a73e8;
-            color: white;
-        }
-
-        .btn-success {
-            background: #34a853;
-            color: white;
-        }
-
-        .btn-danger {
-            background: #ea4335;
-            color: white;
-        }
-
-        .search-box {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-bottom: 1rem;
-            font-size: 1rem;
-        }
-
-        .status-badge {
-            padding: 0.25rem 0.5rem;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .status-approved {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-rejected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            color: #666;
-        }
-
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 1rem;
-            border-radius: 4px;
-            margin: 1rem 0;
-        }
-
-        .clickable-stat {
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .clickable-stat:hover {
-            color: #1a73e8;
-            transform: scale(1.05);
-        }
-
-        .clickable-title {
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .clickable-title:hover {
-            color: #0d47a1;
-            text-decoration: underline !important;
-        }
-
-        /* 모달 스타일 */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-
-        .modal-content {
-            background-color: #fefefe;
-            margin: 5% auto;
-            padding: 0;
-            border-radius: 8px;
-            width: 80%;
-            max-width: 600px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .modal-header {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-header h2 {
-            margin: 0;
-            color: #333;
-        }
-
-        .close {
-            color: #aaa;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .close:hover {
-            color: #000;
-        }
-
-        .modal-body {
-            padding: 1.5rem;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-
-        .modal-footer {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid #e0e0e0;
-            text-align: right;
-        }
-
-        .detail-row {
-            display: flex;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid #f0f0f0;
-            padding-bottom: 0.5rem;
-        }
-
-        .detail-label {
-            font-weight: 600;
-            width: 120px;
-            color: #666;
-        }
-
-        .detail-value {
-            flex: 1;
-            color: #333;
-        }
-
-        .status-selector {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-top: 0.5rem;
+        .clickable:hover {
+            color: var(--primary);
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>올수리 관리자 대시보드</h1>
-    </div>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="material-icons">build</span>
+                <h1>올수리 Admin</h1>
+            </div>
+            <nav class="sidebar-menu">
+                <div class="menu-item active" onclick="showSection('dashboard')">
+                    <span class="material-icons">dashboard</span>
+                    <span>대시보드</span>
+                </div>
+                <div class="menu-item" onclick="showSection('users')">
+                    <span class="material-icons">people</span>
+                    <span>사용자 관리</span>
+                </div>
+                <div class="menu-item" onclick="showSection('estimates')">
+                    <span class="material-icons">receipt_long</span>
+                    <span>견적 관리</span>
+                </div>
+                <div class="menu-item" onclick="showSection('calls')">
+                    <span class="material-icons">phone_in_talk</span>
+                    <span>Call 현황</span>
+                </div>
+                <div class="menu-item" onclick="showSection('ads')">
+                    <span class="material-icons">campaign</span>
+                    <span>광고 관리</span>
+                </div>
+            </nav>
+        </aside>
 
-    <div class="container">
-        <!-- 대시보드 통계 -->
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>사용자 통계</h3>
-                <div class="stat-grid">
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="totalUsers" data-type="all">-</div>
-                        <div class="stat-label">전체 사용자</div>
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="top-bar">
+                <h1 class="page-title" id="page-title">대시보드</h1>
+                <button class="refresh-btn" onclick="loadAll()">
+                    <span class="material-icons">refresh</span>
+                    새로고침
+                </button>
+            </div>
+
+            <div class="content-area">
+                <!-- Dashboard Section -->
+                <div id="section-dashboard">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">전체 사용자</div>
+                                    <div class="stat-card-value" id="totalUsers">0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">people</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card success">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">사업자</div>
+                                    <div class="stat-card-value" id="totalBusinessUsers">0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">business</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card warning">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">승인 대기</div>
+                                    <div class="stat-card-value" id="pendingUsers">0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">pending</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card info">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">전체 견적</div>
+                                    <div class="stat-card-value" id="totalEstimates">0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">description</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">대기 중</div>
+                                    <div class="stat-card-value" id="pendingEstimates">0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">hourglass_empty</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card success">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">완료</div>
+                                    <div class="stat-card-value" id="completedEstimates">0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">check_circle</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card info">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">진행 중</div>
+                                    <div class="stat-card-value" id="inProgressEstimates">0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">pending_actions</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card danger">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">총 수익</div>
+                                    <div class="stat-card-value" id="totalRevenue">₩0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">attach_money</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="totalBusinessUsers" data-type="business">-</div>
-                        <div class="stat-label">사업자</div>
+                </div>
+
+                <!-- Users Section -->
+                <div id="section-users" class="hidden">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">people</span>
+                                사용자 관리
+                            </h2>
+                            <button class="btn btn-secondary btn-sm" onclick="loadUsers()">
+                                <span class="material-icons">refresh</span>
+                                새로고침
+                            </button>
+                        </div>
+                        <div id="userTableContainer">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                로딩 중...
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="totalCustomers" data-type="customer">-</div>
-                        <div class="stat-label">고객</div>
+                </div>
+
+                <!-- Estimates Section -->
+                <div id="section-estimates" class="hidden">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">receipt_long</span>
+                                견적 관리
+                            </h2>
+                        </div>
+                        <div id="estimateTableContainer">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                로딩 중...
+                            </div>
+                        </div>
+                        <div id="estimatePagination" class="pagination"></div>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="pendingUsers" data-type="pending">-</div>
-                        <div class="stat-label">승인 대기</div>
+                </div>
+
+                <!-- Calls Section -->
+                <div id="section-calls" class="hidden">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">phone_in_talk</span>
+                                Call 현황
+                            </h2>
+                        </div>
+                        <div id="callTableContainer">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                로딩 중...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ads Section -->
+                <div id="section-ads" class="hidden">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">campaign</span>
+                                광고 관리
+                            </h2>
+                            <button class="btn btn-primary btn-sm" id="btnNewAd" onclick="showAdModal()">
+                                <span class="material-icons">add</span>
+                                새 광고
+                            </button>
+                        </div>
+                        <div id="adsTableContainer">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                로딩 중...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <div class="card">
-                <h3>견적 통계</h3>
-                <div class="stat-grid">
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="totalEstimates" data-status="all">-</div>
-                        <div class="stat-label">전체 견적</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="pendingEstimates" data-status="pending">-</div>
-                        <div class="stat-label">대기중</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="approvedEstimates" data-status="approved">-</div>
-                        <div class="stat-label">승인됨</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="completedEstimates" data-status="completed">-</div>
-                        <div class="stat-label">완료</div>
-                    </div>
-                </div>
-            </div>
-            <div class="card">
-                <h3>상세 통계</h3>
-                <div class="stat-grid">
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="inProgressEstimates" data-status="in_progress">-</div>
-                        <div class="stat-label">진행중</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="awardedEstimates" data-status="awarded">-</div>
-                        <div class="stat-label">입찰 완료</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="transferredEstimates" data-status="transferred">-</div>
-                        <div class="stat-label">이전됨</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number clickable-stat" id="totalRevenue" data-action="revenue">-</div>
-                        <div class="stat-label">총 수익 (원)</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 사용자 관리 -->
-        <div class="section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 style="margin: 0;">사용자 관리</h2>
-                <button id="btnReloadUsers" class="btn btn-primary" onclick="loadUsers()">🔄 새로고침</button>
-            </div>
-            <input type="text" class="search-box" id="userSearch" placeholder="사용자 검색 (이름, 이메일)">
-            <div id="userTableContainer">
-                <div class="loading">사용자 목록을 불러오는 중...</div>
-            </div>
-        </div>
-
-        <!-- 견적 관리 -->
-        <div class="section">
-            <h2>견적 관리</h2>
-            <!-- 필터 바 -->
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-                <select id="statusFilter" class="search-box" style="max-width:180px;">
-                    <option value="all">전체 상태</option>
-                    <option value="pending">대기중</option>
-                    <option value="approved">승인됨</option>
-                    <option value="completed">완료</option>
-                    <option value="in_progress">진행중</option>
-                    <option value="awarded">입찰 완료</option>
-                    <option value="transferred">이전됨</option>
-                </select>
-                <input type="date" id="startDateFilter" class="search-box" style="max-width:200px;">
-                <input type="date" id="endDateFilter" class="search-box" style="max-width:200px;">
-                <input type="text" id="phoneFilter" class="search-box" style="max-width:220px;" placeholder="전화번호 검색 (고객/사업자)">
-                <button id="applyEstimateFilters" class="btn btn-primary">필터 적용</button>
-                <button id="resetEstimateFilters" class="btn">초기화</button>
-            </div>
-            <input type="text" class="search-box" id="estimateSearch" placeholder="견적 검색 (설명, 고객/사업자명)">
-            <div id="estimateTableContainer">
-                <div class="loading">견적 목록을 불러오는 중...</div>
-            </div>
-        </div>
-
-        <!-- Call 현황 (마켓플레이스) -->
-        <div class="section">
-            <h2>Call 현황</h2>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-                <select id="callStatusFilter" class="search-box" style="max-width:180px;">
-                    <option value="all">전체 상태</option>
-                    <option value="open">오픈</option>
-                    <option value="assigned">배정됨</option>
-                    <option value="withdrawn">철회</option>
-                    <option value="expired">만료</option>
-                    <option value="cancelled">취소</option>
-                </select>
-                <button id="applyCallFilters" class="btn btn-primary">필터 적용</button>
-            </div>
-            <div id="callTableContainer">
-                <div class="loading">Call 목록을 불러오는 중...</div>
-            </div>
-        </div>
-
-        <!-- 광고 관리 -->
-        <div class="section">
-            <h2>광고 관리</h2>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-                <button id="btnReloadAds" class="btn btn-primary">새로고침</button>
-                <button id="btnNewAd" class="btn btn-success">신규 광고</button>
-                <button id="btnAdsStats" class="btn">통계 보기</button>
-            </div>
-            <div id="adsTableContainer"><div class="loading">광고 목록을 불러오는 중...</div></div>
-        </div>
+        </main>
     </div>
 
-    <!-- 견적 상세 보기 모달 -->
-    <div id="estimateModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="estimateModalTitle">견적 상세 정보</h2>
-                <span class="close" id="closeEstimateModal">&times;</span>
-            </div>
-            <div class="modal-body" id="estimateModalBody">
-                <!-- 견적 상세 정보가 여기에 표시됩니다 -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-primary" id="updateEstimateStatus">상태 업데이트</button>
-                <button class="btn btn-danger" id="closeEstimateModalBtn">닫기</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 사용자 상세 보기 모달 -->
+    <!-- User Detail Modal -->
     <div id="userModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="userModalTitle">사용자 상세 정보</h2>
-                <span class="close" id="closeUserModal">&times;</span>
+                <h3 class="modal-title" id="userModalTitle">사용자 상세</h3>
+                <button class="modal-close" onclick="closeUserModal()">
+                    <span class="material-icons">close</span>
+                </button>
             </div>
-            <div class="modal-body" id="userModalBody">
-                <!-- 사용자 상세 정보가 여기에 표시됩니다 -->
-            </div>
+            <div class="modal-body" id="userModalBody"></div>
             <div class="modal-footer">
-                <button class="btn btn-success" id="approveUserFromModal">승인</button>
-                <button class="btn btn-danger" id="rejectUserFromModal">거절</button>
-                <button class="btn btn-danger" id="closeUserModalBtn">닫기</button>
+                <button class="btn btn-secondary" onclick="closeUserModal()">닫기</button>
+                <button class="btn btn-danger btn-sm" onclick="rejectUserFromModal()">거절</button>
+                <button class="btn btn-success btn-sm" onclick="approveUserFromModal()">승인</button>
             </div>
         </div>
     </div>
 
-    <!-- 통계 상세 정보 모달 -->
-    <div id="statsModal" class="modal">
+    <!-- Estimate Detail Modal -->
+    <div id="estimateModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="statsModalTitle">상세 정보</h2>
-                <span class="close" onclick="closeStatsModal()">&times;</span>
+                <h3 class="modal-title">견적 상세</h3>
+                <button class="modal-close" onclick="closeEstimateModal()">
+                    <span class="material-icons">close</span>
+                </button>
             </div>
-            <div class="modal-body" id="statsModalBody">
-                <!-- 통계 상세 정보가 여기에 표시됩니다 -->
+            <div class="modal-body" id="estimateModalBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEstimateModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ad Modal -->
+    <div id="adModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="adModalTitle">새 광고</h3>
+                <button class="modal-close" onclick="closeAdModal()">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="adForm">
+                    <input type="hidden" id="adId">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">제목</label>
+                        <input type="text" id="adTitle" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300); border-radius: 6px;" required>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">링크 URL</label>
+                        <input type="url" id="adLink" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300); border-radius: 6px;" required>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">이미지 URL</label>
+                        <input type="url" id="adImage" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300); border-radius: 6px;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">활성 상태</label>
+                        <select id="adActive" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300); border-radius: 6px;">
+                            <option value="true">활성</option>
+                            <option value="false">비활성</option>
+                        </select>
+                    </div>
+                </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" id="closeStatsModalBtn">닫기</button>
+                <button class="btn btn-secondary" onclick="closeAdModal()">취소</button>
+                <button class="btn btn-primary" onclick="saveAd()">저장</button>
             </div>
         </div>
     </div>
 
     <script src="admin.js"></script>
+    <script>
+        // Section Navigation
+        function showSection(sectionName) {
+            // Update menu items
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.closest('.menu-item').classList.add('active');
+
+            // Hide all sections
+            ['dashboard', 'users', 'estimates', 'calls', 'ads'].forEach(name => {
+                document.getElementById(`section-${name}`).classList.add('hidden');
+            });
+
+            // Show selected section
+            document.getElementById(`section-${sectionName}`).classList.remove('hidden');
+
+            // Update page title
+            const titles = {
+                dashboard: '대시보드',
+                users: '사용자 관리',
+                estimates: '견적 관리',
+                calls: 'Call 현황',
+                ads: '광고 관리'
+            };
+            document.getElementById('page-title').textContent = titles[sectionName];
+
+            // Load data for section
+            switch(sectionName) {
+                case 'users':
+                    loadUsers();
+                    break;
+                case 'estimates':
+                    loadEstimates();
+                    break;
+                case 'calls':
+                    loadCalls();
+                    break;
+                case 'ads':
+                    loadAds();
+                    break;
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            loadAll();
+        });
+    </script>
 </body>
 </html>

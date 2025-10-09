@@ -116,55 +116,76 @@ async function loadUsers() {
             const container = document.getElementById('userTableContainer');
             
             if (users.length === 0) {
-                container.innerHTML = '<div class="loading">등록된 사용자가 없습니다.</div>';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span class="material-icons">people_outline</span>
+                        <p>등록된 사용자가 없습니다</p>
+                    </div>
+                `;
                 return;
             }
 
             const table = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>상호</th>
-                            <th>이름</th>
-                            <th>사업자 번호</th>
-                            <th>전화번호</th>
-                            <th>이메일</th>
-                            <th>상태</th>
-                            <th>가입일</th>
-                            <th>승인/삭제</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${users.map(user => `
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
                             <tr>
-                                <td>${user.businessName || user.businessname || '-'}</td>
-                                <td class="clickable-cell" data-user-id="${user.id}" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${user.name || '이름 없음'}</td>
-                                <td>${user.businessNumber || user.businessnumber || '-'}</td>
-                                <td>${user.phoneNumber || user.phonenumber || '-'}</td>
-                                <td>${user.email || '-'}</td>
-                                <td>
-                                    <span class="status-badge status-${(user.businessStatus || user.businessstatus || 'pending')}">
-                                        ${getStatusText(user.businessStatus || user.businessstatus)}
-                                    </span>
-                                </td>
-                                <td>${new Date(user.createdAt || user.createdat).toLocaleDateString()}</td>
-                                <td>
-                                    ${user.role === 'business' && (user.businessStatus || user.businessstatus) === 'pending' ? `
-                                        <button class="btn btn-success" data-user-id="${user.id}" data-action="approve">승인</button>
-                                        <button class="btn btn-danger" data-user-id="${user.id}" data-action="reject">거절</button>
-                                    ` : ''}
-                                    <button class="btn btn-danger" data-user-id="${user.id}" data-action="delete">삭제</button>
-                                </td>
+                                <th>상호</th>
+                                <th>이름</th>
+                                <th>사업자 번호</th>
+                                <th>전화번호</th>
+                                <th>이메일</th>
+                                <th>상태</th>
+                                <th>가입일</th>
+                                <th>작업</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            ${users.map(user => `
+                                <tr>
+                                    <td><strong>${user.businessName || user.businessname || '-'}</strong></td>
+                                    <td>
+                                        <span class="clickable" data-user-id="${user.id}">
+                                            ${user.name || '이름 없음'}
+                                        </span>
+                                    </td>
+                                    <td>${user.businessNumber || user.businessnumber || '-'}</td>
+                                    <td>${user.phoneNumber || user.phonenumber || '-'}</td>
+                                    <td>${user.email || '-'}</td>
+                                    <td>
+                                        <span class="status-badge ${(user.businessStatus || user.businessstatus || 'pending')}">
+                                            ${getStatusText(user.businessStatus || user.businessstatus)}
+                                        </span>
+                                    </td>
+                                    <td>${new Date(user.createdAt || user.createdat).toLocaleDateString('ko-KR')}</td>
+                                    <td>
+                                        <div style="display: flex; gap: 0.5rem;">
+                                            ${user.role === 'business' && (user.businessStatus || user.businessstatus) === 'pending' ? `
+                                                <button class="btn btn-success btn-sm" data-user-id="${user.id}" data-action="approve">
+                                                    <span class="material-icons" style="font-size: 1rem;">check</span>
+                                                    승인
+                                                </button>
+                                                <button class="btn btn-danger btn-sm" data-user-id="${user.id}" data-action="reject">
+                                                    <span class="material-icons" style="font-size: 1rem;">close</span>
+                                                    거절
+                                                </button>
+                                            ` : ''}
+                                            <button class="btn btn-secondary btn-sm" data-user-id="${user.id}" data-action="delete">
+                                                <span class="material-icons" style="font-size: 1rem;">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
             
             container.innerHTML = table;
             
             // 사용자 이름 클릭 이벤트 리스너 설정
-            const clickableCells = container.querySelectorAll('.clickable-cell');
+            const clickableCells = container.querySelectorAll('.clickable');
             clickableCells.forEach(cell => {
                 cell.addEventListener('click', () => {
                     const userId = cell.getAttribute('data-user-id');
