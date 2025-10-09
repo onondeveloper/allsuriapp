@@ -71,31 +71,64 @@ export const handler: Handler = async (event) => {
         email: email || `${externalId}@example.local`,
         name,
         role: 'customer',
-        createdAt: nowIso,
+        createdat: nowIso, // 소문자로 통일 (Supabase 테이블 스키마에 맞춤)
+        provider: 'kakao',
+        external_id: externalId,
       }
-      // Optional fields if table has them
-      payload['provider'] = 'kakao'
-      payload['external_id'] = externalId
 
       const ins = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
         method: 'POST',
-        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        headers: { 
+          apikey: SUPABASE_SERVICE_ROLE_KEY, 
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 
+          'Content-Type': 'application/json', 
+          Prefer: 'return=representation' 
+        },
         body: JSON.stringify(payload),
       })
+      
       if (ins.ok) {
         const arr = await ins.json()
         row = Array.isArray(arr) ? arr[0] : arr
+        console.log('✅ Supabase 사용자 생성 성공:', row?.id)
       } else {
-        // As a last resort, continue without DB persistence
-        const localId = externalId
-        const token = await issueJwt(localId)
-        return ok({ token, user: { id: localId, name, email: email || `${localId}@example.local`, role: 'customer' }, warning: 'supabase_insert_failed' })
+        const errText = await ins.text()
+        console.error('❌ Supabase 사용자 생성 실패:', ins.status, errText)
+        
+        // Fallback: UUID 생성하여 반환 (UUID 형식을 유지하여 이후 업데이트가 가능하도록)
+        const crypto = require('crypto')
+        const uuid = crypto.randomUUID()
+        const token = await issueJwt(uuid)
+        return ok({ 
+          token, 
+          user: { 
+            id: uuid, 
+            name, 
+            email: email || `${externalId}@example.local`, 
+            role: 'customer',
+            external_id: externalId,
+          }, 
+          warning: 'supabase_insert_failed_using_temp_uuid' 
+        })
       }
     }
 
-    const userId = (row && row.id) || externalId
+    const userId = row?.id || externalId
+    const userRole = row?.role || 'customer'
+    const businessStatus = row?.businessStatus || row?.businessstatus
+    
     const token = await issueJwt(userId)
-    return ok({ token, user: { id: userId, name, email: email || row?.email || `${externalId}@example.local`, role: row?.role || 'customer' } })
+    return ok({ 
+      token, 
+      user: { 
+        id: userId, 
+        name: row?.name || name, 
+        email: row?.email || email || `${externalId}@example.local`, 
+        role: userRole,
+        businessStatus: businessStatus,
+        external_id: row?.external_id || externalId,
+      } 
+    })
   } catch (e: any) {
     return { statusCode: 500, body: JSON.stringify({ message: 'Kakao login failed', error: String(e) }) }
   }

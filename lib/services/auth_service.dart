@@ -385,27 +385,33 @@ class AuthService extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
+      // Supabase 테이블 컬럼명에 맞춤 (소문자)
       final updates = <String, dynamic>{
         if (name != null) 'name': name,
-        if (phoneNumber != null) 'phoneNumber': phoneNumber,
-        'businessName': businessName,
-        if (businessNumber != null) 'businessNumber': businessNumber,
+        if (phoneNumber != null) 'phonenumber': phoneNumber,  // 소문자
+        'businessname': businessName,  // 소문자
+        if (businessNumber != null) 'businessnumber': businessNumber,  // 소문자
         if (address != null) 'address': address,
-        if (serviceAreas != null) 'serviceAreas': serviceAreas,
+        if (serviceAreas != null) 'serviceareas': serviceAreas,  // 소문자
         if (specialties != null) 'specialties': specialties,
         'role': 'business',
-        'businessStatus': _currentUser!.businessStatus ?? 'pending',
+        'businessstatus': _currentUser!.businessStatus ?? 'pending',  // 소문자
       };
+      
       // Only sync to Supabase if project is configured and user id looks like UUID
       final supaReady = SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty;
       final uuidLike = RegExp(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}").hasMatch(_currentUser!.id);
+      
       if (supaReady && uuidLike) {
         try {
-          await _sb.from('users').update(updates).eq('id', _currentUser!.id);
+          final result = await _sb.from('users').update(updates).eq('id', _currentUser!.id).select();
+          print('✅ Supabase 사업자 프로필 업데이트 성공: ${_currentUser!.id}');
         } catch (e) {
           // Log and continue with local update so UI doesn't break
-          print('Supabase 동기화 실패(무시하고 로컬 반영): $e');
+          print('❌ Supabase 동기화 실패(무시하고 로컬 반영): $e');
         }
+      } else {
+        print('⚠️  Supabase 업데이트 건너뜀 (supaReady: $supaReady, uuidLike: $uuidLike)');
       }
 
       _currentUser = _currentUser!.copyWith(

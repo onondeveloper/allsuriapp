@@ -34,12 +34,12 @@ export const handler: Handler = async (event) => {
       const headers = { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }
       
       // Fetch users
-      const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=role,businessStatus`, { headers })
+      const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=role,businessstatus`, { headers })
       const users = await usersRes.json()
       const totalUsers = Array.isArray(users) ? users.length : 0
       const totalBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business').length : 0
       const totalCustomers = Array.isArray(users) ? users.filter((u: any) => u.role === 'customer').length : 0
-      const pendingBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business' && (u.businessStatus || u.businessstatus) === 'pending').length : 0
+      const pendingBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business' && u.businessstatus === 'pending').length : 0
       
       // Fetch estimates/orders (try both table names)
       let estimatesRes = await fetch(`${SUPABASE_URL}/rest/v1/estimates?select=status,estimatedPrice`, { headers })
@@ -101,7 +101,13 @@ export const handler: Handler = async (event) => {
       const userId = path.split('/')[2]
       const body = JSON.parse(event.body || '{}')
       const status = body.status || 'pending'
-      const { ok: upOk } = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
+      
+      // Supabase 테이블 컬럼명에 맞춤 (소문자)
+      const updatePayload = { 
+        businessstatus: status  // 소문자로 통일
+      }
+      
+      const upRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
         method: 'PATCH',
         headers: {
           apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -109,10 +115,18 @@ export const handler: Handler = async (event) => {
           'Content-Type': 'application/json',
           Prefer: 'return=representation',
         },
-        body: JSON.stringify({ businessStatus: status }),
+        body: JSON.stringify(updatePayload),
       })
-      if (!upOk) return { statusCode: 500, body: JSON.stringify({ message: '상태 업데이트 실패' }) }
-      return ok({ success: true })
+      
+      if (!upRes.ok) {
+        const errText = await upRes.text()
+        console.error('❌ 사용자 상태 업데이트 실패:', upRes.status, errText)
+        return { statusCode: 500, body: JSON.stringify({ message: '상태 업데이트 실패', error: errText }) }
+      }
+      
+      const updated = await upRes.json()
+      console.log('✅ 사용자 상태 업데이트 성공:', userId, '→', status)
+      return ok({ success: true, user: Array.isArray(updated) ? updated[0] : updated })
     }
 
     // DELETE user

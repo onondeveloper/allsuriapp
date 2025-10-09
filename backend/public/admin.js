@@ -1051,8 +1051,8 @@ function displayCalls(calls) {
                     <th>카테고리</th>
                     <th>견적 금액</th>
                     <th>상태</th>
-                    <th>게시자 (Kakao Name)</th>
-                    <th>Call을 가져간 Kakao Name</th>
+                    <th>게시한 사업자</th>
+                    <th>가져간 사업자</th>
                     <th>생성일</th>
                 </tr>
             </thead>
