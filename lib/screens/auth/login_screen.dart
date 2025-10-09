@@ -113,10 +113,81 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _isLoading
                       ? null
                       : () async {
-                          setState(() => _isLoading = true);
+                          // 로딩 다이얼로그 표시
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (BuildContext dialogContext) {
+                              return WillPopScope(
+                                onWillPop: () async => false,
+                                child: Dialog(
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32.0),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        // 불꽃 애니메이션 효과
+                                        TweenAnimationBuilder<double>(
+                                          tween: Tween(begin: 0.0, end: 1.0),
+                                          duration: const Duration(milliseconds: 1500),
+                                          builder: (context, value, child) {
+                                            return Transform.scale(
+                                              scale: 0.8 + (value * 0.2),
+                                              child: Opacity(
+                                                opacity: 0.6 + (value * 0.4),
+                                                child: const Text(
+                                                  '🔥',
+                                                  style: TextStyle(fontSize: 64),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(height: 24),
+                                        const CircularProgressIndicator(
+                                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFEE500)),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        const Text(
+                                          '사업자님의 열정을 예열 중입니다...',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '카카오톡으로 안전하게 연결 중',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                          
                           try {
                             final authService = context.read<AuthService>();
                             final ok = await authService.signInWithKakao();
+                            
+                            // 로딩 다이얼로그 닫기
+                            if (context.mounted) {
+                              Navigator.of(context, rootNavigator: true).pop();
+                            }
+                            
                             if (ok) {
                               // 사업자 로그인 의도: 역할을 즉시 사업자로 설정해 홈이 자동 전환되도록 함
                               await authService.updateRole('business');
@@ -126,11 +197,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               );
                             }
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('오류: $e')),
-                            );
-                          } finally {
-                            if (mounted) setState(() => _isLoading = false);
+                            // 로딩 다이얼로그 닫기 (에러 시에도)
+                            if (context.mounted) {
+                              Navigator.of(context, rootNavigator: true).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('오류: $e')),
+                              );
+                            }
                           }
                         },
                 ),

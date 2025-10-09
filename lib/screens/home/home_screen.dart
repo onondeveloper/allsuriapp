@@ -275,8 +275,83 @@ class HomeScreen extends StatelessWidget {
                             return;
                           }
 
+                          // 로딩 다이얼로그 표시
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (BuildContext dialogContext) {
+                              return WillPopScope(
+                                onWillPop: () async => false,
+                                child: Dialog(
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32.0),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        // 불꽃 애니메이션 효과
+                                        TweenAnimationBuilder<double>(
+                                          tween: Tween(begin: 0.0, end: 1.0),
+                                          duration: const Duration(milliseconds: 1500),
+                                          builder: (context, value, child) {
+                                            return Transform.scale(
+                                              scale: 0.8 + (value * 0.2),
+                                              child: Opacity(
+                                                opacity: 0.6 + (value * 0.4),
+                                                child: const Text(
+                                                  '🔥',
+                                                  style: TextStyle(fontSize: 64),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          onEnd: () {
+                                            // 애니메이션 반복을 위해 (선택사항)
+                                          },
+                                        ),
+                                        const SizedBox(height: 24),
+                                        const CircularProgressIndicator(
+                                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFEE500)),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        const Text(
+                                          '사업자님의 열정을 예열 중입니다...',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '카카오톡으로 안전하게 연결 중',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+
                           // 카카오톡 설치 시 앱 자동 로그인, 미설치 시 카카오계정 로그인
                           final ok = await Provider.of<AuthService>(context, listen: false).signInWithKakao();
+                          
+                          // 로딩 다이얼로그 닫기
+                          if (context.mounted) {
+                            Navigator.of(context, rootNavigator: true).pop();
+                          }
+                          
                           if (ok) {
                             await Provider.of<AuthService>(context, listen: false).updateRole('business');
                             // 화면은 자동으로 BusinessDashboard로 전환됨 (HomeScreen 빌더에서 역할에 따라 위젯 교체)
@@ -288,7 +363,9 @@ class HomeScreen extends StatelessWidget {
                             }
                           }
                         } catch (e) {
+                          // 로딩 다이얼로그 닫기 (에러 시에도)
                           if (context.mounted) {
+                            Navigator.of(context, rootNavigator: true).pop();
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('오류가 발생했습니다: $e')),
                             );
