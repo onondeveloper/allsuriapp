@@ -46,44 +46,23 @@ class OrderService extends ChangeNotifier {
       var query = _sb.from('orders').select();
 
       if (customerId != null) {
-        print('🔍 customerid로 필터링: $customerId');
-        // customerid와 customerId를 모두 시도
-        try {
-          query = query.eq('customerid', customerId);
-          print('🔍 customerid 컬럼으로 필터링 성공');
-        } catch (e) {
-          print('🔍 customerid 컬럼 실패, customerId로 시도: $e');
-          query = query.eq('customerId', customerId);
-        }
+        print('🔍 customerId로 필터링: $customerId');
+        // Supabase 테이블은 camelCase 사용: customerId
+        query = query.eq('customerId', customerId);
       }
       if (status != null) {
         print('🔍 status로 필터링: $status');
         query = query.eq('status', status);
       }
       if (sessionId != null) {
-        print('🔍 sessionid로 필터링: $sessionId');
-        query = query.eq('sessionid', sessionId); // sessionId → sessionid로 수정
+        print('🔍 sessionId로 필터링: $sessionId');
+        // Supabase 테이블은 camelCase 사용: sessionId
+        query = query.eq('sessionId', sessionId);
       }
 
       print('🔍 쿼리 실행 중...');
-      // 컬럼명을 유연하게 처리
-      List<dynamic> rows;
-      try {
-        // 먼저 createdAt으로 시도
-        rows = await query.order('createdAt', ascending: false);
-        print('🔍 createdAt 컬럼으로 정렬 성공');
-      } catch (e) {
-        print('🔍 createdAt 컬럼 실패, createdat으로 시도: $e');
-        try {
-          // createdat으로 시도
-          rows = await query.order('createdat', ascending: false);
-          print('🔍 createdat 컬럼으로 정렬 성공');
-        } catch (e2) {
-          print('🔍 createdat 컬럼도 실패, 정렬 없이 조회: $e2');
-          // 정렬 없이 조회
-          rows = await query;
-        }
-      }
+      // Supabase 테이블은 camelCase 사용: createdAt
+      final rows = await query.order('createdAt', ascending: false);
       
       print('🔍 DB에서 가져온 행 수: ${rows.length}');
       

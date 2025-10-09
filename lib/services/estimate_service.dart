@@ -33,56 +33,19 @@ class EstimateService extends ChangeNotifier {
       
       var query = _sb.from('estimates').select();
       if (businessId != null) {
-        print('🔍 businessid로 필터링: $businessId');
-        // businessid와 businessId를 모두 시도
-        try {
-          query = query.eq('businessid', businessId);
-          print('🔍 businessid 컬럼으로 필터링 성공');
-        } catch (e) {
-          print('🔍 businessid 컬럼 실패, businessId로 시도: $e');
-          query = query.eq('businessId', businessId);
-        }
+        print('🔍 businessId로 필터링: $businessId');
+        query = query.eq('businessId', businessId);
       } else if (customerId != null) {
-        print('🔍 customerid로 필터링: $customerId');
-        // customerid와 customerId를 모두 시도
-        try {
-          query = query.eq('customerid', customerId);
-          print('🔍 customerid 컬럼으로 필터링 성공');
-        } catch (e) {
-          print('🔍 customerid 컬럼 실패, customerId로 시도: $e');
-          query = query.eq('customerId', customerId);
-        }
+        print('🔍 customerId로 필터링: $customerId');
+        query = query.eq('customerId', customerId);
       } else if (orderId != null) {
-        print('🔍 orderid로 필터링: $orderId');
-        // orderid와 orderId를 모두 시도
-        try {
-          query = query.eq('orderid', orderId);
-          print('🔍 orderid 컬럼으로 필터링 성공');
-        } catch (e) {
-          print('🔍 orderid 컬럼 실패, orderId로 시도: $e');
-          query = query.eq('orderId', orderId);
-        }
+        print('🔍 orderId로 필터링: $orderId');
+        query = query.eq('orderId', orderId);
       }
       
       print('🔍 쿼리 실행 중...');
-      // 컬럼명을 유연하게 처리
-      List<dynamic> rows;
-      try {
-        // 먼저 createdat으로 시도
-        rows = await query.order('createdat', ascending: false);
-        print('🔍 createdat 컬럼으로 정렬 성공');
-      } catch (e) {
-        print('🔍 createdat 컬럼 실패, createdAt으로 시도: $e');
-        try {
-          // createdAt으로 시도
-          rows = await query.order('createdAt', ascending: false);
-          print('🔍 createdAt 컬럼으로 정렬 성공');
-        } catch (e2) {
-          print('🔍 createdAt 컬럼도 실패, 정렬 없이 조회: $e2');
-          // 정렬 없이 조회
-          rows = await query;
-        }
-      }
+      // Supabase 테이블은 camelCase 사용
+      final rows = await query.order('createdAt', ascending: false);
       
       print('🔍 DB에서 가져온 견적 행 수: ${rows.length}');
       
