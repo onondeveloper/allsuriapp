@@ -327,13 +327,16 @@ class AuthService extends ChangeNotifier {
     try {
       _isLoading = true;
       notifyListeners();
+      // Supabase 테이블 컬럼명에 맞춤 (소문자)
       final update = {
         'role': role,
-        if (role == 'business') 'businessStatus': 'pending',
+        if (role == 'business') 'businessstatus': 'pending',  // 소문자로 통일
       };
       final supaReady = SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty;
       if (supaReady) {
-        await _sb.from('users').update(update).eq('id', _currentUser!.id);
+        final result = await _sb.from('users').update(update).eq('id', _currentUser!.id).select();
+        print('✅ Supabase 역할 업데이트 성공: ${_currentUser!.id}, role=$role, businessstatus=${role == 'business' ? 'pending' : 'N/A'}');
+        print('   업데이트된 데이터: $result');
       }
       // Always update local state so UI can transition immediately
       _currentUser = _currentUser!.copyWith(
@@ -349,7 +352,7 @@ class AuthService extends ChangeNotifier {
         businessStatus: role == 'business' ? 'pending' : _currentUser!.businessStatus,
       );
       _needsRoleSelection = false;
-      print('역할 업데이트 오류(로컬로 계속): $e');
+      print('❌ 역할 업데이트 오류(로컬로 계속): $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -387,16 +390,26 @@ class AuthService extends ChangeNotifier {
       final supaReady = SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty;
       final uuidLike = RegExp(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}").hasMatch(_currentUser!.id);
       
+      print('📝 사업자 프로필 업데이트 시도: ID=${_currentUser!.id}');
+      print('   업데이트 데이터: $updates');
+      
       if (supaReady && uuidLike) {
         try {
           final result = await _sb.from('users').update(updates).eq('id', _currentUser!.id).select();
           print('✅ Supabase 사업자 프로필 업데이트 성공: ${_currentUser!.id}');
+          print('   업데이트된 행 수: ${result.length}');
+          if (result.isNotEmpty) {
+            print('   업데이트된 데이터: ${result.first}');
+          } else {
+            print('⚠️  경고: 업데이트는 성공했으나 반환된 데이터 없음 (해당 ID를 찾지 못했을 수 있음)');
+          }
         } catch (e) {
           // Log and continue with local update so UI doesn't break
           print('❌ Supabase 동기화 실패(무시하고 로컬 반영): $e');
         }
       } else {
         print('⚠️  Supabase 업데이트 건너뜀 (supaReady: $supaReady, uuidLike: $uuidLike)');
+        print('   현재 사용자 ID: ${_currentUser!.id}');
       }
 
       _currentUser = _currentUser!.copyWith(
