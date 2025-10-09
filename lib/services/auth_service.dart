@@ -58,11 +58,19 @@ class AuthService extends ChangeNotifier {
         // 사용자 역할이 설정되어 있는지 확인
         final userRole = row['role'] as String?;
         print('데이터베이스에서 읽은 역할: $userRole');
+        print('🔍 DB에서 가져온 사업자 정보:');
+        print('   - businessstatus: ${row['businessstatus']}');
+        print('   - businessname: ${row['businessname']}');
+        print('   - businessnumber: ${row['businessnumber']}');
         
         if (userRole != null && userRole.isNotEmpty && userRole != 'customer') {
           _currentUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
           _needsRoleSelection = false;
           print('사용자 역할 로드됨: $userRole, _needsRoleSelection: $_needsRoleSelection');
+          print('🔍 User 객체 생성 후:');
+          print('   - businessStatus: ${_currentUser?.businessStatus}');
+          print('   - businessName: ${_currentUser?.businessName}');
+          print('   - businessNumber: ${_currentUser?.businessNumber}');
         } else {
           // 역할이 설정되지 않았거나 customer인 경우 역할 선택 필요
           final updatedUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
@@ -121,18 +129,7 @@ class AuthService extends ChangeNotifier {
               final user = data['user'] as Map<String, dynamic>?;
               if (user != null) {
                 final uid = user['id'] as String;
-                // 1) 먼저 로컬 사용자 세팅(즉시 화면 전환 보장)
-                _currentUser = app_models.User(
-                  id: uid,
-                  name: (user['name']?.toString() ?? '사용자'),
-                  email: (user['email']?.toString() ?? ''),
-                  role: (user['role']?.toString() ?? 'customer'),
-                  phoneNumber: null,
-                  createdAt: DateTime.now(),
-                );
-                _needsRoleSelection = false; // 즉시 역할 선택 화면으로 튀는 것 방지
-                notifyListeners();
-                // (임시) Supabase 동기화 비활성화로 플로우 안정화
+                await _loadUserData(uid);
               }
               return true;
             }
@@ -165,17 +162,14 @@ class AuthService extends ChangeNotifier {
           ApiService.setBearerToken(backendToken);
           final user = data['user'] as Map<String, dynamic>?;
           if (user != null) {
-            // UI 즉시 업데이트
-            _currentUser = app_models.User(
-              id: user['id'] as String,
-              name: (user['name']?.toString() ?? '사용자'),
-              email: (user['email']?.toString() ?? ''),
-              role: (user['role']?.toString() ?? 'customer'),
-              phoneNumber: null,
-              createdAt: DateTime.now(),
-            );
-            _needsRoleSelection = false;
-            notifyListeners();
+            final uid = user['id'] as String;
+            // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)
+            print('🔍 [signInWithKakao] 백엔드 응답 받음, Supabase에서 전체 정보 로드 시작');
+            print('   - UID: $uid');
+            await _loadUserData(uid);
+            print('🔍 [signInWithKakao] Supabase 로드 완료');
+            print('   - Business Status: ${_currentUser?.businessStatus}');
+            print('   - Business Name: ${_currentUser?.businessName}');
           }
           return true;
         }
@@ -190,17 +184,7 @@ class AuthService extends ChangeNotifier {
             final user = data['user'] as Map<String, dynamic>?;
             if (user != null) {
               final uid = user['id'] as String;
-              _currentUser = app_models.User(
-                id: uid,
-                name: (user['name']?.toString() ?? '사용자'),
-                email: (user['email']?.toString() ?? ''),
-                role: (user['role']?.toString() ?? 'customer'),
-                phoneNumber: null,
-                createdAt: DateTime.now(),
-              );
-              _needsRoleSelection = false; // 즉시 역할 선택 화면으로 튀는 것 방지
-              notifyListeners();
-              // (임시) Supabase 동기화 비활성화로 플로우 안정화
+              await _loadUserData(uid);
             }
             return true;
           }

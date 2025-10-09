@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/user.dart';
 import '../../providers/user_provider.dart';
@@ -12,6 +13,8 @@ import '../../services/review_service.dart';
 import '../../services/media_service.dart';
 import 'package:app_settings/app_settings.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'dart:convert';
 
 class BusinessProfileScreen extends StatefulWidget {
   const BusinessProfileScreen({Key? key}) : super(key: key);
@@ -171,56 +174,59 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   void _showServiceAreaDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('활동 지역 선택'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: Column(
-            children: [
-              Text('최대 5개까지 선택 가능합니다. (현재 ${_selectedServiceAreas.length}개)'),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: KoreanCities.cities.length,
-                  itemBuilder: (context, index) {
-                    final city = KoreanCities.cities[index];
-                    final isSelected = _selectedServiceAreas.contains(city);
-                    
-                    return CheckboxListTile(
-                      title: Text(city),
-                      value: isSelected,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          if (value == true) {
-                            if (_selectedServiceAreas.length < 5) {
-                              _selectedServiceAreas.add(city);
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('활동 지역 선택'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: Column(
+              children: [
+                Text('최대 5개까지 선택 가능합니다. (현재 ${_selectedServiceAreas.length}개)'),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: KoreanCities.cities.length,
+                    itemBuilder: (context, index) {
+                      final city = KoreanCities.cities[index];
+                      final isSelected = _selectedServiceAreas.contains(city);
+                      
+                      return CheckboxListTile(
+                        title: Text(city),
+                        value: isSelected,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            if (value == true) {
+                              if (_selectedServiceAreas.length < 5) {
+                                _selectedServiceAreas.add(city);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('최대 5개까지만 선택할 수 있습니다.'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
                             } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('최대 5개까지만 선택할 수 있습니다.'),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
+                              _selectedServiceAreas.remove(city);
                             }
-                          } else {
-                            _selectedServiceAreas.remove(city);
-                          }
-                        });
-                      },
-                    );
-                  },
+                          });
+                          setDialogState(() {}); // Dialog 내부 UI 업데이트
+                        },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('확인'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('확인'),
-          ),
-        ],
       ),
     );
   }
@@ -228,39 +234,42 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   void _showSpecialtyDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('전문 분야 선택'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: ListView.builder(
-            itemCount: EquipmentCategories.categories.length,
-            itemBuilder: (context, index) {
-              final category = EquipmentCategories.categories[index];
-              final isSelected = _selectedSpecialties.contains(category);
-              
-              return CheckboxListTile(
-                title: Text(category),
-                value: isSelected,
-                onChanged: (bool? value) {
-                  setState(() {
-                    if (value == true) {
-                      _selectedSpecialties.add(category);
-                    } else {
-                      _selectedSpecialties.remove(category);
-                    }
-                  });
-                },
-              );
-            },
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('전문 분야 선택'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: ListView.builder(
+              itemCount: EquipmentCategories.categories.length,
+              itemBuilder: (context, index) {
+                final category = EquipmentCategories.categories[index];
+                final isSelected = _selectedSpecialties.contains(category);
+                
+                return CheckboxListTile(
+                  title: Text(category),
+                  value: isSelected,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedSpecialties.add(category);
+                      } else {
+                        _selectedSpecialties.remove(category);
+                      }
+                    });
+                    setDialogState(() {}); // Dialog 내부 UI 업데이트
+                  },
+                );
+              },
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('확인'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('확인'),
-          ),
-        ],
       ),
     );
   }
@@ -353,6 +362,11 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                       labelText: '전화번호 *',
                       hintText: '010-1234-5678',
                     ),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      _PhoneNumberFormatter(),
+                    ],
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return '전화번호를 입력해주세요';
@@ -451,10 +465,16 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _addressController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '주소',
-                      hintText: '사업자 주소를 입력하세요',
+                      hintText: '주소를 검색하세요',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.search),
+                        onPressed: _openAddressSearch,
+                      ),
                     ),
+                    readOnly: true,
+                    onTap: _openAddressSearch,
                   ),
                 ],
               ),
@@ -465,46 +485,66 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
               _buildSection(
                 '활동 지역',
                 [
-                  InkWell(
-                    onTap: _showServiceAreaDialog,
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                '활동 지역 선택',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                  Material(
+                    elevation: 0,
+                    borderRadius: BorderRadius.circular(12),
+                    color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                    child: InkWell(
+                      onTap: _showServiceAreaDialog,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.location_on_rounded,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '활동 지역 선택',
+                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              Icon(
-                                Icons.arrow_forward_ios,
-                                color: Colors.grey.shade600,
-                                size: 16,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _selectedServiceAreas.isEmpty
-                                ? '활동 지역을 선택해주세요 (최대 5개)'
-                                : '선택된 지역: ${_selectedServiceAreas.join(', ')}',
-                            style: TextStyle(
-                              color: _selectedServiceAreas.isEmpty
-                                  ? Colors.grey.shade600
-                                  : Colors.black87,
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  size: 18,
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 12),
+                            Text(
+                              _selectedServiceAreas.isEmpty
+                                  ? '활동 지역을 선택해주세요 (최대 5개)'
+                                  : '선택된 지역: ${_selectedServiceAreas.join(', ')}',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: _selectedServiceAreas.isEmpty
+                                        ? Theme.of(context).colorScheme.onSurfaceVariant
+                                        : Theme.of(context).colorScheme.onSurface,
+                                    fontWeight: _selectedServiceAreas.isEmpty 
+                                        ? FontWeight.w400 
+                                        : FontWeight.w500,
+                                  ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -517,46 +557,66 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
               _buildSection(
                 '전문 분야',
                 [
-                  InkWell(
-                    onTap: _showSpecialtyDialog,
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                '전문 분야 선택',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                  Material(
+                    elevation: 0,
+                    borderRadius: BorderRadius.circular(12),
+                    color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                    child: InkWell(
+                      onTap: _showSpecialtyDialog,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.work_rounded,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '전문 분야 선택',
+                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              Icon(
-                                Icons.arrow_forward_ios,
-                                color: Colors.grey.shade600,
-                                size: 16,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _selectedSpecialties.isEmpty
-                                ? '전문 분야를 선택해주세요'
-                                : '선택된 분야: ${_selectedSpecialties.join(', ')}',
-                            style: TextStyle(
-                              color: _selectedSpecialties.isEmpty
-                                  ? Colors.grey.shade600
-                                  : Colors.black87,
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  size: 18,
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 12),
+                            Text(
+                              _selectedSpecialties.isEmpty
+                                  ? '전문 분야를 선택해주세요'
+                                  : '선택된 분야: ${_selectedSpecialties.join(', ')}',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: _selectedSpecialties.isEmpty
+                                        ? Theme.of(context).colorScheme.onSurfaceVariant
+                                        : Theme.of(context).colorScheme.onSurface,
+                                    fontWeight: _selectedSpecialties.isEmpty 
+                                        ? FontWeight.w400 
+                                        : FontWeight.w500,
+                                  ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -566,29 +626,26 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
               const SizedBox(height: 32),
               
               // 저장 버튼
-              ElevatedButton(
+              FilledButton.icon(
                 onPressed: _isLoading ? null : _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: const Color(0xFF4F8CFF),
-                ),
-                child: _isLoading
+                icon: _isLoading 
                     ? const SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2,
+                          strokeWidth: 2.5,
                           valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
-                    : const Text(
-                        '프로필 저장',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                    : const Icon(Icons.save_rounded, size: 22),
+                label: Text(
+                  _isLoading ? '저장 중...' : '프로필 저장',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
 
               const SizedBox(height: 12),
@@ -647,6 +704,146 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
         const SizedBox(height: 16),
         ...children,
       ],
+    );
+  }
+
+  Future<void> _openAddressSearch() async {
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (request) {
+          final url = request.url;
+          final allowed = url.startsWith('https://t1.daumcdn.net') ||
+                          url.startsWith('https://postcode.map.daum.net') ||
+                          url.startsWith('https://map.daum.net') ||
+                          url.startsWith('https://kakao.com') ||
+                          url.startsWith('https://www.kakao.com');
+          return allowed ? NavigationDecision.navigate : NavigationDecision.prevent;
+        },
+      ))
+      ..addJavaScriptChannel('flutter', onMessageReceived: (msg) {
+        try {
+          final Map<String, dynamic> data = json.decode(msg.message) as Map<String, dynamic>;
+          final addr = (data['roadAddress']?.toString().isNotEmpty ?? false)
+              ? data['roadAddress'].toString()
+              : (data['address']?.toString() ?? '');
+          setState(() {
+            _addressController.text = addr;
+          });
+        } catch (_) {}
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+      });
+
+    final html = '''
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kakao Postcode</title>
+  <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+  <style>
+    html, body, #wrap { height: 100%; margin: 0; }
+    #wrap { display: flex; }
+    #container { flex: 1; }
+  </style>
+  <script>
+    function sendAddressToFlutter(payload) {
+      if (window.flutter && window.flutter.postMessage) {
+        window.flutter.postMessage(payload);
+      }
+    }
+    window.onload = function() {
+      new daum.Postcode({
+        oncomplete: function(data) {
+          const payload = JSON.stringify({
+            address: data.address || '',
+            roadAddress: data.roadAddress || '',
+            jibunAddress: data.jibunAddress || '',
+            zonecode: data.zonecode || ''
+          });
+          sendAddressToFlutter(payload);
+        },
+        width: '100%',
+        height: '100%'
+      }).embed(document.getElementById('container'));
+    };
+  </script>
+</head>
+<body>
+  <div id="wrap">
+    <div id="container"></div>
+  </div>
+</body>
+</html>
+''';
+
+    await controller.loadHtmlString(html, baseUrl: 'https://postcode.map.daum.net');
+
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.8,
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '주소 검색',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: WebViewWidget(controller: controller),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// 전화번호 자동 하이픈 포맷터
+class _PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    
+    if (text.isEmpty) {
+      return newValue;
+    }
+
+    String formatted = '';
+    
+    if (text.length <= 3) {
+      formatted = text;
+    } else if (text.length <= 7) {
+      formatted = '${text.substring(0, 3)}-${text.substring(3)}';
+    } else if (text.length <= 11) {
+      formatted = '${text.substring(0, 3)}-${text.substring(3, 7)}-${text.substring(7)}';
+    } else {
+      formatted = '${text.substring(0, 3)}-${text.substring(3, 7)}-${text.substring(7, 11)}';
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 } 

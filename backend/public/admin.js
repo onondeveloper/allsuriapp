@@ -88,27 +88,58 @@ async function loadAdminMe() {
     }
 }
 
+// 전체 사용자 목록 저장
+let allUsers = [];
+
 // 사용자 목록 로드
 async function loadUsers() {
     try {
         console.log('[loadUsers] 사용자 목록 로딩 시작...');
         // 캐시 방지를 위해 타임스탬프 추가
         const timestamp = new Date().getTime();
-        const users = await apiCall(`/users?t=${timestamp}`);
-        console.log('[loadUsers] 받은 사용자 수:', users.length);
-        console.log('[loadUsers] 사용자 목록:', users);
+        allUsers = await apiCall(`/users?t=${timestamp}`);
+        console.log('[loadUsers] 받은 사용자 수:', allUsers.length);
+        console.log('[loadUsers] 사용자 목록:', allUsers);
         
-        if (!Array.isArray(users)) {
-            console.error('[loadUsers] 응답이 배열이 아닙니다:', users);
+        if (!Array.isArray(allUsers)) {
+            console.error('[loadUsers] 응답이 배열이 아닙니다:', allUsers);
             throw new Error('잘못된 응답 형식');
         }
         
-        displayUsers(users);
+        // 검색창 초기화
+        const searchInput = document.getElementById('userSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        displayUsers(allUsers);
     } catch (error) {
         console.error('[loadUsers] 에러:', error);
         document.getElementById('userTableContainer').innerHTML = 
             '<div class="error">사용자 목록을 불러오는데 실패했습니다: ' + error.message + '</div>';
     }
+}
+
+// 사용자 검색 필터링
+function filterUsers(searchTerm) {
+    if (!searchTerm || searchTerm.trim() === '') {
+        displayUsers(allUsers);
+        return;
+    }
+    
+    const term = searchTerm.toLowerCase().trim();
+    const filtered = allUsers.filter(user => {
+        const businessName = (user.businessName || user.businessname || '').toLowerCase();
+        const name = (user.name || '').toLowerCase();
+        const phone = (user.phoneNumber || user.phonenumber || '').replace(/\D/g, '');
+        const searchPhone = term.replace(/\D/g, '');
+        
+        return businessName.includes(term) || 
+               name.includes(term) || 
+               (searchPhone && phone.includes(searchPhone));
+    });
+    
+    displayUsers(filtered);
 }
 
         // 사용자 표시
@@ -132,8 +163,6 @@ async function loadUsers() {
                             <tr>
                                 <th>상호</th>
                                 <th>이름</th>
-                                <th>사업자 번호</th>
-                                <th>전화번호</th>
                                 <th>카카오 ID</th>
                                 <th>상태</th>
                                 <th>가입일</th>
@@ -145,12 +174,10 @@ async function loadUsers() {
                                 <tr>
                                     <td><strong>${user.businessName || user.businessname || '-'}</strong></td>
                                     <td>
-                                        <span class="clickable" data-user-id="${user.id}">
+                                        <span class="clickable" data-user-id="${user.id}" style="color: #1a73e8; cursor: pointer; text-decoration: underline;">
                                             ${user.name || '이름 없음'}
                                         </span>
                                     </td>
-                                    <td>${user.businessNumber || user.businessnumber || '-'}</td>
-                                    <td>${user.phoneNumber || user.phonenumber || '-'}</td>
                                     <td><code>${user.kakao_id || user.external_id || '-'}</code></td>
                                     <td>
                                         <span class="status-badge ${(user.businessStatus || user.businessstatus || 'pending')}">
@@ -159,21 +186,10 @@ async function loadUsers() {
                                     </td>
                                     <td>${new Date(user.createdAt || user.createdat).toLocaleDateString('ko-KR')}</td>
                                     <td>
-                                        <div style="display: flex; gap: 0.5rem;">
-                                            ${user.role === 'business' && (user.businessStatus || user.businessstatus) === 'pending' ? `
-                                                <button class="btn btn-success btn-sm" data-user-id="${user.id}" data-action="approve">
-                                                    <span class="material-icons" style="font-size: 1rem;">check</span>
-                                                    승인
-                                                </button>
-                                                <button class="btn btn-danger btn-sm" data-user-id="${user.id}" data-action="reject">
-                                                    <span class="material-icons" style="font-size: 1rem;">close</span>
-                                                    거절
-                                                </button>
-                                            ` : ''}
-                                            <button class="btn btn-secondary btn-sm" data-user-id="${user.id}" data-action="delete">
-                                                <span class="material-icons" style="font-size: 1rem;">delete</span>
-                                            </button>
-                                        </div>
+                                        <button class="btn btn-secondary btn-sm" data-user-id="${user.id}" data-action="view" style="margin-right: 0.5rem;">
+                                            <span class="material-icons" style="font-size: 1rem;">visibility</span>
+                                            상세 보기
+                                        </button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -202,6 +218,9 @@ async function loadUsers() {
                     const action = button.getAttribute('data-action');
                     
                     switch(action) {
+                        case 'view':
+                            showUserDetail(userId);
+                            break;
                         case 'approve':
                             approveUser(userId);
                             break;
@@ -697,62 +716,67 @@ async function deleteUser(userId) {
                 document.getElementById('userModalTitle').textContent = `사용자 상세 정보 - ${user.name || '이름 없음'}`;
                 
                 const modalBody = document.getElementById('userModalBody');
+                const userStatus = user.businessStatus || user.businessstatus || 'pending';
                 modalBody.innerHTML = `
-                    <div class="detail-row">
-                        <div class="detail-label">이름:</div>
-                        <div class="detail-value">${user.name || '이름 없음'}</div>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>이름:</strong> ${user.name || '이름 없음'}
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">이메일:</div>
-                        <div class="detail-value">${user.email || '이메일 없음'}</div>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>이메일:</strong> ${user.email || '이메일 없음'}
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">역할:</div>
-                        <div class="detail-value">${user.role === 'business' ? '사업자' : '고객'}</div>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>역할:</strong> ${user.role === 'business' ? '사업자' : '고객'}
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">연락처:</div>
-                        <div class="detail-value">${user.phoneNumber || user.phonenumber || '연락처 없음'}</div>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>연락처:</strong> ${user.phoneNumber || user.phonenumber || '연락처 없음'}
                     </div>
                     ${user.role === 'business' ? `
-                        <div class="detail-row">
-                            <div class="detail-label">사업자명:</div>
-                            <div class="detail-value">${user.businessName || user.businessname || '사업자명 없음'}</div>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>사업자명:</strong> ${user.businessName || user.businessname || '사업자명 없음'}
                         </div>
-                        <div class="detail-row">
-                            <div class="detail-label">사업자등록번호:</div>
-                            <div class="detail-value">${user.businessNumber || user.businessnumber || '등록번호 없음'}</div>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>사업자등록번호:</strong> ${user.businessNumber || user.businessnumber || '등록번호 없음'}
                         </div>
-                        <div class="detail-row">
-                            <div class="detail-label">주소:</div>
-                            <div class="detail-value">${user.address || '주소 없음'}</div>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>주소:</strong> ${user.address || '주소 없음'}
                         </div>
-                        <div class="detail-row">
-                            <div class="detail-label">서비스 지역:</div>
-                            <div class="detail-value">${user.serviceAreas || user.serviceareas ? (user.serviceAreas || user.serviceareas).join(', ') : '지역 없음'}</div>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>서비스 지역:</strong> ${user.serviceAreas || user.serviceareas ? (user.serviceAreas || user.serviceareas).join(', ') : '지역 없음'}
                         </div>
-                        <div class="detail-row">
-                            <div class="detail-label">전문 분야:</div>
-                            <div class="detail-value">${user.specialties ? user.specialties.join(', ') : '전문 분야 없음'}</div>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>전문 분야:</strong> ${user.specialties ? user.specialties.join(', ') : '전문 분야 없음'}
                         </div>
                     ` : ''}
-                    <div class="detail-row">
-                        <div class="detail-label">현재 상태:</div>
-                        <div class="detail-value">
-                            <span class="status-badge status-${user.businessStatus || user.businessstatus || 'pending'}">
-                                ${getStatusText(user.businessStatus || user.businessstatus)}
-                            </span>
-                        </div>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>현재 상태:</strong> 
+                        <span class="status-badge status-${userStatus}">
+                            ${getStatusText(userStatus)}
+                        </span>
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">가입일:</div>
-                        <div class="detail-value">${new Date(user.createdAt || user.createdat).toLocaleString()}</div>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>가입일:</strong> ${new Date(user.createdAt || user.createdat).toLocaleString()}
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">수정일:</div>
-                        <div class="detail-value">${new Date(user.updatedAt || user.updatedat).toLocaleString()}</div>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>수정일:</strong> ${new Date(user.updatedAt || user.updatedat).toLocaleString()}
                     </div>
                 `;
+                
+                // 모달 footer 버튼 조건부 표시
+                const modalFooter = document.querySelector('#userModal .modal-footer');
+                if (userStatus === 'approved') {
+                    // 승인된 사용자: 삭제 버튼만
+                    modalFooter.innerHTML = `
+                        <button class="btn btn-secondary" onclick="closeUserModal()">닫기</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteUserFromModal()">삭제</button>
+                    `;
+                } else {
+                    // 승인 대기 중: 승인, 거절 버튼
+                    modalFooter.innerHTML = `
+                        <button class="btn btn-secondary" onclick="closeUserModal()">닫기</button>
+                        <button class="btn btn-danger btn-sm" onclick="rejectUserFromModal()">거절</button>
+                        <button class="btn btn-success btn-sm" onclick="approveUserFromModal()">승인</button>
+                    `;
+                }
 
                 document.getElementById('userModal').style.display = 'block';
             } catch (error) {
@@ -772,6 +796,13 @@ async function deleteUser(userId) {
         async function rejectUserFromModal() {
             if (!currentUserId) return;
             await rejectUser(currentUserId);
+            closeUserModal();
+        }
+
+        // 사용자 모달에서 삭제
+        async function deleteUserFromModal() {
+            if (!currentUserId) return;
+            await deleteUser(currentUserId);
             closeUserModal();
         }
 

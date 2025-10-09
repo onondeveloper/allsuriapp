@@ -34,13 +34,31 @@ class HomeScreen extends StatelessWidget {
           final u = authService.currentUser!;
           final hasBusinessName = (u.businessName != null && u.businessName!.trim().isNotEmpty);
           final status = (u.businessStatus ?? 'pending').toLowerCase();
+          
+          // 디버그 로그
+          print('🔍 [HomeScreen] 사업자 사용자 정보:');
+          print('   - ID: ${u.id}');
+          print('   - Name: ${u.name}');
+          print('   - Business Status (원본): ${u.businessStatus}');
+          print('   - Business Status (소문자): $status');
+          print('   - Business Name: ${u.businessName}');
+          print('   - Has Business Name: $hasBusinessName');
+          
+          // Admin에서 승인된 경우 프로필 완성 여부와 관계없이 바로 대시보드로 이동
+          if (status == 'approved') {
+            print('   ✅ 승인됨 -> BusinessDashboard로 이동');
+            return const BusinessDashboard();
+          }
+          
+          // 승인되지 않았고 프로필이 비어있으면 프로필 등록 페이지로
           if (!hasBusinessName) {
+            print('   📝 프로필 미완성 -> BusinessProfileScreen으로 이동');
             return const BusinessProfileScreen();
           }
-          if (status != 'approved') {
-            return const BusinessPendingScreen();
-          }
-          return const BusinessDashboard();
+          
+          // 승인 대기 중
+          print('   ⏳ 승인 대기 중 -> BusinessPendingScreen으로 이동');
+          return const BusinessPendingScreen();
         }
         
         return WillPopScope(
@@ -134,12 +152,13 @@ class HomeScreen extends StatelessWidget {
                           if (count <= 0) return const SizedBox.shrink();
                           return SizedBox(
                             width: double.infinity,
-                            height: 44,
+                            height: 56, // 44 -> 56으로 높이 증가
                             child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white,
-                                side: const BorderSide(color: Colors.white70),
+                                side: const BorderSide(color: Colors.white70, width: 1.5),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                               ),
                               onPressed: () {
                                 Navigator.push(
@@ -147,8 +166,11 @@ class HomeScreen extends StatelessWidget {
                                   MaterialPageRoute(builder: (_) => const CustomerMyEstimatesScreen()),
                                 );
                               },
-                              icon: const Icon(Icons.assignment_turned_in_outlined, color: Colors.white),
-                              label: const Text('내 견적 바로가기'),
+                              icon: const Icon(Icons.assignment_turned_in_outlined, color: Colors.white, size: 22),
+                              label: const Text(
+                                '내 견적 바로가기',
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                              ),
                             ),
                           );
                         },
@@ -159,7 +181,8 @@ class HomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                // 카테고리 칩 / 그리드 (아이콘 커스터마이즈)
+                // 카테고리 칩 / 그리드 (아이콘 커스터마이즈) - 임시 주석 처리
+                /* 
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: LayoutBuilder(
@@ -181,7 +204,10 @@ class HomeScreen extends StatelessWidget {
                           final c = app_models.Order.CATEGORIES[index];
                           final color = _categoryColor(context, c);
                           return Material(
-                            color: Colors.transparent,
+                            elevation: 1,
+                            shadowColor: Colors.black.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(16),
+                            color: Theme.of(context).colorScheme.surface,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(16),
                               onTap: () {
@@ -192,32 +218,46 @@ class HomeScreen extends StatelessWidget {
                                   ),
                                 );
                               },
-                              child: Ink(
+                              child: Container(
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.surface,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+                                    width: 1,
+                                  ),
                                 ),
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Container(
-                                      width: 60,
-                                      height: 60,
+                                      width: 64,
+                                      height: 64,
                                       decoration: BoxDecoration(
-                                        color: color.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(14),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            color.withOpacity(0.15),
+                                            color.withOpacity(0.08),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
                                       ),
                                       child: Icon(_categoryIcon(c), size: 36, color: color),
                                     ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      c,
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    const SizedBox(height: 12),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      child: Text(
+                                        c,
+                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.2,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -229,8 +269,9 @@ class HomeScreen extends StatelessWidget {
                     },
                   ),
                 ),
+                */
 
-                const SizedBox(height: 24),
+                // const SizedBox(height: 24),
 
                 // 광고 영역
                 const SizedBox(height: 8),
@@ -372,26 +413,29 @@ class HomeScreen extends StatelessWidget {
                           }
                         }
                       },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          alignment: Alignment.center,
-                          color: Colors.transparent,
-                          child: Image.asset(
-                            'assets/images/kakao_login_image.png', // 제공된 이미지로 교체
-                            fit: BoxFit.none, // 원본 크기 유지
-                            filterQuality: FilterQuality.high,
-                            errorBuilder: (context, error, stack) {
-                              // 에셋이 없으면 노란 배경 + 로고만(원본 크기) 표시
-                              return Container(
-                                color: const Color(0xFFFEE500),
-                                alignment: Alignment.center,
-                                child: Image.asset(
-                                  'assets/images/kakao_logo.png',
-                                  fit: BoxFit.none,
-                                ),
-                              );
-                            },
+                      child: Transform.scale(
+                        scale: 1.3, // 30% 크기 증가
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            alignment: Alignment.center,
+                            color: Colors.transparent,
+                            child: Image.asset(
+                              'assets/images/kakao_login_image.png', // 제공된 이미지로 교체
+                              fit: BoxFit.none, // 원본 크기 유지
+                              filterQuality: FilterQuality.high,
+                              errorBuilder: (context, error, stack) {
+                                // 에셋이 없으면 노란 배경 + 로고만(원본 크기) 표시
+                                return Container(
+                                  color: const Color(0xFFFEE500),
+                                  alignment: Alignment.center,
+                                  child: Image.asset(
+                                    'assets/images/kakao_logo.png',
+                                    fit: BoxFit.none,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
@@ -571,7 +615,7 @@ class _AdsCarouselState extends State<_AdsCarousel> {
     return Column(
       children: [
         SizedBox(
-          height: 120,
+          height: 320, // 카테고리 영역을 대체하도록 크기 확대
           child: PageView.builder(
             controller: _pageController,
             onPageChanged: (idx) {
@@ -598,17 +642,46 @@ class _AdsCarouselState extends State<_AdsCarousel> {
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 6),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.grey.shade300,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Center(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.coffee_rounded,
+                          size: 64,
+                          color: Colors.brown.shade400,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Buy Me a Coffee',
+                          style: TextStyle(
+                            fontSize: 28,
                             fontWeight: FontWeight.w700,
+                            color: Colors.grey.shade800,
+                            letterSpacing: -0.5,
                           ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '☕',
+                          style: const TextStyle(fontSize: 32),
+                        ),
+                      ],
                     ),
                   ),
                 ),

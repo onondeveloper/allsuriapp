@@ -786,10 +786,22 @@
                                 <span class="material-icons">people</span>
                                 사용자 관리
                             </h2>
-                            <button class="btn btn-secondary btn-sm" onclick="loadUsers()">
-                                <span class="material-icons">refresh</span>
-                                새로고침
-                            </button>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <div style="position: relative;">
+                                    <input 
+                                        type="text" 
+                                        id="userSearchInput" 
+                                        placeholder="상호, 이름, 전화번호 검색..." 
+                                        style="padding: 0.5rem 2.5rem 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; min-width: 250px;"
+                                        oninput="filterUsers(this.value)"
+                                    />
+                                    <span class="material-icons" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); color: var(--gray-500); pointer-events: none;">search</span>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="loadUsers()">
+                                    <span class="material-icons">refresh</span>
+                                    새로고침
+                                </button>
+                            </div>
                         </div>
                         <div id="userTableContainer">
                             <div class="loading">
@@ -873,9 +885,7 @@
             </div>
             <div class="modal-body" id="userModalBody"></div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeUserModal()">닫기</button>
-                <button class="btn btn-danger btn-sm" onclick="rejectUserFromModal()">거절</button>
-                <button class="btn btn-success btn-sm" onclick="approveUserFromModal()">승인</button>
+                <!-- 버튼은 JavaScript에서 동적으로 생성됩니다 -->
             </div>
         </div>
     </div>
