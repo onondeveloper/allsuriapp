@@ -53,16 +53,40 @@ router.post('/kakao/login', async (req, res) => {
     // Supabase users 테이블에 upsert (카카오 id를 id로 사용하지 않고, 별도 매핑 컬럼 사용 권장)
     // 여기서는 email이 있으면 email로, 없으면 kakao:${kakaoId} 의 가상 이메일로 식별
     const userId = `kakao:${kakaoId}`;
-    const userRow = {
-      id: userId,
-      email: email || `${userId}@example.local`,
-      name,
-      role: 'customer',
-      createdAt: new Date().toISOString(),
-    };
-
-    const { error: upsertErr } = await supabase.from('users').upsert(userRow, { onConflict: 'id' });
-    if (upsertErr) throw upsertErr;
+    
+    // 먼저 기존 사용자 확인
+    const { data: existingUser, error: selectErr } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    
+    if (selectErr) throw selectErr;
+    
+    if (existingUser) {
+      // 기존 사용자인 경우: name, email만 업데이트 (role, businessstatus 등은 유지)
+      console.log(`[Kakao Login] 기존 사용자 발견: ${userId}, role=${existingUser.role}, businessstatus=${existingUser.businessstatus}`);
+      const { error: updateErr } = await supabase
+        .from('users')
+        .update({ 
+          name, 
+          email: email || existingUser.email 
+        })
+        .eq('id', userId);
+      if (updateErr) throw updateErr;
+    } else {
+      // 새 사용자인 경우: 전체 정보로 insert
+      console.log(`[Kakao Login] 새 사용자 생성: ${userId}`);
+      const userRow = {
+        id: userId,
+        email: email || `${userId}@example.local`,
+        name,
+        role: 'customer',
+        createdAt: new Date().toISOString(),
+      };
+      const { error: insertErr } = await supabase.from('users').insert(userRow);
+      if (insertErr) throw insertErr;
+    }
 
     // 백엔드 세션 토큰 발급
     const secret = process.env.JWT_SECRET || 'change_me';

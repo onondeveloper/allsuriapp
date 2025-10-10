@@ -60,5 +60,14 @@
 			</array>
 		</dict>
 	</array>
+	<!-- FCM: 백그라운드 모드 활성화 -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<!-- FCM: APNS 푸시 알림 권한 -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
 </dict>
 </plist>

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'api_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -91,7 +93,21 @@ class NotificationService {
     }
   }
 
-  /// 일반 알림 전송 (Supabase에 저장)
+  /// 일반 알림 전송 (Supabase에 저장 + FCM 푸시)
+  /// 
+  /// 이 함수는 Supabase에 알림을 저장하고, 백엔드를 통해 FCM 푸시도 전송합니다.
+  /// 다른 기능에서도 쉽게 사용할 수 있습니다.
+  /// 
+  /// 예제:
+  /// ```dart
+  /// await NotificationService().sendNotification(
+  ///   userId: 'kakao:123',
+  ///   title: '새 견적 요청',
+  ///   body: '강남구에서 에어컨 수리 견적이 도착했습니다.',
+  ///   type: 'new_estimate',
+  ///   jobId: 'job-123',
+  /// );
+  /// ```
   Future<void> sendNotification({
     required String userId,
     required String title,
@@ -105,6 +121,7 @@ class NotificationService {
     String? chatRoomId,
   }) async {
     try {
+      // 1. Supabase에 알림 저장
       await _sb.from('notifications').insert({
         'userid': userId,
         'title': title,
@@ -120,9 +137,35 @@ class NotificationService {
         'createdat': DateTime.now().toIso8601String(),
       });
       
-      print('알림 전송 완료: $userId - $title');
+      print('✅ 알림 DB 저장 완료: $userId - $title');
+      
+      // 2. 백엔드를 통해 FCM 푸시 전송 (비동기, 실패해도 무시)
+      try {
+        final api = ApiService();
+        await api.post('/notifications/send-push', {
+          'userId': userId,
+          'notification': {
+            'title': title,
+            'body': body,
+          },
+          'data': {
+            'type': type ?? 'general',
+            'jobId': jobId,
+            'orderId': orderId,
+            'estimateId': estimateId,
+          },
+        }).timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => {'success': false, 'error': 'timeout'},
+        );
+        print('✅ FCM 푸시 전송 완료');
+      } catch (e) {
+        print('⚠️ FCM 푸시 전송 실패 (무시됨): $e');
+        // FCM 실패해도 알림은 DB에 저장되었으므로 성공으로 처리
+      }
     } catch (e) {
-      print('알림 전송 실패: $e');
+      print('❌ 알림 전송 실패: $e');
+      rethrow;
     }
   }
 

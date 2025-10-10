@@ -57,6 +57,21 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        
+        <!-- FCM: 알림 채널 ID -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="allsuri_notifications" />
+        
+        <!-- FCM: 기본 알림 아이콘 (선택사항) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/launcher_icon" />
+        
+        <!-- FCM: 기본 알림 색상 (선택사항) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@android:color/holo_blue_light" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility/use-cases and

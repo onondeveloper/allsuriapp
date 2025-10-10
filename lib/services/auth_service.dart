@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'api_service.dart';
+import 'fcm_service.dart';
 import '../supabase_config.dart';
 import '../models/user.dart' as app_models;
 
@@ -78,6 +79,10 @@ class AuthService extends ChangeNotifier {
           _needsRoleSelection = true;
           print('역할 선택이 필요합니다. 현재 역할: ${userRole ?? "설정되지 않음"}, _needsRoleSelection: $_needsRoleSelection');
         }
+        
+        // FCM 토큰 저장
+        await FCMService().saveFCMToken(uid);
+        
         return;
       }
       
@@ -94,6 +99,9 @@ class AuthService extends ChangeNotifier {
       _currentUser = fallbackUser;
       _needsRoleSelection = true; // 새 사용자는 역할 선택 필요
       print('새 사용자 생성됨, 기본 역할: customer, _needsRoleSelection: $_needsRoleSelection');
+      
+      // FCM 토큰 저장
+      await FCMService().saveFCMToken(uid);
     } catch (e) {
       print('사용자 데이터 로드/생성 오류: $e');
       _currentUser = null;
@@ -269,6 +277,11 @@ class AuthService extends ChangeNotifier {
     try {
       _isLoading = true;
       notifyListeners();
+      
+      // FCM 토큰 삭제
+      if (_currentUser != null) {
+        await FCMService().deleteFCMToken(_currentUser!.id);
+      }
       
       await _sb.auth.signOut();
       _currentUser = null;

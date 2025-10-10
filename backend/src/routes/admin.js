@@ -6,6 +6,7 @@ const AdminStatistics = require('../models/admin-statistics');
 // const Estimate = require('../models/estimate');
 // const Order = require('../models/order');
 const { supabase } = require('../config/supabase');
+const { sendPushNotification } = require('../services/fcm_service');
 
 // 미들웨어: 관리자 권한 확인 (헤더 토큰 + 환경변수 검증)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN; // legacy token -> developer 취급
@@ -324,7 +325,7 @@ router.patch('/users/:id/status', async (req, res) => {
     }
     console.log('[ADMIN] 업데이트 성공:', data);
     
-    // 2. 승인 시 알림 전송
+    // 2. 승인 시 알림 전송 (DB + FCM 푸시)
     if (status === 'approved' && data) {
       try {
         const notificationData = {
@@ -336,6 +337,7 @@ router.patch('/users/:id/status', async (req, res) => {
           createdat: new Date().toISOString(),
         };
         
+        // DB에 알림 저장
         const { error: notifError } = await supabase
           .from('notifications')
           .insert(notificationData);
@@ -345,13 +347,26 @@ router.patch('/users/:id/status', async (req, res) => {
         } else {
           console.log('[ADMIN] 승인 알림 전송 완료:', userId);
         }
+        
+        // FCM 푸시 알림 전송
+        await sendPushNotification(
+          userId,
+          {
+            title: notificationData.title,
+            body: notificationData.body,
+          },
+          {
+            type: 'business_approved',
+            businessName: data.businessname || data.name || '',
+          }
+        );
       } catch (notifErr) {
         console.error('[ADMIN] 알림 전송 오류:', notifErr);
         // 알림 실패해도 승인은 성공으로 처리
       }
     }
     
-    // 3. 거절 시 알림 전송
+    // 3. 거절 시 알림 전송 (DB + FCM 푸시)
     if (status === 'rejected' && data) {
       try {
         const notificationData = {
@@ -363,6 +378,7 @@ router.patch('/users/:id/status', async (req, res) => {
           createdat: new Date().toISOString(),
         };
         
+        // DB에 알림 저장
         const { error: notifError } = await supabase
           .from('notifications')
           .insert(notificationData);
@@ -372,6 +388,18 @@ router.patch('/users/:id/status', async (req, res) => {
         } else {
           console.log('[ADMIN] 거절 알림 전송 완료:', userId);
         }
+        
+        // FCM 푸시 알림 전송
+        await sendPushNotification(
+          userId,
+          {
+            title: notificationData.title,
+            body: notificationData.body,
+          },
+          {
+            type: 'business_rejected',
+          }
+        );
       } catch (notifErr) {
         console.error('[ADMIN] 알림 전송 오류:', notifErr);
       }

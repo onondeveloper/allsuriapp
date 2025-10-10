@@ -1,151 +1,190 @@
 const express = require('express');
-const { body, query } = require('express-validator');
-// 임시 인증/검증 미들웨어 대체 (관리자/서버 내부용이므로 헤더 토큰만 확인)
-const auth = (req, res, next) => { next(); };
-const validate = (_req, _res, next) => { next(); };
-const notificationService = require('../services/notification-service');
-
 const router = express.Router();
+const { supabase } = require('../config/supabase');
+const { sendPushNotification, sendPushNotificationToMultiple } = require('../services/fcm_service');
 
-// 알림 목록 조회
-router.get(
-  '/',
-  auth,
-  [
-    query('page').optional().isInt({ min: 1 }),
-    query('limit').optional().isInt({ min: 1, max: 100 }),
-  ],
-  validate,
-  async (req, res) => {
-    try {
-      const { page = 1, limit = 20 } = req.query;
-      const result = await notificationService.getNotifications(
-        req.user._id,
-        parseInt(page),
-        parseInt(limit)
-      );
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
+// 인증 미들웨어 (간단한 Bearer 토큰 체크)
+const requireAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: '인증이 필요합니다' });
   }
-);
+  // 실제로는 JWT 토큰 검증 등을 수행해야 함
+  next();
+};
 
-// 알림 읽음 처리
-router.patch(
-  '/:id/read',
-  auth,
-  async (req, res) => {
-    try {
-      const notification = await notificationService.markAsRead(
-        req.user._id,
-        req.params.id
-      );
-      if (!notification) {
-        return res.status(404).json({ message: '알림을 찾을 수 없습니다' });
-      }
-      res.json(notification);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+/**
+ * POST /api/notifications/send-push
+ * 단일 사용자에게 FCM 푸시 알림 전송
+ * 
+ * Body:
+ * {
+ *   "userId": "kakao:123",
+ *   "notification": {
+ *     "title": "제목",
+ *     "body": "내용"
+ *   },
+ *   "data": {
+ *     "type": "new_estimate",
+ *     "estimateId": "123"
+ *   }
+ * }
+ */
+router.post('/send-push', requireAuth, async (req, res) => {
+  try {
+    const { userId, notification, data } = req.body;
+
+    if (!userId || !notification || !notification.title || !notification.body) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId, notification.title, notification.body는 필수입니다.',
+      });
     }
-  }
-);
 
-// 모든 알림 읽음 처리
-router.patch(
-  '/read-all',
-  auth,
-  async (req, res) => {
-    try {
-      await notificationService.markAllAsRead(req.user._id);
-      res.json({ message: '모든 알림이 읽음 처리되었습니다' });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+    const success = await sendPushNotification(userId, notification, data || {});
+
+    if (success) {
+      return res.json({
+        success: true,
+        message: '푸시 알림이 전송되었습니다.',
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: '푸시 알림 전송에 실패했습니다.',
+      });
     }
+  } catch (error) {
+    console.error('[PUSH] 푸시 알림 전송 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '푸시 알림 전송 중 오류가 발생했습니다.',
+      error: error.message,
+    });
   }
-);
+});
 
-// FCM 토큰 등록/업데이트
-router.post(
-  '/fcm-token',
-  auth,
-  [
-    body('token').notEmpty().withMessage('토큰은 필수입니다'),
-    body('device').notEmpty().withMessage('디바이스 정보는 필수입니다'),
-  ],
-  validate,
-  async (req, res) => {
-    try {
-      const { token, device } = req.body;
-      const settings = await notificationService.updateFCMToken(
-        req.user._id,
-        token,
-        device
-      );
-      res.json(settings);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+/**
+ * POST /api/notifications/send-push-multiple
+ * 여러 사용자에게 FCM 푸시 알림 전송
+ * 
+ * Body:
+ * {
+ *   "userIds": ["kakao:123", "kakao:456"],
+ *   "notification": {
+ *     "title": "제목",
+ *     "body": "내용"
+ *   },
+ *   "data": {
+ *     "type": "announcement"
+ *   }
+ * }
+ */
+router.post('/send-push-multiple', requireAuth, async (req, res) => {
+  try {
+    const { userIds, notification, data } = req.body;
+
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'userIds는 비어 있지 않은 배열이어야 합니다.',
+      });
     }
-  }
-);
 
-// FCM 토큰 삭제
-router.delete(
-  '/fcm-token',
-  auth,
-  [
-    body('token').notEmpty().withMessage('토큰은 필수입니다'),
-  ],
-  validate,
-  async (req, res) => {
-    try {
-      const { token } = req.body;
-      await notificationService.deleteFCMToken(req.user._id, token);
-      res.json({ message: '토큰이 삭제되었습니다' });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+    if (!notification || !notification.title || !notification.body) {
+      return res.status(400).json({
+        success: false,
+        message: 'notification.title, notification.body는 필수입니다.',
+      });
     }
-  }
-);
 
-// 알림 설정 조회
-router.get(
-  '/settings',
-  auth,
-  async (req, res) => {
-    try {
-      const settings = await notificationService.getNotificationSettings(req.user._id);
-      res.json(settings);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+    const result = await sendPushNotificationToMultiple(userIds, notification, data || {});
+
+    return res.json({
+      success: true,
+      message: `푸시 알림 전송 완료: 성공 ${result.success}개, 실패 ${result.failed}개`,
+      result,
+    });
+  } catch (error) {
+    console.error('[PUSH] 다중 푸시 알림 전송 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '푸시 알림 전송 중 오류가 발생했습니다.',
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/notifications
+ * 사용자의 알림 목록 가져오기
+ */
+router.get('/', requireAuth, async (req, res) => {
+  try {
+    const userId = req.query.userId;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId는 필수입니다.',
+      });
     }
-  }
-);
 
-// 알림 설정 업데이트
-router.put(
-  '/settings',
-  auth,
-  [
-    body('new_estimate').optional().isBoolean(),
-    body('estimate_accepted').optional().isBoolean(),
-    body('estimate_rejected').optional().isBoolean(),
-    body('order_status_changed').optional().isBoolean(),
-    body('order_completed').optional().isBoolean(),
-    body('chat_message').optional().isBoolean(),
-  ],
-  validate,
-  async (req, res) => {
-    try {
-      const settings = await notificationService.updateNotificationSettings(
-        req.user._id,
-        req.body
-      );
-      res.json(settings);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('userid', userId)
+      .order('createdat', { ascending: false });
+
+    if (error) {
+      throw error;
     }
-  }
-);
 
-module.exports = router; 
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error('[NOTIFICATIONS] 알림 목록 조회 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '알림 목록 조회 중 오류가 발생했습니다.',
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * PATCH /api/notifications/:id/read
+ * 알림을 읽음으로 표시
+ */
+router.patch('/:id/read', requireAuth, async (req, res) => {
+  try {
+    const notificationId = req.params.id;
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ isread: true })
+      .eq('id', notificationId)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error('[NOTIFICATIONS] 알림 읽음 표시 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '알림 읽음 표시 중 오류가 발생했습니다.',
+      error: error.message,
+    });
+  }
+});
+
+module.exports = router;

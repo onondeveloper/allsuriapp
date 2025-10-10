@@ -17,6 +17,8 @@ import 'services/api_service.dart';
 import 'services/chat_service.dart';
 import 'services/notification_service.dart';
 import 'services/community_service.dart';
+import 'services/fcm_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'providers/user_provider.dart';
 import 'providers/order_provider.dart';
 import 'screens/home/home_screen.dart';
@@ -45,6 +47,12 @@ void main() async {
   
   // NotificationService 초기화
   await NotificationService().initialize();
+  
+  // FCM 백그라운드 메시지 핸들러 등록
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  
+  // FCM 초기화
+  await FCMService().initialize();
   
   await runZonedGuarded(() async {
     runApp(const MyApp());
