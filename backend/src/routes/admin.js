@@ -307,21 +307,90 @@ router.get('/users', async (req, res) => {
 router.patch('/users/:id/status', async (req, res) => {
   try {
     const { status } = req.body; // pending/approved/rejected
-    const { data, error } = await supabase.from('users').update({ businessStatus: status }).eq('id', req.params.id).select().maybeSingle();
-    if (error) throw error;
-    res.json(data);
+    const userId = req.params.id;
+    console.log('[ADMIN] 사용자 상태 업데이트:', { userId, status });
+    
+    // 1. 사용자 상태 업데이트
+    const { data, error } = await supabase
+      .from('users')
+      .update({ businessstatus: status })
+      .eq('id', userId)
+      .select()
+      .maybeSingle();
+    
+    if (error) {
+      console.error('[ADMIN] 업데이트 에러:', error);
+      throw error;
+    }
+    console.log('[ADMIN] 업데이트 성공:', data);
+    
+    // 2. 승인 시 알림 전송
+    if (status === 'approved' && data) {
+      try {
+        const notificationData = {
+          userid: userId,
+          title: '🎉 사업자 승인 완료',
+          body: `${data.businessname || data.name}님의 사업자 계정이 승인되었습니다. 이제 견적 요청을 받을 수 있습니다!`,
+          type: 'business_approved',
+          isread: false,
+          createdat: new Date().toISOString(),
+        };
+        
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert(notificationData);
+        
+        if (notifError) {
+          console.error('[ADMIN] 알림 전송 실패:', notifError);
+        } else {
+          console.log('[ADMIN] 승인 알림 전송 완료:', userId);
+        }
+      } catch (notifErr) {
+        console.error('[ADMIN] 알림 전송 오류:', notifErr);
+        // 알림 실패해도 승인은 성공으로 처리
+      }
+    }
+    
+    // 3. 거절 시 알림 전송
+    if (status === 'rejected' && data) {
+      try {
+        const notificationData = {
+          userid: userId,
+          title: '사업자 승인 거절',
+          body: '사업자 계정 승인이 거절되었습니다. 자세한 사항은 고객센터로 문의해주세요.',
+          type: 'business_rejected',
+          isread: false,
+          createdat: new Date().toISOString(),
+        };
+        
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert(notificationData);
+        
+        if (notifError) {
+          console.error('[ADMIN] 알림 전송 실패:', notifError);
+        } else {
+          console.log('[ADMIN] 거절 알림 전송 완료:', userId);
+        }
+      } catch (notifErr) {
+        console.error('[ADMIN] 알림 전송 오류:', notifErr);
+      }
+    }
+    
+    res.json({ success: true, data });
   } catch (error) {
-    res.status(500).json({ message: '사용자 상태 업데이트 실패' });
+    console.error('[ADMIN] 상태 업데이트 실패:', error);
+    res.status(500).json({ success: false, message: '사용자 상태 업데이트 실패', error: error.message });
   }
 });
 
 router.delete('/users/:id', async (req, res) => {
   try {
-    const { error } = await supabase.from('users').update({ role: 'customer', businessStatus: 'rejected' }).eq('id', req.params.id);
+    const { error } = await supabase.from('users').update({ role: 'customer', businessstatus: 'rejected' }).eq('id', req.params.id);
     if (error) throw error;
-    res.json({ message: '사용자 처리 완료(고객 강등/거절)' });
+    res.json({ success: true, message: '사용자 처리 완료(고객 강등/거절)' });
   } catch (error) {
-    res.status(500).json({ message: '사용자 삭제 실패' });
+    res.status(500).json({ success: false, message: '사용자 삭제 실패' });
   }
 });
 
