@@ -80,5 +80,9 @@ node_modules/
 .env.production
 .env.*
 
+# Dart defines (contains secrets)
+dart_defines.json
+dart_defines.*.json
+
 # Local config containing secrets
 lib/config/aws_config.dart

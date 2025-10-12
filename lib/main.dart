@@ -40,6 +40,9 @@ void main() async {
     kakao.KakaoSdk.init(nativeAppKey: kakaoKey);
   }
   // Supabase 초기화 (Auth 포함)
+  print('🔍 Supabase URL: ${SupabaseConfig.url}');
+  print('🔍 Supabase Key: ${SupabaseConfig.anonKey.isNotEmpty ? "✅ 로드됨" : "❌ 비어있음"}');
+  
   await Supabase.initialize(
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
@@ -48,11 +51,19 @@ void main() async {
   // NotificationService 초기화
   await NotificationService().initialize();
   
-  // FCM 백그라운드 메시지 핸들러 등록
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  
-  // FCM 초기화
-  await FCMService().initialize();
+  // FCM 초기화 (선택사항 - Firebase 설정이 완료된 경우에만 작동)
+  try {
+    // FCM 백그라운드 메시지 핸들러 등록
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    
+    // FCM 초기화
+    await FCMService().initialize();
+    print('✅ FCM 기능이 활성화되었습니다.');
+  } catch (e) {
+    print('⚠️ FCM 초기화 실패 (Firebase 설정이 필요합니다): $e');
+    print('   앱은 FCM 없이 계속 실행됩니다.');
+    // FCM이 없어도 앱은 정상 작동
+  }
   
   await runZonedGuarded(() async {
     runApp(const MyApp());

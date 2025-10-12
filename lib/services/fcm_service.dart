@@ -74,6 +74,11 @@ class FCMService {
       print('✅ FCM 초기화 완료');
     } catch (e) {
       print('❌ FCM 초기화 실패: $e');
+      print('   Firebase 설정을 확인하세요:');
+      print('   1. google-services.json (Android)');
+      print('   2. GoogleService-Info.plist (iOS)');
+      print('   3. Firebase Console에서 앱이 등록되어 있는지 확인');
+      rethrow; // 에러를 다시 던져서 main.dart에서 catch하도록 함
     }
   }
 
@@ -187,14 +192,10 @@ class FCMService {
     try {
       print('💾 FCM 토큰 저장 중: $userId');
       
-      final { error } = await _sb
+      await _sb
           .from('users')
           .update({'fcm_token': _fcmToken})
           .eq('id', userId);
-
-      if (error != null) {
-        throw error;
-      }
 
       print('✅ FCM 토큰 저장 완료');
     } catch (e) {
@@ -207,14 +208,10 @@ class FCMService {
     try {
       print('🗑️ FCM 토큰 삭제 중: $userId');
       
-      final { error } = await _sb
+      await _sb
           .from('users')
           .update({'fcm_token': null})
           .eq('id', userId);
-
-      if (error != null) {
-        throw error;
-      }
 
       print('✅ FCM 토큰 삭제 완료');
     } catch (e) {

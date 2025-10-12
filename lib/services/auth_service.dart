@@ -80,8 +80,12 @@ class AuthService extends ChangeNotifier {
           print('역할 선택이 필요합니다. 현재 역할: ${userRole ?? "설정되지 않음"}, _needsRoleSelection: $_needsRoleSelection');
         }
         
-        // FCM 토큰 저장
-        await FCMService().saveFCMToken(uid);
+        // FCM 토큰 저장 (실패해도 로그인은 성공)
+        try {
+          await FCMService().saveFCMToken(uid);
+        } catch (e) {
+          print('⚠️ FCM 토큰 저장 실패 (무시됨): $e');
+        }
         
         return;
       }
@@ -100,8 +104,12 @@ class AuthService extends ChangeNotifier {
       _needsRoleSelection = true; // 새 사용자는 역할 선택 필요
       print('새 사용자 생성됨, 기본 역할: customer, _needsRoleSelection: $_needsRoleSelection');
       
-      // FCM 토큰 저장
-      await FCMService().saveFCMToken(uid);
+      // FCM 토큰 저장 (실패해도 로그인은 성공)
+      try {
+        await FCMService().saveFCMToken(uid);
+      } catch (e) {
+        print('⚠️ FCM 토큰 저장 실패 (무시됨): $e');
+      }
     } catch (e) {
       print('사용자 데이터 로드/생성 오류: $e');
       _currentUser = null;
@@ -278,9 +286,13 @@ class AuthService extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
       
-      // FCM 토큰 삭제
+      // FCM 토큰 삭제 (실패해도 로그아웃은 계속)
       if (_currentUser != null) {
-        await FCMService().deleteFCMToken(_currentUser!.id);
+        try {
+          await FCMService().deleteFCMToken(_currentUser!.id);
+        } catch (e) {
+          print('⚠️ FCM 토큰 삭제 실패 (무시됨): $e');
+        }
       }
       
       await _sb.auth.signOut();
@@ -324,29 +336,47 @@ class AuthService extends ChangeNotifier {
     try {
       _isLoading = true;
       notifyListeners();
+      
+      // 현재 businessstatus 확인
+      final currentBusinessStatus = _currentUser!.businessStatus;
+      final shouldUpdateBusinessStatus = role == 'business' && 
+          (currentBusinessStatus == null || currentBusinessStatus.isEmpty);
+      
       // Supabase 테이블 컬럼명에 맞춤 (소문자)
       final update = {
         'role': role,
-        if (role == 'business') 'businessstatus': 'pending',  // 소문자로 통일
+        // ⚠️ 이미 승인된 사용자의 businessstatus를 덮어쓰지 않도록 수정
+        // businessstatus가 없거나 비어있을 때만 'pending'으로 설정
+        if (shouldUpdateBusinessStatus) 'businessstatus': 'pending',
       };
+      
       final supaReady = SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty;
       if (supaReady) {
         final result = await _sb.from('users').update(update).eq('id', _currentUser!.id).select();
-        print('✅ Supabase 역할 업데이트 성공: ${_currentUser!.id}, role=$role, businessstatus=${role == 'business' ? 'pending' : 'N/A'}');
-        print('   업데이트된 데이터: $result');
+        print('✅ Supabase 역할 업데이트 성공: ${_currentUser!.id}, role=$role');
+        print('   - 기존 businessstatus: $currentBusinessStatus');
+        print('   - businessstatus 업데이트 여부: $shouldUpdateBusinessStatus');
+        print('   - 업데이트된 데이터: $result');
       }
+      
       // Always update local state so UI can transition immediately
+      // businessstatus는 기존 값을 유지 (새로 설정하는 경우만 pending)
       _currentUser = _currentUser!.copyWith(
         role: role,
-        businessStatus: role == 'business' ? 'pending' : _currentUser!.businessStatus,
+        businessStatus: shouldUpdateBusinessStatus ? 'pending' : currentBusinessStatus,
       );
       _needsRoleSelection = false; // 역할 선택 완료
       print('사용자 역할이 업데이트되었습니다(로컬 적용${supaReady ? '' : ' - Supabase 미설정'}): $role');
+      print('   - 최종 businessStatus: ${_currentUser!.businessStatus}');
     } catch (e) {
       // 비정상 상황에서도 로컬 업데이트를 반영하여 화면 전환 보장
+      final currentBusinessStatus = _currentUser!.businessStatus;
+      final shouldUpdateBusinessStatus = role == 'business' && 
+          (currentBusinessStatus == null || currentBusinessStatus.isEmpty);
+      
       _currentUser = _currentUser!.copyWith(
         role: role,
-        businessStatus: role == 'business' ? 'pending' : _currentUser!.businessStatus,
+        businessStatus: shouldUpdateBusinessStatus ? 'pending' : currentBusinessStatus,
       );
       _needsRoleSelection = false;
       print('❌ 역할 업데이트 오류(로컬로 계속): $e');
