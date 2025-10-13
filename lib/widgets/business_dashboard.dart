@@ -237,30 +237,41 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                 ),
                 const SizedBox(height: 16),
 
-                // Menu grid (card-based)
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  children: [
-                    _buildMenuCard(
+                // Menu grid (card-based) - Clean pastel design like reference image
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // 화면 너비에 따라 열 개수 동적 조정
+                    final width = constraints.maxWidth;
+                    final isLandscape = width > 600;
+                    final crossAxisCount = isLandscape ? 3 : 2;
+                    
+                    return GridView.count(
+                      crossAxisCount: crossAxisCount,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 0.95,
+                      children: [
+                    _buildCleanMenuCard(
                       context,
                       '고객 견적',
-                      Icons.search,
-                      Colors.indigo,
+                      Icons.description_outlined,
+                      const Color(0xFFE3F2FD), // Light blue
+                      const Color(0xFF1976D2), // Blue for icon
                       () async {
                         await Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateRequestsScreen()));
                         if (!mounted) return;
                         _refreshCounts();
                       },
+                      badgeFuture: _estimateRequestsCountFuture,
                     ),
-                   _buildMenuCard(
+                   _buildCleanMenuCard(
                       context,
                       'Call 공사',
-                      Icons.campaign_outlined,
-                      Colors.deepPurple,
+                      Icons.handyman_outlined,
+                      const Color(0xFFFFF3E0), // Light orange
+                      const Color(0xFFF57C00), // Orange for icon
                       () async {
                         await Navigator.push(
                           context,
@@ -269,44 +280,51 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                         if (!mounted) return;
                         _refreshCounts();
                       },
+                      badgeFuture: _callOpenCountFuture,
                     ),
-                    _buildMenuCard(
+                    _buildCleanMenuCard(
                       context,
                       '견적 관리',
-                      Icons.list_alt,
-                      Colors.teal,
+                      Icons.folder_open_outlined,
+                      const Color(0xFFFCE4EC), // Light pink
+                      const Color(0xFFC2185B), // Pink for icon
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateManagementScreen()));
                       },
                     ),
-                    _buildMenuCard(
+                    _buildCleanMenuCard(
                       context,
-                      '내가 만든 공사',
-                      Icons.assignment_turned_in,
-                      Colors.amber,
+                      '내 공사',
+                      Icons.construction_outlined,
+                      const Color(0xFFFFF9C4), // Light yellow
+                      const Color(0xFFF9A825), // Yellow for icon
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
                       },
                     ),
-                    _buildMenuCard(
+                    _buildCleanMenuCard(
                       context,
                       '커뮤니티',
-                      Icons.groups_2_outlined,
-                      Colors.purple,
+                      Icons.people_outline_rounded,
+                      const Color(0xFFF3E5F5), // Light purple
+                      const Color(0xFF7B1FA2), // Purple for icon
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const CommunityBoardScreen()));
                       },
                     ),
-                    _buildMenuCard(
+                    _buildCleanMenuCard(
                       context,
-                      'AI 질문',
-                      Icons.auto_awesome,
-                      Colors.pink,
+                      'AI 도우미',
+                      Icons.lightbulb_outline_rounded,
+                      const Color(0xFFE8F5E9), // Light green
+                      const Color(0xFF388E3C), // Green for icon
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const AiAssistantScreen()));
                       },
                     ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 100),
@@ -326,167 +344,180 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     );
   }
 
-  Widget _buildMenuCard(
+  Widget _buildCleanMenuCard(
     BuildContext context,
     String title,
     IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    Future<int>? badgeFuture;
-    if (title == '고객 견적') {
-      badgeFuture = _estimateRequestsCountFuture;
-    } else if (title == 'Call 공사') {
-      badgeFuture = _callOpenCountFuture;
-    }
-    return DashboardMenuCard(
+    Color backgroundColor,
+    Color iconColor,
+    VoidCallback onTap, {
+    Future<int>? badgeFuture,
+  }) {
+    return CleanMenuCard(
       title: title,
       icon: icon,
-      color: color,
+      backgroundColor: backgroundColor,
+      iconColor: iconColor,
       onTap: onTap,
       badgeFuture: badgeFuture,
     );
   }
 }
 
-class DashboardMenuCard extends StatefulWidget {
+// Clean, minimal menu card inspired by reference image
+class CleanMenuCard extends StatefulWidget {
   final String title;
   final IconData icon;
-  final Color color;
+  final Color backgroundColor;
+  final Color iconColor;
   final VoidCallback onTap;
   final Future<int>? badgeFuture;
 
-  const DashboardMenuCard({
+  const CleanMenuCard({
     super.key,
     required this.title,
     required this.icon,
-    required this.color,
+    required this.backgroundColor,
+    required this.iconColor,
     required this.onTap,
     this.badgeFuture,
   });
 
   @override
-  State<DashboardMenuCard> createState() => _DashboardMenuCardState();
+  State<CleanMenuCard> createState() => _CleanMenuCardState();
 }
 
-class _DashboardMenuCardState extends State<DashboardMenuCard> {
+class _CleanMenuCardState extends State<CleanMenuCard> with SingleTickerProviderStateMixin {
   bool _pressed = false;
-  bool _hover = false;
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   void _setPressed(bool v) {
     if (_pressed == v) return;
     setState(() => _pressed = v);
+    if (v) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(18);
-    final card = AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: borderRadius,
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.6)),
-          boxShadow: _pressed
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
-                  ),
-                ]
-              : _hover
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.10),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ]
-                  : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-        ),
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 120),
-          scale: _pressed ? 0.98 : 1.0,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          widget.color.withOpacity(0.95),
-                          widget.color.withOpacity(0.70),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      widget.icon,
-                      size: 30,
-                      color: Colors.white,
-                    ),
-                  ),
-                  if (widget.badgeFuture != null)
-                    Positioned(
-                      right: -6,
-                      top: -6,
-                      child: FutureBuilder<int>(
-                        future: widget.badgeFuture,
-                        builder: (context, snapshot) {
-                          final count = snapshot.data ?? 0;
-                          if (count <= 0) return const SizedBox.shrink();
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                            child: Text(
-                              count > 99 ? '99+' : count.toString(),
-                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                widget.title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.1,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+    return GestureDetector(
+      onTapDown: (_) => _setPressed(true),
+      onTapCancel: () => _setPressed(false),
+      onTapUp: (_) {
+        _setPressed(false);
+        widget.onTap();
+      },
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Container(
+          decoration: BoxDecoration(
+            color: widget.backgroundColor,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
+          child: Stack(
+            children: [
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Icon with subtle background
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        widget.icon,
+                        size: 44,
+                        color: widget.iconColor,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Title
+                    Text(
+                      widget.title,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Badge (알림 개수)
+              if (widget.badgeFuture != null)
+                Positioned(
+                  right: 10,
+                  top: 10,
+                  child: FutureBuilder<int>(
+                    future: widget.badgeFuture,
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      if (count <= 0) return const SizedBox.shrink();
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF5252),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.4),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          count > 99 ? '99+' : count.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
-      );
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTapDown: (_) => _setPressed(true),
-        onTapCancel: () => _setPressed(false),
-        onTapUp: (_) => _setPressed(false),
-        onTap: widget.onTap,
-        child: card,
       ),
     );
   }

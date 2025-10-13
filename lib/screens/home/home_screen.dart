@@ -273,23 +273,54 @@ class HomeScreen extends StatelessWidget {
 
                 // const SizedBox(height: 24),
 
-                // 광고 영역
-                const SizedBox(height: 8),
+                // 광고 배너 영역
+                const SizedBox(height: 32),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: FutureBuilder<List<Map<String, dynamic>>>(
-                    future: ApiService().getActiveAds(),
-                    builder: (context, snapshot) {
-                      final items = snapshot.data ?? [];
-                      if (items.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return _AdsCarousel(items: items);
-                    },
+                  child: Container(
+                    height: 400,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.grey[400]!,
+                        width: 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.campaign_outlined,
+                            size: 48,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            '광고 문의',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '이 공간에 귀사의 광고를 게재하세요',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                // 하단으로 밀어내기
+                const SizedBox(height: 50),
 
                 // Kakao 공식 스타일 버튼 (노란색, 카카오톡 우선 자동 로그인)
                 Padding(

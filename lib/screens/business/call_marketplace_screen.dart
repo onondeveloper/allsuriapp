@@ -95,11 +95,19 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Call 현황'),
+        title: const Text('Call 공사 현황', style: TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: _reload,
             tooltip: '새로고침',
           ),
@@ -145,53 +153,39 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        const SizedBox(height: 160),
+                        const SizedBox(height: 100),
                         Center(
                           child: Column(
                             children: [
-                              Icon(
-                                Icons.campaign_outlined,
-                                size: 64,
-                                color: Theme.of(context).colorScheme.outline,
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  color: Colors.orange[50],
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.work_outline_rounded,
+                                  size: 50,
+                                  color: Colors.orange[300],
+                                ),
                               ),
-                              const SizedBox(height: 16),
-                              Text(
-                                '표시할 Call이 없습니다',
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              const SizedBox(height: 20),
+                              const Text(
+                                '현재 진행 중인 Call이 없습니다',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                '아래로 당겨 새로고침하거나\n새로운 Call을 등록해보세요',
+                                '아래로 당겨서 새로고침해보세요',
                                 textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // 디버깅 정보 추가
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      '디버깅 정보',
-                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text('현재 상태: open', style: Theme.of(context).textTheme.bodySmall),
-                                    Text(
-                                      '데이터 개수: ${visibleItems.length}',
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  ],
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
                                 ),
                               ),
                             ],
@@ -223,66 +217,173 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
 
                       // 상태 라벨은 이 화면에서 불필요 (항상 오픈/철회만 표시)
 
-                      return InteractiveCard(
-                        child: Stack(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Header row
+                              Row(
                                 children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF3E0),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      category,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFFF57C00),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE8F5E9),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        Icon(Icons.location_on_outlined, size: 12, color: Colors.green[700]),
+                                        const SizedBox(width: 4),
                                         Text(
-                                          title,
-                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text('지역: $region', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                                        const SizedBox(height: 6),
-                                        Text('내용: $description', maxLines: 2, overflow: TextOverflow.ellipsis),
-                                        const SizedBox(height: 6),
-                                        if (budget != null)
-                                          Text(
-                                            '공사 금액: ${budget is num ? budget.toInt().toString() : budget.toString()}원',
-                                            style: TextStyle(
-                                              color: Theme.of(context).colorScheme.primary,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        const SizedBox(height: 6),
-                                        if (e['jobs'] != null && e['jobs'] is Map && (e['jobs']['commission_rate'] != null))
-                                          Text('수수료율: ${(e['jobs']['commission_rate']).toString()}%'),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          createdText,
+                                          region,
                                           style: TextStyle(
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                                             fontSize: 12,
+                                            color: Colors.green[700],
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  SizedBox(
-                                    height: 64,
-                                    width: 90,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        minimumSize: const Size(0, 64),
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        backgroundColor: Colors.lightBlueAccent,
-                                        foregroundColor: Colors.blue.shade900,
-                                        textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              // Title
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 17,
+                                  height: 1.3,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              // Description
+                              Text(
+                                description,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                  height: 1.4,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 12),
+                              // Info row
+                              Row(
+                                children: [
+                                  if (budget != null)
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFE3F2FD),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.payments_outlined, size: 16, color: Color(0xFF1976D2)),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                '${budget is num ? budget.toInt().toString() : budget.toString()}원',
+                                                style: const TextStyle(
+                                                  color: Color(0xFF1976D2),
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      onPressed: (status == 'open' || status == 'withdrawn')
+                                    ),
+                                  const SizedBox(width: 8),
+                                  if (e['jobs'] != null && e['jobs'] is Map && (e['jobs']['commission_rate'] != null))
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.purple[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.percent_rounded, size: 14, color: Colors.purple[700]),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${(e['jobs']['commission_rate']).toString()}%',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.purple[700],
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              // Footer
+                              Row(
+                                children: [
+                                  Icon(Icons.access_time_outlined, size: 14, color: Colors.grey[500]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    createdText,
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  // Call 잡기 버튼
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFF57C00),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      elevation: 0,
+                                    ),
+                                    onPressed: (status == 'open' || status == 'withdrawn')
                                           ? () async {
                                               final ok = await _market.claimListing(id);
                                               if (!mounted) return;
@@ -349,13 +450,13 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                                               }
                                             }
                                           : null,
-                                      child: const Text('잡기'),
-                                    ),
+                                    icon: const Icon(Icons.touch_app_rounded, size: 18),
+                                    label: const Text('잡기', style: TextStyle(fontWeight: FontWeight.w700)),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },

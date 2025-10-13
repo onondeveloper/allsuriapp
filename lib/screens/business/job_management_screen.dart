@@ -75,17 +75,31 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('공사 관리'),
-        backgroundColor: Theme.of(context).colorScheme.surface,
+        title: const Text('내 공사', style: TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadJobs,
+            tooltip: '새로고침',
+          ),
+        ],
       ),
       body: _isLoading
           ? const ShimmerList(itemCount: 6, itemHeight: 120)
           : Column(
               children: [
-                _buildFilterChips(),
+                _buildModernFilterChips(),
                 Expanded(
-                  child: _UnifiedJobsList(
+                  child: _ModernJobsList(
                     jobs: _filteredByBadge(_combinedJobs, context.read<AuthService>().currentUser?.id ?? ''),
                     currentUserId: context.read<AuthService>().currentUser?.id ?? '',
                     onTransfer: _showTransferDialog,
@@ -116,30 +130,109 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     });
   }
 
-  Widget _buildFilterChips() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.all(12),
-      child: Row(
+  Widget _buildModernFilterChips() {
+    final me = context.read<AuthService>().currentUser?.id ?? '';
+    
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _chip('전체', 'all'),
-          const SizedBox(width: 8),
-          _chip('내 공사', 'mine'),
-          const SizedBox(width: 8),
-          _chip('이관 요청', 'transfer'),
-          const SizedBox(width: 8),
-          _chip('콜 공사', 'call'),
+          Text(
+            '필터',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildModernChip('전체', 'all', Icons.dashboard_outlined, _combinedJobs.length),
+                const SizedBox(width: 10),
+                _buildModernChip('내 공사', 'mine', Icons.person_outline, 
+                    _combinedJobs.where((j) => j.ownerBusinessId == me).length),
+                const SizedBox(width: 10),
+                _buildModernChip('이관 요청', 'transfer', Icons.swap_horiz_rounded, 
+                    _combinedJobs.where((j) => j.transferToBusinessId == me && j.status == 'pending_transfer').length),
+                const SizedBox(width: 10),
+                _buildModernChip('콜 공사', 'call', Icons.campaign_outlined, 
+                    _combinedJobs.where((j) => j.assignedBusinessId == me).length),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _chip(String label, String value) {
+  Widget _buildModernChip(String label, String value, IconData icon, int count) {
     final isSelected = _filter == value;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => setState(() => _filter = value),
+    final color = const Color(0xFFF9A825); // Yellow for jobs
+    
+    return GestureDetector(
+      onTap: () => setState(() => _filter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: 1.5,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected ? Colors.white : color,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? Colors.white : Colors.grey[700],
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.white.withOpacity(0.3) : color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  count.toString(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? Colors.white : color,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -222,13 +315,13 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   }
 }
 
-class _UnifiedJobsList extends StatelessWidget {
+class _ModernJobsList extends StatelessWidget {
   final List<Job> jobs;
   final String currentUserId;
   final void Function(Job) onTransfer;
   final void Function(Job) onAcceptTransfer;
 
-  const _UnifiedJobsList({
+  const _ModernJobsList({
     required this.jobs,
     required this.currentUserId,
     required this.onTransfer,
@@ -242,16 +335,34 @@ class _UnifiedJobsList extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.work_outline,
-              size: 64,
-              color: Theme.of(context).colorScheme.outline,
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.yellow[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.construction_outlined,
+                size: 50,
+                color: Colors.yellow[700],
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            const Text(
+              '공사가 없습니다',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
-              '표시할 공사가 없습니다.',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              'Call 공사를 잡거나 새로 등록해보세요',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
               ),
             ),
           ],
@@ -260,211 +371,177 @@ class _UnifiedJobsList extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       itemCount: jobs.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final job = jobs[index];
         final badge = _badgeFor(job, currentUserId);
-        return Stack(
-          children: [
-            InteractiveCard(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header row
+                Row(
                   children: [
-                    // 제목
-                    Text(
-                      job.title,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                    ),
-                    const SizedBox(height: 8),
-                    // 지역
-                    if (job.location != null && job.location!.isNotEmpty)
-                      Text(
-                        '지역: ${job.location!}',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    // Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: badge.color,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    const SizedBox(height: 6),
-                    // 내용
-                    Text(
-                      job.description,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    // 수수료
-                    if (job.commissionRate != null && job.budgetAmount != null)
-                      Text(
-                        '수수료: ${(job.budgetAmount! * (job.commissionRate! / 100)).toStringAsFixed(0)}원 (${job.commissionRate!.toStringAsFixed(1)}%)',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    // 상태칩
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(job.status).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _getStatusText(job.status),
-                            style: TextStyle(
-                              color: _getStatusColor(job.status),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(badge.icon, size: 14, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            badge.label,
+                            style: const TextStyle(
                               fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    // Budget
+                    if (job.budgetAmount != null)
+                      Text(
+                        '₩${job.budgetAmount!.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFF9A825),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        if (job.ownerBusinessId == currentUserId && job.status != 'pending_transfer')
-                          OutlinedButton.icon(
-                            onPressed: () => onTransfer(job),
-                            icon: const Icon(Icons.swap_horiz),
-                            label: const Text('이관'),
-                          ),
-                        if (job.assignedBusinessId == currentUserId && job.status == 'assigned') ...[
-                          const SizedBox(width: 12),
-                          OutlinedButton(
-                            onPressed: () async {
-                              final ok = await MarketplaceService().withdrawClaimForJob(job.id ?? '');
-                              if (!context.mounted) return;
-                              if (ok) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('콜 공사를 취소했습니다.')),
-                                );
-                                (context.findAncestorStateOfType<_JobManagementScreenState>())?._loadJobs();
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('취소에 실패했습니다.')),
-                                );
-                              }
-                            },
-                            child: const Text('취소'),
-                          ),
-                        ],
-                        if (job.transferToBusinessId == currentUserId && job.status == 'pending_transfer') ...[
-                          const SizedBox(width: 12),
-                          FilledButton.tonal(
-                            onPressed: () => onAcceptTransfer(job),
-                            child: const Text('수락'),
-                          ),
-                        ],
-                      ],
-                    ),
+                      ),
                   ],
                 ),
-              ),
-            ),
-            // 우측 상단 배지 (메인) + 카테고리 배지 함께 표시
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: badge.color.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: badge.color),
-                    ),
-                    child: Text(
-                      badge.label,
-                      style: TextStyle(color: badge.color, fontSize: 12, fontWeight: FontWeight.w700),
+                const SizedBox(height: 12),
+                // Title
+                Text(
+                  job.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Description
+                Text(
+                  job.description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                // Info row
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    if (job.location != null && job.location!.isNotEmpty)
+                      _buildInfoChip(Icons.location_on_outlined, job.location!),
+                    if (job.category != null && job.category!.isNotEmpty)
+                      _buildInfoChip(Icons.category_outlined, job.category!),
+                    if (job.commissionRate != null)
+                      _buildInfoChip(Icons.percent_rounded, '수수료 ${job.commissionRate!.toStringAsFixed(1)}%'),
+                  ],
+                ),
+                // Action buttons
+                if (badge.actionLabel.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (badge.actionLabel == '이관하기') {
+                          onTransfer(job);
+                        } else if (badge.actionLabel == '수락하기') {
+                          onAcceptTransfer(job);
+                        }
+                      },
+                      icon: Icon(
+                        badge.actionLabel == '이관하기' ? Icons.swap_horiz_rounded : Icons.check_circle_outline,
+                        size: 18,
+                      ),
+                      label: Text(badge.actionLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: badge.color,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
                   ),
-                  if (job.category != null) ...[
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.4)),
-                      ),
-                      child: Text(
-                        job.category!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSecondaryContainer,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
   }
 
-  _Badge _badgeFor(Job job, String me) {
+  static Widget _buildInfoChip(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+      ],
+    );
+  }
+
+  static _Badge _badgeFor(Job job, String me) {
     if (job.assignedBusinessId == me) {
-      return _Badge('콜 공사', Colors.green);
+      return _Badge('콜 공사', Colors.green, Icons.campaign_outlined, '');
     }
     if (job.transferToBusinessId == me && job.status == 'pending_transfer') {
-      return _Badge('이관 요청', Colors.orange);
+      return _Badge('이관 요청', Colors.orange, Icons.swap_horiz_rounded, '수락하기');
     }
     if (job.ownerBusinessId == me) {
-      return _Badge('내 공사', Colors.blue);
+      return _Badge('내 공사', const Color(0xFF1976D2), Icons.person_outline, '이관하기');
     }
-    return _Badge('공사', Colors.grey);
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'created':
-        return Colors.blue;
-      case 'pending_transfer':
-        return Colors.orange;
-      case 'assigned':
-        return Colors.green;
-      case 'completed':
-        return Colors.grey;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'created':
-        return '등록됨';
-      case 'pending_transfer':
-        return '이관 대기';
-      case 'assigned':
-        return '이관 완료';
-      case 'completed':
-        return '완료';
-      case 'cancelled':
-        return '취소됨';
-      default:
-        return status;
-    }
+    return _Badge('공사', Colors.grey, Icons.work_outline, '');
   }
 }
 
 class _Badge {
   final String label;
   final Color color;
-  const _Badge(this.label, this.color);
+  final IconData icon;
+  final String actionLabel;
+  
+  const _Badge(this.label, this.color, this.icon, this.actionLabel);
 }
 
 

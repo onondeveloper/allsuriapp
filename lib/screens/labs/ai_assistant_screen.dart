@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import '../../services/api_service.dart';
@@ -22,111 +23,269 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(middle: Text('AllSuri AI')),
-      child: SafeArea(
-        child: DefaultTextStyle(
-          style: const TextStyle(fontFamily: 'Arial', fontSize: 15, color: CupertinoColors.black),
-          child: Column(
-            children: [
-              Expanded(
-                child: _messages.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Align(
-                          alignment: Alignment.topLeft,
-                          child: Text('현장 견적, 자재 추천, 시공 단계 등 무엇이든 물어보세요.'),
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text('AI 도우미', style: TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          if (_messages.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded),
+              onPressed: () {
+                setState(() {
+                  _messages.clear();
+                  _localImages.clear();
+                });
+              },
+              tooltip: '대화 초기화',
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _messages.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFFfbc2eb).withOpacity(0.3),
+                                const Color(0xFFa6c1ee).withOpacity(0.3),
+                              ],
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.psychology_rounded,
+                            size: 50,
+                            color: Color(0xFF7B1FA2),
+                          ),
                         ),
-                      )
-                    : ListView.separated(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        reverse: true, // 질문(위) -> 답변(아래) 순으로 보이게 하단에 쌓이도록 변경
-                        itemCount: _messages.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final msg = _messages[index];
-                          final isUser = msg['role'] == 'user';
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (!isUser)
-                                Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEDE9FE),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: const Color(0xFFDDD6FE)),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'AI 어시스턴트',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          child: Text(
+                            '현장 견적, 자재 추천, 시공 단계 등\n무엇이든 물어보세요',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildSuggestionChip('욕실 배관 교체 비용은?'),
+                            _buildSuggestionChip('타일 시공 단계'),
+                            _buildSuggestionChip('방수 자재 추천'),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    reverse: true,
+                    itemCount: _messages.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final msg = _messages[_messages.length - 1 - index];
+                      final isUser = msg['role'] == 'user';
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+                        children: [
+                          if (!isUser) ...[
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFfbc2eb), Color(0xFFa6c1ee)],
+                                ),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isUser ? const Color(0xFF1976D2) : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
                                   ),
-                                  child: const Center(child: Icon(CupertinoIcons.sparkles, size: 16, color: Color(0xFF6D28D9))),
-                                )
-                              else
-                                const SizedBox(width: 28),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: isUser ? const Color(0xFFE0F2FE) : const Color(0xFFF3F4F6),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                                  ),
-                                  child: Text(msg['text'] as String),
+                                ],
+                              ),
+                              child: Text(
+                                msg['text'] as String,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: isUser ? Colors.white : Colors.black87,
+                                  height: 1.5,
                                 ),
                               ),
-                            ],
-                          );
-                        },
-                      ),
-              ),
-              _buildInputBar(),
-            ],
+                            ),
+                          ),
+                          if (isUser) const SizedBox(width: 40),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+          _buildModernInputBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionChip(String text) {
+    return GestureDetector(
+      onTap: () {
+        _questionCtrl.text = text;
+        _ask();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildInputBar() {
+  Widget _buildModernInputBar() {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        decoration: const BoxDecoration(
-          color: CupertinoColors.systemBackground,
-          border: Border(top: BorderSide(color: CupertinoColors.separator)),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            CupertinoButton(
-              padding: const EdgeInsets.all(8),
-              onPressed: _loading ? null : _pickImage,
-              child: const Icon(CupertinoIcons.photo, size: 22),
-            ),
-            Expanded(
-              child: CupertinoTextField(
-                controller: _questionCtrl,
-                placeholder: '질문을 입력하세요 (예: 욕실 배관 교체 견적 범위?)',
-                maxLines: 3,
-                style: const TextStyle(fontFamily: 'Arial', fontSize: 15, color: CupertinoColors.black),
+            // Image picker button
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 22),
+                onPressed: _loading ? null : _pickImage,
+                tooltip: '이미지 추가',
+                color: const Color(0xFF7B1FA2),
               ),
             ),
             const SizedBox(width: 8),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _loading ? null : _ask,
+            // Input field
+            Expanded(
               child: Container(
-                width: 44,
-                height: 44,
                 decoration: BoxDecoration(
-                  color: _loading ? CupertinoColors.systemGrey2 : CupertinoColors.activeBlue,
-                  shape: BoxShape.circle,
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: _loading
-                    ? const Center(child: CupertinoActivityIndicator())
-                    : const Icon(CupertinoIcons.paperplane_fill, color: CupertinoColors.white, size: 20),
+                child: TextField(
+                  controller: _questionCtrl,
+                  decoration: const InputDecoration(
+                    hintText: '질문을 입력하세요...',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  maxLines: 4,
+                  minLines: 1,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _loading ? null : _ask(),
+                ),
               ),
+            ),
+            const SizedBox(width: 8),
+            // Send button
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: _loading 
+                    ? null 
+                    : const LinearGradient(
+                        colors: [Color(0xFFfbc2eb), Color(0xFFa6c1ee)],
+                      ),
+                color: _loading ? Colors.grey[300] : null,
+                shape: BoxShape.circle,
+                boxShadow: _loading ? [] : [
+                  BoxShadow(
+                    color: const Color(0xFF7B1FA2).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: _loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      onPressed: _loading ? null : _ask,
+                      padding: EdgeInsets.zero,
+                    ),
             ),
           ],
         ),

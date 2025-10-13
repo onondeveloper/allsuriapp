@@ -192,28 +192,73 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('내 견적 관리'),
+        title: const Text('견적 관리', style: TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadEstimates,
+            tooltip: '새로고침',
           ),
         ],
       ),
       body: Column(
         children: [
-          _buildFilterChips(),
+          _buildModernFilterChips(),
           Expanded(
             child: _isLoading
                 ? const ShimmerList(itemCount: 6, itemHeight: 110)
                 : _filteredEstimates.isEmpty
-                    ? const Center(child: Text('표시할 항목이 없습니다.'))
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                color: Colors.pink[50],
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.folder_open_outlined,
+                                size: 50,
+                                color: Colors.pink[300],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            const Text(
+                              '견적이 없습니다',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '고객 견적 요청에 응답해보세요',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
                     : ListView.builder(
                         itemCount: _filteredEstimates.length,
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         itemBuilder: (context, index) {
-                          return _buildEstimateCard(_filteredEstimates[index]);
+                          return _buildModernEstimateCard(_filteredEstimates[index]);
                         },
                       ),
           ),
@@ -241,38 +286,259 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
     });
   }
 
-  Widget _buildFilterChips() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.all(16),
-      child: Row(
+  Widget _buildModernFilterChips() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildFilterChip('전체', 'all'),
-          const SizedBox(width: 8),
-          _buildFilterChip('대기중', Estimate.STATUS_PENDING),
-          const SizedBox(width: 8),
-          _buildFilterChip('선택됨', Estimate.STATUS_AWARDED),
-          const SizedBox(width: 8),
-          _buildFilterChip('거절됨', Estimate.STATUS_REJECTED),
-          const SizedBox(width: 8),
-          _buildFilterChip('완료', Estimate.STATUS_COMPLETED),
+          Text(
+            '상태',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildModernFilterChip('전체', 'all', Icons.dashboard_outlined, Colors.grey[700]!),
+                const SizedBox(width: 10),
+                _buildModernFilterChip('대기중', Estimate.STATUS_PENDING, Icons.pending_outlined, const Color(0xFFF57C00)),
+                const SizedBox(width: 10),
+                _buildModernFilterChip('선택됨', Estimate.STATUS_AWARDED, Icons.check_circle_outline, const Color(0xFF388E3C)),
+                const SizedBox(width: 10),
+                _buildModernFilterChip('거절됨', Estimate.STATUS_REJECTED, Icons.cancel_outlined, const Color(0xFFD32F2F)),
+                const SizedBox(width: 10),
+                _buildModernFilterChip('완료', Estimate.STATUS_COMPLETED, Icons.task_alt_rounded, const Color(0xFF1976D2)),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // type chips 제거
-
-  Widget _buildFilterChip(String label, String status) {
+  Widget _buildModernFilterChip(String label, String status, IconData icon, Color color) {
     final isSelected = _selectedStatus == status;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
+    final count = status == 'all' 
+        ? _estimates.length 
+        : _estimates.where((e) => e.status.toLowerCase() == status.toLowerCase()).length;
+    
+    return GestureDetector(
+      onTap: () {
         setState(() {
           _selectedStatus = status;
         });
       },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: 1.5,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected ? Colors.white : color,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? Colors.white : Colors.grey[700],
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.white.withOpacity(0.3) : color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  count.toString(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? Colors.white : color,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernEstimateCard(Estimate estimate) {
+    // 상태별 색상
+    Color statusColor;
+    Color statusBg;
+    IconData statusIcon;
+    String statusLabel;
+    
+    switch (estimate.status.toLowerCase()) {
+      case 'pending':
+        statusColor = const Color(0xFFF57C00);
+        statusBg = const Color(0xFFFFF3E0);
+        statusIcon = Icons.pending_outlined;
+        statusLabel = '대기중';
+        break;
+      case 'awarded':
+        statusColor = const Color(0xFF388E3C);
+        statusBg = const Color(0xFFE8F5E9);
+        statusIcon = Icons.check_circle_outline;
+        statusLabel = '선택됨';
+        break;
+      case 'rejected':
+        statusColor = const Color(0xFFD32F2F);
+        statusBg = const Color(0xFFFFEBEE);
+        statusIcon = Icons.cancel_outlined;
+        statusLabel = '거절됨';
+        break;
+      case 'completed':
+        statusColor = const Color(0xFF1976D2);
+        statusBg = const Color(0xFFE3F2FD);
+        statusIcon = Icons.task_alt_rounded;
+        statusLabel = '완료';
+        break;
+      default:
+        statusColor = Colors.grey[700]!;
+        statusBg = Colors.grey[100]!;
+        statusIcon = Icons.help_outline;
+        statusLabel = '기타';
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _showEstimateDetails(estimate),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    // Status badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: statusBg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(statusIcon, size: 14, color: statusColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            statusLabel,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: statusColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    // Amount
+                    Text(
+                      NumberFormat.currency(locale: 'ko_KR', symbol: '₩').format(estimate.amount),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1976D2),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  estimate.description.isNotEmpty ? estimate.description : '견적 설명 없음',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.person_outline, size: 14, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Text(
+                      estimate.customerName,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(Icons.category_outlined, size: 14, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Text(
+                      estimate.equipmentType,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.access_time_outlined, size: 14, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Text(
+                      DateFormat('yyyy-MM-dd HH:mm').format(estimate.createdAt),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
