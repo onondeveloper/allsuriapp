@@ -23,6 +23,13 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+// Load keystore properties
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "com.ononcompany.allsuri"
     compileSdk 35
@@ -56,24 +63,34 @@ android {
 
     signingConfigs {
         release {
-            // Use environment variables for secure keys when available
-            def ksFile = System.getenv("KEYSTORE_FILE")
-            def ksPass = System.getenv("KEYSTORE_PASSWORD")
-            def keyAliasEnv = System.getenv("KEY_ALIAS")
-            def keyPass = System.getenv("KEY_PASSWORD")
-            if (ksFile && ksPass && keyAliasEnv && keyPass) {
-                storeFile file(ksFile)
-                storePassword ksPass
-                keyAlias keyAliasEnv
-                keyPassword keyPass
+            // Try to load from key.properties file first
+            if (keystoreProperties['keyAlias']) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                storePassword keystoreProperties['storePassword']
+            }
+            // Fall back to environment variables if key.properties is not available
+            else {
+                def ksFile = System.getenv("KEYSTORE_FILE")
+                def ksPass = System.getenv("KEYSTORE_PASSWORD")
+                def keyAliasEnv = System.getenv("KEY_ALIAS")
+                def keyPass = System.getenv("KEY_PASSWORD")
+                if (ksFile && ksPass && keyAliasEnv && keyPass) {
+                    storeFile file(ksFile)
+                    storePassword ksPass
+                    keyAlias keyAliasEnv
+                    keyPassword keyPass
+                }
             }
         }
     }
 
     buildTypes {
         release {
-            // If release keystore env vars are not provided, fall back to debug keystore for local builds
-            signingConfig System.getenv("KEYSTORE_FILE") ? signingConfigs.release : signingConfigs.debug
+            // Use release signing config if key.properties or env vars are available
+            signingConfig keystoreProperties['keyAlias'] ? signingConfigs.release : 
+                          (System.getenv("KEYSTORE_FILE") ? signingConfigs.release : signingConfigs.debug)
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

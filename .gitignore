@@ -86,3 +86,11 @@ dart_defines.*.json
 
 # Local config containing secrets
 lib/config/aws_config.dart
+
+# Android signing files (IMPORTANT: Never commit these!)
+android/key.properties
+android/*.jks
+android/*.keystore
+android/app/*.jks
+android/app/*.keystore
+KEYSTORE_BACKUP_INFO.txt
