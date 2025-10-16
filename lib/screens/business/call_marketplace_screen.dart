@@ -214,10 +214,14 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                       final String createdText = createdAt != null
                           ? (DateTime.tryParse(createdAt.toString())?.toLocal().toString().split('.').first ?? '-')
                           : '-';
+                      final estimateAmount = e['estimate_amount'] ?? e['estimateAmount'];
+                      final mediaUrls = e['media_urls'] is List ? List<String>.from(e['media_urls']) : <String>[];
 
                       // 상태 라벨은 이 화면에서 불필요 (항상 오픈/철회만 표시)
 
-                      return Container(
+                      return GestureDetector(
+                        onTap: () => _showCallDetail(e),
+                        child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -291,6 +295,31 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 8),
+                              // Images thumbnail
+                              if (mediaUrls.isNotEmpty) ..[
+                                SizedBox(
+                                  height: 80,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: mediaUrls.length > 3 ? 3 : mediaUrls.length,
+                                    itemBuilder: (context, idx) {
+                                      return Container(
+                                        width: 80,
+                                        margin: const EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(8),
+                                          image: DecorationImage(
+                                            image: NetworkImage(mediaUrls[idx]),
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+
                               // Description
                               Text(
                                 description,
@@ -306,7 +335,7 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                               // Info row
                               Row(
                                 children: [
-                                  if (budget != null)
+                                  if (estimateAmount != null)
                                     Expanded(
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -321,7 +350,7 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                                             const SizedBox(width: 6),
                                             Flexible(
                                               child: Text(
-                                                '${budget is num ? budget.toInt().toString() : budget.toString()}원',
+                                                '${estimateAmount is num ? estimateAmount.toInt().toString() : estimateAmount.toString()}원',
                                                 style: const TextStyle(
                                                   color: Color(0xFF1976D2),
                                                   fontWeight: FontWeight.w700,
@@ -466,6 +495,236 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _claimListing(String id) async {
+    try {
+      final ok = await _market.claimListing(id);
+      if (!mounted) return;
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Call을 성공적으로 잡았습니다!'), backgroundColor: Colors.green),
+        );
+        _reload();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미 다른 사업자가 잡았거나 오류가 발생했습니다.'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('오류: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _showCallDetail(Map<String, dynamic> data) {
+    final String title = (data['title'] ?? data['description'] ?? '-') as String;
+    final String description = (data['description'] ?? '-') as String;
+    final String region = (data['region'] ?? '-') as String;
+    final String category = (data['category'] ?? '-') as String;
+    final estimateAmount = data['estimate_amount'] ?? data['estimateAmount'];
+    final mediaUrls = data['media_urls'] is List ? List<String>.from(data['media_urls']) : <String>[];
+    final budget = data['budget_amount'] ?? data['budgetAmount'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.all(20),
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              // Category and Region
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      category,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFFF57C00),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.location_on_outlined, size: 14, color: Colors.green[700]),
+                        const SizedBox(width: 4),
+                        Text(
+                          region,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Title
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Images
+              if (mediaUrls.isNotEmpty) ...[
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: mediaUrls.length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        width: 200,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          image: DecorationImage(
+                            image: NetworkImage(mediaUrls[index]),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              
+              // Estimate Amount
+              if (estimateAmount != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE3F2FD),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.payments_outlined, size: 24, color: Color(0xFF1976D2)),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '견적 금액',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF1976D2),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${estimateAmount is num ? estimateAmount.toInt().toString() : estimateAmount.toString()}원',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              color: Color(0xFF1976D2),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              
+              // Description
+              const Text(
+                '상세 설명',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey[800],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Claim button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _claimListing(data['id'].toString());
+                  },
+                  icon: const Icon(Icons.touch_app_rounded),
+                  label: const Text(
+                    '잡기',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1976D2),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
