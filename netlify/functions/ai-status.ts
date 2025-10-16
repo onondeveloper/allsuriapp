@@ -18,17 +18,25 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   const useOpenAI = !!openaiKey;
   const provider = useOpenAI ? 'openai' : (orKey ? 'openrouter' : 'none');
 
+  // 디버그 정보 추가
+  const debugInfo = {
+    provider,
+    openaiKeyPresent: !!openaiKey,
+    openrouterKeyPresent: !!orKey,
+    openaiKeyLength: openaiKey.length,
+    openrouterKeyLength: orKey.length,
+    openaiKeyPrefix: openaiKey.substring(0, 8),
+    openrouterKeyPrefix: orKey.substring(0, 8),
+    openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    openrouterModel: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct:free',
+    allEnvKeys: Object.keys(process.env).filter(k => k.includes('OPEN') || k.includes('AI')),
+    timestamp: new Date().toISOString(),
+  };
+
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({
-      provider,
-      openaiKeyPresent: !!openaiKey,
-      openrouterKeyPresent: !!orKey,
-      openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      openrouterModel: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct:free',
-      timestamp: new Date().toISOString(),
-    }),
+    body: JSON.stringify(debugInfo),
   };
 };
 
