@@ -1,11 +1,14 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../models/estimate.dart';
 import '../models/order.dart';
 import '../services/estimate_service.dart';
 import '../services/auth_service.dart';
+import '../services/media_service.dart';
 
 class CreateEstimateScreen extends StatefulWidget {
   final Order order;
@@ -26,6 +29,11 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
   final _estimatedDaysController = TextEditingController();
   bool _isSubmitting = false;
   double _amountValue = 0.0;
+  List<File> _selectedImages = [];
+  List<String> _uploadedImageUrls = [];
+  bool _isUploadingImages = false;
+  final _imagePicker = ImagePicker();
+  final _mediaService = MediaService();
 
   @override
   void dispose() {
@@ -33,6 +41,53 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
     _descriptionController.dispose();
     _estimatedDaysController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile> images = await _imagePicker.pickMultiImage(
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (images.isNotEmpty) {
+        setState(() {
+          _selectedImages.addAll(images.map((img) => File(img.path)));
+        });
+      }
+    } catch (e) {
+      _showError('사진 선택 실패: $e');
+    }
+  }
+
+  Future<void> _uploadImages() async {
+    if (_selectedImages.isEmpty) return;
+
+    setState(() => _isUploadingImages = true);
+    try {
+      final urls = <String>[];
+      for (final image in _selectedImages) {
+        final url = await _mediaService.uploadEstimateImage(file: image);
+        if (url != null) urls.add(url);
+      }
+      setState(() {
+        _uploadedImageUrls.addAll(urls);
+        _selectedImages.clear();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${urls.length}개 사진이 업로드되었습니다')),
+      );
+    } catch (e) {
+      _showError('사진 업로드 실패: $e');
+    } finally {
+      if (mounted) setState(() => _isUploadingImages = false);
+    }
+  }
+
+  void _removeImage(int index) {
+    setState(() => _uploadedImageUrls.removeAt(index));
   }
 
   Future<void> _submitEstimate() async {
@@ -49,6 +104,11 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
       return;
     }
 
+    if (_selectedImages.isNotEmpty) {
+      _showError('모든 사진을 먼저 업로드해주세요');
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -60,7 +120,6 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
         throw Exception('사용자 정보를 찾을 수 없습니다.');
       }
 
-      // 쉼표가 포함된 금액 문자열을 안전하게 파싱합니다.
       final parsedAmount = double.parse(_amountController.text.trim().replaceAll(',', ''));
 
       final customerId = widget.order.customerId ?? '';
@@ -79,6 +138,7 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
         createdAt: DateTime.now(),
         visitDate: widget.order.visitDate,
         status: Estimate.STATUS_PENDING,
+        mediaUrls: _uploadedImageUrls.isNotEmpty ? _uploadedImageUrls : null,
       );
 
       await estimateService.createEstimate(estimate);
@@ -92,8 +152,8 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
             actions: [
               CupertinoDialogAction(
                 onPressed: () {
-                  Navigator.pop(context); // 다이얼로그 닫기
-                  Navigator.pop(context); // 화면 닫기
+                  Navigator.pop(context);
+                  Navigator.pop(context);
                 },
                 child: const Text('확인'),
               ),
@@ -142,7 +202,6 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 주문 정보 표시
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -163,52 +222,32 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                       const SizedBox(height: 8),
                       Text(
                         '제목: ${widget.order.title}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: CupertinoColors.secondaryLabel,
-                        ),
+                        style: const TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel),
                       ),
                       const SizedBox(height: 4),
-                      // 고객 개인정보 비표시 (이름 숨김)
                       const Text(
                         '요청자: 비공개',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: CupertinoColors.secondaryLabel,
-                        ),
+                        style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '카테고리: ${widget.order.equipmentType}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: CupertinoColors.secondaryLabel,
-                        ),
+                        style: const TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel),
                       ),
                       const SizedBox(height: 4),
-                      // 고객 개인정보 비표시 (주소 숨김)
                       const Text(
                         '방문 주소: 낙찰 후 공유',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: CupertinoColors.secondaryLabel,
-                        ),
+                        style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '방문일: ${widget.order.visitDate.toString().split(' ')[0]}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: CupertinoColors.secondaryLabel,
-                        ),
+                        style: const TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '설명: ${widget.order.description}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: CupertinoColors.secondaryLabel,
-                        ),
+                        style: const TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -219,11 +258,7 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                 
                 const Text(
                   '견적 정보',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: CupertinoColors.label,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: CupertinoColors.label),
                 ),
                 const SizedBox(height: 16),
                 
@@ -269,6 +304,82 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
+
+                const Text(
+                  '사진 첨부 (선택)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.label),
+                ),
+                const SizedBox(height: 12),
+
+                if (_uploadedImageUrls.isNotEmpty) ...[
+                  SizedBox(
+                    height: 120,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _uploadedImageUrls.length,
+                      itemBuilder: (context, index) {
+                        return Stack(
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              width: 120,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                image: DecorationImage(
+                                  image: NetworkImage(_uploadedImageUrls[index]),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 16,
+                              child: GestureDetector(
+                                onTap: () => _removeImage(index),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: CupertinoColors.systemRed,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.all(4),
+                                  child: const Icon(
+                                    CupertinoIcons.xmark,
+                                    color: CupertinoColors.white,
+                                    size: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoButton(
+                        onPressed: _isUploadingImages ? null : _pickImages,
+                        color: CupertinoColors.systemBlue,
+                        child: const Text('사진 선택'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: CupertinoButton(
+                        onPressed: (_selectedImages.isEmpty || _isUploadingImages) ? null : _uploadImages,
+                        color: _selectedImages.isEmpty ? CupertinoColors.systemGrey : CupertinoColors.systemGreen,
+                        child: _isUploadingImages
+                            ? const CupertinoActivityIndicator()
+                            : Text('업로드 (${_selectedImages.length})'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
                 
                 SizedBox(
                   width: double.infinity,
@@ -276,10 +387,7 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                     onPressed: _isSubmitting ? null : _submitEstimate,
                     child: _isSubmitting
                         ? const CupertinoActivityIndicator()
-                        : const Text(
-                            '견적 제출',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                          ),
+                        : const Text('견적 제출', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
@@ -300,25 +408,21 @@ class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
     if (newValue.text.isEmpty) {
       return newValue;
     }
-
     final text = newValue.text.replaceAll(',', '');
     final number = int.tryParse(text);
-    
     if (number == null) {
       return oldValue;
     }
-
     final formatted = number.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]},',
     );
-
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
-} 
+}
 
 class _EstimateFeePreview extends StatelessWidget {
   final double amount;
@@ -331,9 +435,9 @@ class _EstimateFeePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final platform5 = amount * 0.05; // B2C 낙찰 시 플랫폼 수수료
-    final b2b5 = amount * 0.05;      // B2B 이관 시 원사업자 수수료
-    final platform3 = amount * 0.03; // B2B 이관 시 플랫폼 수수료
+    final platform5 = amount * 0.05;
+    final b2b5 = amount * 0.05;
+    final platform3 = amount * 0.03;
 
     return Row(
       children: [
@@ -363,10 +467,7 @@ class _EstimateFeePreview extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
           const SizedBox(width: 6),
           Text('₩$amountStr', style: TextStyle(fontSize: 12, color: color)),
         ],

@@ -19,6 +19,7 @@ class Estimate {
   final DateTime? transferredAt;
   final String? transferReason;
   final DateTime? awardedAt;
+  final List<String>? mediaUrls;
 
   static const String STATUS_PENDING = 'pending';
   static const String STATUS_APPROVED = 'approved';
@@ -52,6 +53,7 @@ class Estimate {
     this.transferredAt,
     this.transferReason,
     this.awardedAt,
+    this.mediaUrls,
   });
 
   // 빈 견적 생성자
@@ -71,6 +73,7 @@ class Estimate {
       createdAt: DateTime.now(),
       visitDate: DateTime.now(),
       status: STATUS_PENDING,
+      mediaUrls: [],
     );
   }
 
@@ -93,6 +96,7 @@ class Estimate {
     DateTime? transferredAt,
     String? transferReason,
     DateTime? awardedAt,
+    List<String>? mediaUrls,
   }) {
     return Estimate(
       id: id ?? this.id,
@@ -113,6 +117,7 @@ class Estimate {
       transferredAt: transferredAt ?? this.transferredAt,
       transferReason: transferReason ?? this.transferReason,
       awardedAt: awardedAt ?? this.awardedAt,
+      mediaUrls: mediaUrls ?? this.mediaUrls,
     );
   }
 
@@ -136,6 +141,7 @@ class Estimate {
       'transferredAt': transferredAt?.toIso8601String(),
       'transferReason': transferReason,
       'awardedAt': awardedAt?.toIso8601String(),
+      'mediaUrls': mediaUrls,
     };
   }
 
@@ -170,6 +176,7 @@ class Estimate {
     final awardedAt = (map['awardedAt'] ?? map['awardedat']) != null
         ? _dtOf(map['awardedAt'] ?? map['awardedat'])
         : null;
+    final mediaUrls = List<String>.from(map['mediaUrls'] ?? []);
 
     return Estimate(
       id: id,
@@ -190,6 +197,7 @@ class Estimate {
       transferredAt: transferredAt,
       transferReason: transferReason?.toString(),
       awardedAt: awardedAt,
+      mediaUrls: mediaUrls,
     );
   }
 }

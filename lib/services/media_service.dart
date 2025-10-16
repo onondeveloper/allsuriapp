@@ -86,3 +86,16 @@ class MediaService {
 }
 
 
+
+  Future<String?> uploadEstimateImage({required File file}) async {
+    try {
+      final fileName = 'est_${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
+      final path = 'attachments_estimates/$fileName';
+      await _sb.storage.from('attachments_messages').upload(path, file);
+      final publicUrl = _sb.storage.from('attachments_messages').getPublicUrl(path);
+      return publicUrl;
+    } catch (e) {
+      debugPrint('견적 이미지 업로드 실패: $e');
+      return null;
+    }
+  }
