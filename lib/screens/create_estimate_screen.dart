@@ -61,6 +61,58 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
     }
   }
 
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImages.add(File(image.path));
+        });
+      }
+    } catch (e) {
+      _showError('카메라 접근 실패: $e');
+    }
+  }
+
+  void _showImageSourceOptions() {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (BuildContext context) => CupertinoActionSheet(
+        title: const Text('사진 첨부'),
+        message: const Text('사진을 어떻게 추가하시겠어요?'),
+        actions: <CupertinoActionSheetAction>[
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _pickImageFromCamera();
+            },
+            child: const Text('카메라로 찍기'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _pickImages();
+            },
+            child: const Text('앨범에서 선택'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          isDefaultAction: true,
+          child: const Text('취소'),
+        ),
+      ),
+    );
+  }
+
   Future<void> _uploadImages() async {
     if (_selectedImages.isEmpty) return;
 
@@ -362,7 +414,7 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                   children: [
                     Expanded(
                       child: CupertinoButton(
-                        onPressed: _isUploadingImages ? null : _pickImages,
+                        onPressed: _isUploadingImages ? null : _showImageSourceOptions,
                         color: CupertinoColors.systemBlue,
                         child: const Text('사진 선택'),
                       ),
