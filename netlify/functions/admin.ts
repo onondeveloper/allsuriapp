@@ -41,11 +41,8 @@ export const handler: Handler = async (event) => {
       const totalCustomers = Array.isArray(users) ? users.filter((u: any) => u.role === 'customer').length : 0
       const pendingBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business' && u.businessstatus === 'pending').length : 0
       
-      // Fetch estimates/orders (try both table names)
-      let estimatesRes = await fetch(`${SUPABASE_URL}/rest/v1/estimates?select=status,estimatedPrice`, { headers })
-      if (!estimatesRes.ok) {
-        estimatesRes = await fetch(`${SUPABASE_URL}/rest/v1/orders?select=status,estimatedPrice`, { headers })
-      }
+      // Fetch estimates (use amount column, not estimatedPrice)
+      const estimatesRes = await fetch(`${SUPABASE_URL}/rest/v1/estimates?select=status,amount`, { headers })
       const estimates = await estimatesRes.json()
       const totalEstimates = Array.isArray(estimates) ? estimates.length : 0
       const pendingEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'pending').length : 0
@@ -54,7 +51,8 @@ export const handler: Handler = async (event) => {
       const inProgressEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'in_progress').length : 0
       const awardedEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'awarded').length : 0
       const transferredEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'transferred').length : 0
-      const totalRevenue = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'completed').reduce((sum: number, e: any) => sum + ((e.estimatedPrice || 0) * 0.05), 0) : 0
+      // 모든 견적 금액의 30% 계산 (완료된 것만이 아님)
+      const totalRevenue = Array.isArray(estimates) ? estimates.reduce((sum: number, e: any) => sum + ((e.amount || 0) * 0.30), 0) : 0
       
       return ok({
         totalUsers,
