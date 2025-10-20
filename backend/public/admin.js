@@ -67,18 +67,24 @@ async function apiCall(endpoint, options = {}) {
                 await loadAdminMe();
                 const data = await apiCall('/dashboard');
                 
-                document.getElementById('totalUsers').textContent = data.totalUsers;
-                document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers;
-                document.getElementById('totalCustomers').textContent = data.totalCustomers;
-                document.getElementById('pendingUsers').textContent = data.totalBusinessUsers - (data.approvedUsers || 0);
-                document.getElementById('totalEstimates').textContent = data.totalEstimates;
-                document.getElementById('pendingEstimates').textContent = data.pendingEstimates;
+                console.log('[Dashboard] Received data:', data);
+                
+                // totalUsers 제거됨
+                document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers || 0;
+                document.getElementById('totalCustomers').textContent = data.totalCustomers || 0;
+                document.getElementById('pendingUsers').textContent = (data.totalBusinessUsers || 0) - (data.approvedUsers || 0);
+                document.getElementById('totalEstimates').textContent = data.totalEstimates || 0;
+                document.getElementById('pendingEstimates').textContent = data.pendingEstimates || 0;
                 document.getElementById('approvedEstimates').textContent = data.approvedEstimates || 0;
-                document.getElementById('completedEstimates').textContent = data.completedEstimates;
+                document.getElementById('completedEstimates').textContent = data.completedEstimates || 0;
                 document.getElementById('inProgressEstimates').textContent = data.inProgressEstimates || 0;
                 document.getElementById('awardedEstimates').textContent = data.awardedEstimates || 0;
                 document.getElementById('transferredEstimates').textContent = data.transferredEstimates || 0;
-                document.getElementById('totalRevenue').textContent = data.totalRevenue?.toLocaleString() || '0';
+                document.getElementById('totalRevenue').textContent = '₩' + (data.totalRevenue?.toLocaleString() || '0');
+                
+                // Call 공사 통계 추가
+                document.getElementById('totalCallListings').textContent = data.totalCallListings || 0;
+                document.getElementById('activeCallListings').textContent = data.activeCallListings || 0;
             } catch (error) {
                 console.error('대시보드 로드 오류:', error);
             }

@@ -191,7 +191,7 @@ router.get('/dashboard', async (req, res) => {
       ? completed.reduce((s, e) => s + getAmount(e), 0) / completed.length
       : 0;
 
-    // 주문 통계도 추가
+    // 주문 통계
     const ordersResult = await supabase
       .from('orders')
       .select('id, status, createdat');
@@ -205,8 +205,25 @@ router.get('/dashboard', async (req, res) => {
 
     const totalOrders = (orders || []).length;
 
+    // Call 공사 통계 (marketplace_listings)
+    let callListings;
+    const callListingsResult = await supabase
+      .from('marketplace_listings')
+      .select('id, status, createdat');
+    
+    callListings = callListingsResult.data;
+    
+    if (callListingsResult.error) {
+      console.error('[ADMIN DASHBOARD] Call listings error:', callListingsResult.error);
+      // Call 에러는 치명적이지 않으므로 계속 진행
+    }
+
+    const totalCallListings = (callListings || []).length;
+    const activeCallListings = (callListings || []).filter(c => c.status === 'active' || c.status === 'open').length;
+    const completedCallListings = (callListings || []).filter(c => c.status === 'completed' || c.status === 'closed').length;
+
     const dashboardData = {
-      totalUsers,
+      // totalUsers 제거
       totalBusinessUsers,
       totalCustomers,
       totalEstimates,
@@ -219,6 +236,9 @@ router.get('/dashboard', async (req, res) => {
       totalRevenue: Math.round(totalRevenue),
       averageEstimateAmount: Math.round(averageEstimateAmount),
       totalOrders,
+      totalCallListings,
+      activeCallListings,
+      completedCallListings,
     };
 
     console.log('[ADMIN DASHBOARD] Dashboard data:', dashboardData);
