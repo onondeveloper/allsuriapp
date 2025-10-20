@@ -67,9 +67,10 @@ async function apiCall(endpoint, options = {}) {
                 await loadAdminMe();
                 const data = await apiCall('/dashboard');
                 
-                console.log('[Dashboard] Received data:', data);
+                console.log('[DASHBOARD] Received data:', data);
                 
-                // totalUsers 제거됨
+                // totalUsers 제거, totalJobs 추가
+                document.getElementById('totalJobs').textContent = data.totalJobs || 0;
                 document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers || 0;
                 document.getElementById('totalCustomers').textContent = data.totalCustomers || 0;
                 document.getElementById('pendingUsers').textContent = (data.totalBusinessUsers || 0) - (data.approvedUsers || 0);
@@ -80,11 +81,8 @@ async function apiCall(endpoint, options = {}) {
                 document.getElementById('inProgressEstimates').textContent = data.inProgressEstimates || 0;
                 document.getElementById('awardedEstimates').textContent = data.awardedEstimates || 0;
                 document.getElementById('transferredEstimates').textContent = data.transferredEstimates || 0;
-                document.getElementById('totalRevenue').textContent = '₩' + (data.totalRevenue?.toLocaleString() || '0');
-                
-                // Call 공사 통계 추가
-                document.getElementById('totalCallListings').textContent = data.totalCallListings || 0;
-                document.getElementById('activeCallListings').textContent = data.activeCallListings || 0;
+                // 총 수익을 원화 형식으로 표시
+                document.getElementById('totalRevenue').textContent = '₩' + (data.totalRevenue?.toLocaleString('ko-KR') || '0');
             } catch (error) {
                 console.error('대시보드 로드 오류:', error);
             }

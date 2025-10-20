@@ -174,24 +174,25 @@ router.get('/dashboard', async (req, res) => {
     const awardedEstimates = estimates.filter(e => e.status === 'awarded').length;
     const transferredEstimates = estimates.filter(e => e.status === 'transferred').length;
 
-    // 수익 계산 - amount 컬럼만 사용
-    const completed = estimates.filter(e => e.status === 'completed');
+    // 수익 계산 - 모든 견적 금액의 30%
     const getAmount = (row) => {
       // amount 컬럼만 확인
       if (typeof row.amount === 'number' && !isNaN(row.amount)) return row.amount;
       return 0;
     };
     
-    const totalRevenue = completed.reduce((sum, e) => {
+    // 모든 견적의 30% 계산
+    const totalRevenue = estimates.reduce((sum, e) => {
       const amount = getAmount(e);
-      return sum + (amount * 0.05); // 5% 수수료
+      return sum + (amount * 0.30); // 30% 수수료
     }, 0);
     
+    const completed = estimates.filter(e => e.status === 'completed');
     const averageEstimateAmount = completed.length > 0
       ? completed.reduce((s, e) => s + getAmount(e), 0) / completed.length
       : 0;
 
-    // 주문 통계
+    // 주문 통계도 추가
     const ordersResult = await supabase
       .from('orders')
       .select('id, status, createdat');
@@ -205,22 +206,22 @@ router.get('/dashboard', async (req, res) => {
 
     const totalOrders = (orders || []).length;
 
-    // Call 공사 통계 (marketplace_listings)
-    let callListings;
-    const callListingsResult = await supabase
-      .from('marketplace_listings')
+    // Call 공사 통계 (jobs 테이블)
+    let jobs;
+    const jobsResult = await supabase
+      .from('jobs')
       .select('id, status, createdat');
     
-    callListings = callListingsResult.data;
+    jobs = jobsResult.data;
     
-    if (callListingsResult.error) {
-      console.error('[ADMIN DASHBOARD] Call listings error:', callListingsResult.error);
-      // Call 에러는 치명적이지 않으므로 계속 진행
+    if (jobsResult.error) {
+      console.error('[ADMIN DASHBOARD] Jobs error:', jobsResult.error);
+      // Jobs 에러는 치명적이지 않으므로 계속 진행
     }
 
-    const totalCallListings = (callListings || []).length;
-    const activeCallListings = (callListings || []).filter(c => c.status === 'active' || c.status === 'open').length;
-    const completedCallListings = (callListings || []).filter(c => c.status === 'completed' || c.status === 'closed').length;
+    const totalJobs = (jobs || []).length;
+    const activeJobs = (jobs || []).filter(j => j.status === 'created' || j.status === 'pending_transfer' || j.status === 'assigned').length;
+    const completedJobs = (jobs || []).filter(j => j.status === 'completed').length;
 
     const dashboardData = {
       // totalUsers 제거
@@ -236,9 +237,9 @@ router.get('/dashboard', async (req, res) => {
       totalRevenue: Math.round(totalRevenue),
       averageEstimateAmount: Math.round(averageEstimateAmount),
       totalOrders,
-      totalCallListings,
-      activeCallListings,
-      completedCallListings,
+      totalJobs,
+      activeJobs,
+      completedJobs,
     };
 
     console.log('[ADMIN DASHBOARD] Dashboard data:', dashboardData);
