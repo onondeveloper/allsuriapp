@@ -132,14 +132,18 @@ router.get('/ads/stats', requireRole('developer', 'staff'), async (req, res) => 
 
 // 대시보드 데이터
 router.get('/dashboard', async (req, res) => {
+  let users, estimatesAll, orders;
+  
   try {
     console.log('[ADMIN DASHBOARD] Starting dashboard data fetch...');
     
     // 사용자 통계
-    const { data: users, error: usersErr } = await supabase.from('users').select('id, role');
-    if (usersErr) {
-      console.error('[ADMIN DASHBOARD] Users error:', usersErr);
-      throw usersErr;
+    const usersResult = await supabase.from('users').select('id, role');
+    users = usersResult.data;
+    
+    if (usersResult.error) {
+      console.error('[ADMIN DASHBOARD] Users error:', usersResult.error);
+      throw usersResult.error;
     }
     console.log('[ADMIN DASHBOARD] Users count:', users?.length || 0);
     
@@ -147,14 +151,16 @@ router.get('/dashboard', async (req, res) => {
     const totalBusinessUsers = (users || []).filter(u => u.role === 'business').length;
     const totalCustomers = (users || []).filter(u => u.role === 'customer').length;
 
-    // 견적 통계 - 더 포괄적인 쿼리
-    const { data: estimatesAll, error: estimatesErr } = await supabase
+    // 견적 통계 - amount 컬럼만 사용 (estimatedprice, estimatedPrice는 존재하지 않음)
+    const estimatesResult = await supabase
       .from('estimates')
-      .select('id, status, amount, estimatedprice, estimatedPrice, createdat');
+      .select('id, status, amount, createdat');
     
-    if (estimatesErr) {
-      console.error('[ADMIN DASHBOARD] Estimates error:', estimatesErr);
-      throw estimatesErr;
+    estimatesAll = estimatesResult.data;
+    
+    if (estimatesResult.error) {
+      console.error('[ADMIN DASHBOARD] Estimates error:', estimatesResult.error);
+      throw estimatesResult.error;
     }
     console.log('[ADMIN DASHBOARD] Estimates count:', estimatesAll?.length || 0);
 
@@ -167,13 +173,11 @@ router.get('/dashboard', async (req, res) => {
     const awardedEstimates = estimates.filter(e => e.status === 'awarded').length;
     const transferredEstimates = estimates.filter(e => e.status === 'transferred').length;
 
-    // 수익 계산 - 더 안전한 방식
+    // 수익 계산 - amount 컬럼만 사용
     const completed = estimates.filter(e => e.status === 'completed');
     const getAmount = (row) => {
-      // 숫자 타입 확인 후 반환
+      // amount 컬럼만 확인
       if (typeof row.amount === 'number' && !isNaN(row.amount)) return row.amount;
-      if (typeof row.estimatedprice === 'number' && !isNaN(row.estimatedprice)) return row.estimatedprice;
-      if (typeof row.estimatedPrice === 'number' && !isNaN(row.estimatedPrice)) return row.estimatedPrice;
       return 0;
     };
     
@@ -187,12 +191,14 @@ router.get('/dashboard', async (req, res) => {
       : 0;
 
     // 주문 통계도 추가
-    const { data: orders, error: ordersErr } = await supabase
+    const ordersResult = await supabase
       .from('orders')
       .select('id, status, createdat');
     
-    if (ordersErr) {
-      console.error('[ADMIN DASHBOARD] Orders error:', ordersErr);
+    orders = ordersResult.data;
+    
+    if (ordersResult.error) {
+      console.error('[ADMIN DASHBOARD] Orders error:', ordersResult.error);
       // 주문 에러는 치명적이지 않으므로 계속 진행
     }
 
