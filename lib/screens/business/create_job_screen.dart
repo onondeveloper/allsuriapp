@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/job_service.dart';
 import '../../services/marketplace_service.dart';
+import '../../services/media_service.dart';
 import 'transfer_job_screen.dart';
 import 'call_marketplace_screen.dart';
 import '../../widgets/interactive_card.dart';
@@ -30,6 +33,12 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
   String _selectedUrgency = 'normal';
   bool _submitting = false;
   final MarketplaceService _marketplaceService = MarketplaceService();
+  
+  // 이미지 관련 상태
+  final MediaService _mediaService = MediaService();
+  final List<File> _selectedImages = [];
+  final List<String> _uploadedImageUrls = [];
+  bool _isUploadingImages = false;
 
   final List<String> _categories = [
     '일반', '전기', '수도', '난방', '에어컨', '인테리어', '청소', '기타'
@@ -55,6 +64,118 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
     final fee = (budget * rate / 100).round();
     final formatted = _ThousandsFormatter()._format(fee);
     _feeAmountController.text = formatted;
+  }
+
+  Future<void> _pickImages() async {
+    try {
+      final images = await _mediaService.pickMultipleImages();
+      if (images != null && images.isNotEmpty) {
+        setState(() {
+          _selectedImages.addAll(images);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 선택 실패: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final image = await _mediaService.pickImageFromCamera();
+      if (image != null) {
+        setState(() {
+          _selectedImages.add(image);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('카메라 촬영 실패: $e')),
+        );
+      }
+    }
+  }
+
+  void _showImageSourceOptions() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('사진 추가'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _pickImageFromCamera();
+            },
+            child: const Text('카메라로 찍기'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _pickImages();
+            },
+            child: const Text('앨범에서 선택'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _uploadImages() async {
+    if (_selectedImages.isEmpty) return;
+
+    setState(() => _isUploadingImages = true);
+
+    try {
+      final List<String> urls = [];
+      for (final image in _selectedImages) {
+        final url = await _mediaService.uploadEstimateImage(file: image);
+        if (url != null) {
+          urls.add(url);
+        }
+      }
+
+      setState(() {
+        _uploadedImageUrls.addAll(urls);
+        _selectedImages.clear();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${urls.length}개 이미지가 업로드되었습니다')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 업로드 실패: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImages = false);
+      }
+    }
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
+  }
+
+  void _removeUploadedImage(int index) {
+    setState(() {
+      _uploadedImageUrls.removeAt(index);
+    });
   }
 
   Future<void> _submitJob() async {
@@ -88,6 +209,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
         category: _selectedCategory,
         urgency: 'normal',
         commissionRate: double.tryParse(_feeRateController.text) ?? 5.0,
+        mediaUrls: _uploadedImageUrls.isEmpty ? null : _uploadedImageUrls,
       );
 
       if (!mounted) return;
@@ -132,6 +254,150 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              // 사진 첨부 섹션
+              InteractiveCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.photo_camera, size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '사진 첨부',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        const Spacer(),
+                        if (_selectedImages.isNotEmpty || _uploadedImageUrls.isNotEmpty)
+                          Text(
+                            '${_selectedImages.length + _uploadedImageUrls.length}개',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _showImageSourceOptions,
+                            icon: const Icon(Icons.add_photo_alternate, size: 18),
+                            label: const Text('사진 선택'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        if (_selectedImages.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _isUploadingImages ? null : _uploadImages,
+                              icon: _isUploadingImages
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.cloud_upload, size: 18),
+                              label: Text(_isUploadingImages ? '업로드 중...' : '업로드'),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    // 선택된 이미지 미리보기
+                    if (_selectedImages.isNotEmpty || _uploadedImageUrls.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 80,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _selectedImages.length + _uploadedImageUrls.length,
+                          itemBuilder: (context, index) {
+                            final isUploaded = index >= _selectedImages.length;
+                            final imageIndex = isUploaded ? index - _selectedImages.length : index;
+                            
+                            return Container(
+                              width: 80,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Stack(
+                                  children: [
+                                    if (isUploaded)
+                                      Image.network(
+                                        _uploadedImageUrls[imageIndex],
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            width: 80,
+                                            height: 80,
+                                            color: Colors.grey.shade200,
+                                            child: const Icon(Icons.broken_image, color: Colors.grey),
+                                          );
+                                        },
+                                      )
+                                    else
+                                      Image.file(
+                                        _selectedImages[index],
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          if (isUploaded) {
+                                            _removeUploadedImage(imageIndex);
+                                          } else {
+                                            _removeImage(index);
+                                          }
+                                        },
+                                        child: Container(
+                                          width: 20,
+                                          height: 20,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.red,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.close,
+                                            size: 14,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              
               // 기본 정보 (제목/설명)
               InteractiveCard(
                 padding: const EdgeInsets.all(16),

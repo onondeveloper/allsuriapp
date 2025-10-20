@@ -15,6 +15,7 @@ class JobService extends ChangeNotifier {
     String? category,
     String urgency = 'normal',
     double? commissionRate,
+    List<String>? mediaUrls,
   }) async {
     try {
       final job = Job(
@@ -26,6 +27,7 @@ class JobService extends ChangeNotifier {
         category: category,
         urgency: urgency,
         commissionRate: commissionRate ?? 5.0, // Default 5% commission
+        mediaUrls: mediaUrls,
         status: 'created',
         createdAt: DateTime.now(),
       );

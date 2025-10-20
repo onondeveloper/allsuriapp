@@ -15,6 +15,7 @@ class Job {
   final String? location;
   final String? category;
   final String urgency;
+  final List<String>? mediaUrls;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -33,6 +34,7 @@ class Job {
     this.location,
     this.category,
     this.urgency = 'normal',
+    this.mediaUrls,
     required this.createdAt,
     this.updatedAt,
   });
@@ -53,6 +55,7 @@ class Job {
       location: data['location'],
       category: data['category'],
       urgency: data['urgency'] ?? 'normal',
+      mediaUrls: data['media_urls'] is List ? List<String>.from(data['media_urls']) : null,
       createdAt: DateTime.tryParse(data['created_at']?.toString() ?? '') ?? DateTime.now(),
       updatedAt: data['updated_at'] != null ? DateTime.tryParse(data['updated_at'].toString()) : null,
     );
@@ -74,6 +77,7 @@ class Job {
       'location': location,
       'category': category,
       'urgency': urgency,
+      'media_urls': mediaUrls,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -94,6 +98,7 @@ class Job {
     String? location,
     String? category,
     String? urgency,
+    List<String>? mediaUrls,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -111,6 +116,7 @@ class Job {
       location: location ?? this.location,
       category: category ?? this.category,
       urgency: urgency ?? this.urgency,
+      mediaUrls: mediaUrls ?? this.mediaUrls,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

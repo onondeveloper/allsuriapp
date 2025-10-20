@@ -25,6 +25,21 @@ class MediaService {
     return _validate(file) ? file : null;
   }
 
+  Future<List<File>?> pickMultipleImages() async {
+    final images = await _picker.pickMultipleImages(imageQuality: 85);
+    if (images.isEmpty) return null;
+    
+    final validFiles = <File>[];
+    for (final image in images) {
+      final file = File(image.path);
+      if (_validate(file)) {
+        validFiles.add(file);
+      }
+    }
+    
+    return validFiles.isEmpty ? null : validFiles;
+  }
+
   bool _validate(File file) {
     try {
       final size = file.lengthSync();
