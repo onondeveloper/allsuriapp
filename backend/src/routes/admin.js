@@ -133,39 +133,72 @@ router.get('/ads/stats', requireRole('developer', 'staff'), async (req, res) => 
 // 대시보드 데이터
 router.get('/dashboard', async (req, res) => {
   try {
+    console.log('[ADMIN DASHBOARD] Starting dashboard data fetch...');
+    
+    // 사용자 통계
     const { data: users, error: usersErr } = await supabase.from('users').select('id, role');
-    if (usersErr) throw usersErr;
-    const totalUsers = users.length;
-    const totalBusinessUsers = users.filter(u => u.role === 'business').length;
-    const totalCustomers = users.filter(u => u.role === 'customer').length;
+    if (usersErr) {
+      console.error('[ADMIN DASHBOARD] Users error:', usersErr);
+      throw usersErr;
+    }
+    console.log('[ADMIN DASHBOARD] Users count:', users?.length || 0);
+    
+    const totalUsers = (users || []).length;
+    const totalBusinessUsers = (users || []).filter(u => u.role === 'business').length;
+    const totalCustomers = (users || []).filter(u => u.role === 'customer').length;
 
-    // 대시보드는 사업자 제출 견적(estimates 테이블)을 기준으로 계산
-    // amount 필드가 없을 수 있으므로 estimatedprice(또는 estimatedPrice)도 함께 조회
+    // 견적 통계 - 더 포괄적인 쿼리
     const { data: estimatesAll, error: estimatesErr } = await supabase
       .from('estimates')
-      .select('id, status, amount, estimatedprice, estimatedPrice');
-    if (estimatesErr) throw estimatesErr;
-    const totalEstimates = (estimatesAll || []).length;
-    const pendingEstimates = (estimatesAll || []).filter(e => e.status === 'pending').length;
-    const approvedEstimates = (estimatesAll || []).filter(e => e.status === 'approved').length;
-    const completedEstimates = (estimatesAll || []).filter(e => e.status === 'completed').length;
-    const inProgressEstimates = (estimatesAll || []).filter(e => e.status === 'in_progress').length;
-    const awardedEstimates = (estimatesAll || []).filter(e => e.status === 'awarded').length;
-    const transferredEstimates = (estimatesAll || []).filter(e => e.status === 'transferred').length;
+      .select('id, status, amount, estimatedprice, estimatedPrice, createdat');
+    
+    if (estimatesErr) {
+      console.error('[ADMIN DASHBOARD] Estimates error:', estimatesErr);
+      throw estimatesErr;
+    }
+    console.log('[ADMIN DASHBOARD] Estimates count:', estimatesAll?.length || 0);
 
-    const completed = (estimatesAll || []).filter(e => e.status === 'completed');
+    const estimates = estimatesAll || [];
+    const totalEstimates = estimates.length;
+    const pendingEstimates = estimates.filter(e => e.status === 'pending').length;
+    const approvedEstimates = estimates.filter(e => e.status === 'approved').length;
+    const completedEstimates = estimates.filter(e => e.status === 'completed').length;
+    const inProgressEstimates = estimates.filter(e => e.status === 'in_progress').length;
+    const awardedEstimates = estimates.filter(e => e.status === 'awarded').length;
+    const transferredEstimates = estimates.filter(e => e.status === 'transferred').length;
+
+    // 수익 계산 - 더 안전한 방식
+    const completed = estimates.filter(e => e.status === 'completed');
     const getAmount = (row) => {
-      if (typeof row.amount === 'number') return row.amount;
-      if (typeof row.estimatedprice === 'number') return row.estimatedprice;
-      if (typeof row.estimatedPrice === 'number') return row.estimatedPrice;
+      // 숫자 타입 확인 후 반환
+      if (typeof row.amount === 'number' && !isNaN(row.amount)) return row.amount;
+      if (typeof row.estimatedprice === 'number' && !isNaN(row.estimatedprice)) return row.estimatedprice;
+      if (typeof row.estimatedPrice === 'number' && !isNaN(row.estimatedPrice)) return row.estimatedPrice;
       return 0;
     };
-    const totalRevenue = completed.reduce((sum, e) => sum + (getAmount(e) * 0.05), 0);
+    
+    const totalRevenue = completed.reduce((sum, e) => {
+      const amount = getAmount(e);
+      return sum + (amount * 0.05); // 5% 수수료
+    }, 0);
+    
     const averageEstimateAmount = completed.length > 0
       ? completed.reduce((s, e) => s + getAmount(e), 0) / completed.length
       : 0;
 
-    res.json({
+    // 주문 통계도 추가
+    const { data: orders, error: ordersErr } = await supabase
+      .from('orders')
+      .select('id, status, createdat');
+    
+    if (ordersErr) {
+      console.error('[ADMIN DASHBOARD] Orders error:', ordersErr);
+      // 주문 에러는 치명적이지 않으므로 계속 진행
+    }
+
+    const totalOrders = (orders || []).length;
+
+    const dashboardData = {
       totalUsers,
       totalBusinessUsers,
       totalCustomers,
@@ -176,12 +209,24 @@ router.get('/dashboard', async (req, res) => {
       inProgressEstimates,
       awardedEstimates,
       transferredEstimates,
-      totalRevenue,
-      averageEstimateAmount,
-    });
+      totalRevenue: Math.round(totalRevenue),
+      averageEstimateAmount: Math.round(averageEstimateAmount),
+      totalOrders,
+    };
+
+    console.log('[ADMIN DASHBOARD] Dashboard data:', dashboardData);
+    res.json(dashboardData);
   } catch (error) {
     console.error('[admin/dashboard] error:', error);
-    res.status(500).json({ message: '대시보드 데이터 조회 실패', error: String(error?.message || error) });
+    res.status(500).json({ 
+      message: '대시보드 데이터 조회 실패', 
+      error: String(error?.message || error),
+      debug: {
+        hasUsers: !!users,
+        hasEstimates: !!estimatesAll,
+        hasOrders: !!orders
+      }
+    });
   }
 });
 

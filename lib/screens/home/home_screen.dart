@@ -326,7 +326,7 @@ class HomeScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
-                                      '이 공간에 귀사의 텍스트 또는 이미지를 노출할 수 있습니다.',
+                                      '광고 문의: 010-8345-1912.',
                                       textAlign: TextAlign.center,
                                       style: Theme.of(context).textTheme.bodyMedium,
                                     ),
