@@ -55,7 +55,7 @@ class Job {
       location: data['location'],
       category: data['category'],
       urgency: data['urgency'] ?? 'normal',
-      mediaUrls: data['media_urls'] is List ? List<String>.from(data['media_urls']) : null,
+      mediaUrls: data['media_urls'] != null ? List<String>.from(data['media_urls'] ?? []) : null,
       createdAt: DateTime.tryParse(data['created_at']?.toString() ?? '') ?? DateTime.now(),
       updatedAt: data['updated_at'] != null ? DateTime.tryParse(data['updated_at'].toString()) : null,
     );
