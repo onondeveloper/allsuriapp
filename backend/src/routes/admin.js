@@ -210,7 +210,7 @@ router.get('/dashboard', async (req, res) => {
     let jobs;
     const jobsResult = await supabase
       .from('jobs')
-      .select('id, status, createdat');
+      .select('id, status, assigned_business_id, createdat');
     
     jobs = jobsResult.data;
     
@@ -220,8 +220,10 @@ router.get('/dashboard', async (req, res) => {
     }
 
     const totalJobs = (jobs || []).length;
-    const activeJobs = (jobs || []).filter(j => j.status === 'created' || j.status === 'pending_transfer' || j.status === 'assigned').length;
-    const completedJobs = (jobs || []).filter(j => j.status === 'completed').length;
+    // 대기 중: assigned_business_id가 null인 경우 (아직 다른 사업자가 가져가지 않음)
+    const pendingJobs = (jobs || []).filter(j => !j.assigned_business_id && j.status !== 'completed' && j.status !== 'cancelled').length;
+    // 완료: assigned_business_id가 있는 경우 (다른 사업자가 가져간 경우)
+    const completedJobs = (jobs || []).filter(j => j.assigned_business_id !== null).length;
 
     const dashboardData = {
       // totalUsers 제거
@@ -238,7 +240,7 @@ router.get('/dashboard', async (req, res) => {
       averageEstimateAmount: Math.round(averageEstimateAmount),
       totalOrders,
       totalJobs,
-      activeJobs,
+      pendingJobs,
       completedJobs,
     };
 

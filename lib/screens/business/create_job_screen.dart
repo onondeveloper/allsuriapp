@@ -592,9 +592,111 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('다음 작업 선택', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                FilledButton.icon(
+                Text(
+                  '공사 등록 완료!',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '다음 작업을 선택하세요',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                
+                // Call 공사 버튼 (메인 - 크고 눈에 띄게)
+                Container(
+                  height: 70,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4A90E2), Color(0xFF357ABD)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF4A90E2).withOpacity(0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(sheetContext);
+                      try {
+                        print('Call 공사 등록 시작: jobId=$jobId, title=$title');
+                        
+                        final result = await _marketplaceService.createListing(
+                          jobId: jobId,
+                          title: title,
+                          description: description,
+                          region: (region ?? '').isEmpty ? null : region,
+                          category: category,
+                          budgetAmount: budget,
+                        );
+                        
+                        print('Call 공사 등록 결과: $result');
+                          
+                          if (!mounted) return;
+                          
+                          if (result != null) {
+                            print('CallMarketplaceScreen으로 네비게이션 시작');
+                            
+                            // 즉시 CallMarketplaceScreen으로 이동 (모든 이전 화면 제거)
+                            Navigator.pushAndRemoveUntil(
+                              parentContext,
+                              MaterialPageRoute(
+                                builder: (_) => CallMarketplaceScreen(
+                                  showSuccessMessage: true, // 성공 메시지 표시 플래그
+                                  createdByUserId: Supabase.instance.client.auth.currentUser?.id,
+                                ),
+                              ),
+                              (route) => false, // 모든 이전 화면 제거
+                            );
+                            print('CallMarketplaceScreen으로 네비게이션 완료');
+                          } else {
+                            ScaffoldMessenger.of(parentContext).showSnackBar(
+                              const SnackBar(content: Text('Call 등록에 실패했습니다. 다시 시도해주세요.')),
+                            );
+                          }
+                      } catch (e) {
+                        print('Call 공사 등록 에러: $e');
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(parentContext).showSnackBar(
+                          SnackBar(content: Text('Call 등록 실패: $e')),
+                        );
+                      }
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.campaign, size: 28),
+                    label: const Text(
+                      'Call 공사로 올리기 (추천)',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // 이관하기 버튼 (서브 - 작고 부드럽게)
+                TextButton.icon(
                   onPressed: () async {
                     Navigator.pop(sheetContext);
                     Navigator.push(
@@ -604,60 +706,24 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.switch_access_shortcut_add),
-                  label: const Text('다른 사업자에게 이관하기'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey[300]!),
+                    ),
+                  ),
+                  icon: Icon(Icons.swap_horiz, size: 20, color: Colors.grey[700]),
+                  label: Text(
+                    '다른 사업자에게 이관하기',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey[700],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 13),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(sheetContext);
-                    try {
-                      print('Call 공사 등록 시작: jobId=$jobId, title=$title');
-                      
-                      final result = await _marketplaceService.createListing(
-                        jobId: jobId,
-                        title: title,
-                        description: description,
-                        region: (region ?? '').isEmpty ? null : region,
-                        category: category,
-                        budgetAmount: budget,
-                      );
-                      
-                                              print('Call 공사 등록 결과: $result');
-                        
-                        if (!mounted) return;
-                        
-                        if (result != null) {
-                          print('CallMarketplaceScreen으로 네비게이션 시작');
-                          
-                          // 즉시 CallMarketplaceScreen으로 이동 (모든 이전 화면 제거)
-                          Navigator.pushAndRemoveUntil(
-                            parentContext,
-                            MaterialPageRoute(
-                              builder: (_) => CallMarketplaceScreen(
-                                showSuccessMessage: true, // 성공 메시지 표시 플래그
-                                createdByUserId: Supabase.instance.client.auth.currentUser?.id,
-                              ),
-                            ),
-                            (route) => false, // 모든 이전 화면 제거
-                          );
-                          print('CallMarketplaceScreen으로 네비게이션 완료');
-                        } else {
-                          ScaffoldMessenger.of(parentContext).showSnackBar(
-                            const SnackBar(content: Text('Call 등록에 실패했습니다. 다시 시도해주세요.')),
-                          );
-                        }
-                    } catch (e) {
-                      print('Call 공사 등록 에러: $e');
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(parentContext).showSnackBar(
-                        SnackBar(content: Text('Call 등록 실패: $e')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.campaign_outlined),
-                  label: const Text('Call(마켓)에 올리기'),
-                ),
+                
+                const SizedBox(height: 8),
               ],
             ),
           ),

@@ -69,8 +69,10 @@ async function apiCall(endpoint, options = {}) {
                 
                 console.log('[DASHBOARD] Received data:', data);
                 
-                // totalUsers 제거, totalJobs 추가
+                // totalUsers 제거, totalJobs 및 pendingJobs, completedJobs 추가
                 document.getElementById('totalJobs').textContent = data.totalJobs || 0;
+                document.getElementById('pendingJobs').textContent = data.pendingJobs || 0;
+                document.getElementById('completedJobs').textContent = data.completedJobs || 0;
                 document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers || 0;
                 document.getElementById('totalCustomers').textContent = data.totalCustomers || 0;
                 document.getElementById('pendingUsers').textContent = (data.totalBusinessUsers || 0) - (data.approvedUsers || 0);
