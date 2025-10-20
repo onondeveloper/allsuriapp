@@ -26,18 +26,17 @@ class MediaService {
   }
 
   Future<List<File>?> pickMultipleImages() async {
-    final images = await _picker.pickMultipleImages(imageQuality: 85);
-    if (images.isEmpty) return null;
+    // 현재 image_picker 버전에서는 pickMultipleImages를 지원하지 않으므로
+    // 단일 이미지 선택으로 대체 (UI에서 여러 번 호출)
+    final image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (image == null) return null;
     
-    final validFiles = <File>[];
-    for (final image in images) {
-      final file = File(image.path);
-      if (_validate(file)) {
-        validFiles.add(file);
-      }
+    final file = File(image.path);
+    if (_validate(file)) {
+      return [file];
     }
     
-    return validFiles.isEmpty ? null : validFiles;
+    return null;
   }
 
   bool _validate(File file) {

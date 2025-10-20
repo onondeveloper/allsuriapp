@@ -83,6 +83,23 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
     }
   }
 
+  Future<void> _pickSingleImage() async {
+    try {
+      final image = await _mediaService.pickImageFromGallery();
+      if (image != null) {
+        setState(() {
+          _selectedImages.add(image);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 선택 실패: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _pickImageFromCamera() async {
     try {
       final image = await _mediaService.pickImageFromCamera();
@@ -116,7 +133,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(context);
-              _pickImages();
+              _pickSingleImage();
             },
             child: const Text('앨범에서 선택'),
           ),
