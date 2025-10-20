@@ -11,8 +11,23 @@ let estimatesSortDirection = 'asc';
 let allEstimates = [];
 
 // 관리자 토큰 (.env 파일의 ADMIN_TOKEN과 일치해야 함)
-const ADMIN_TOKEN = 'devtoken';
+const ADMIN_TOKEN = 'allsuri-admin-2024';
 let ADMIN_ROLE = 'developer';
+
+// 로그인 체크
+function checkLogin() {
+    const password = localStorage.getItem('admin_password');
+    if (!password || password !== 'allsuri1912') {
+        const inputPassword = prompt('관리자 비밀번호를 입력하세요:');
+        if (!inputPassword || inputPassword !== 'allsuri1912') {
+            alert('비밀번호가 틀렸습니다.');
+            document.body.innerHTML = '<h1 style="text-align:center;margin-top:50px;">접근이 거부되었습니다.</h1>';
+            return false;
+        }
+        localStorage.setItem('admin_password', inputPassword);
+    }
+    return true;
+}
 
 // API 호출 헬퍼 함수
 async function apiCall(endpoint, options = {}) {
@@ -466,6 +481,11 @@ async function deleteUser(userId) {
 
         // 검색 기능 및 이벤트 리스너 설정
         document.addEventListener('DOMContentLoaded', () => {
+            // 로그인 체크
+            if (!checkLogin()) {
+                return;
+            }
+            
             // 검색 기능 이벤트 리스너
             document.getElementById('userSearch').addEventListener('input', debounce(async (e) => {
                 const query = e.target.value;
