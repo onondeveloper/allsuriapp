@@ -140,9 +140,10 @@ router.get('/dashboard', async (req, res) => {
     const totalCustomers = users.filter(u => u.role === 'customer').length;
 
     // 대시보드는 사업자 제출 견적(estimates 테이블)을 기준으로 계산
+    // amount 필드가 없을 수 있으므로 estimatedprice(또는 estimatedPrice)도 함께 조회
     const { data: estimatesAll, error: estimatesErr } = await supabase
       .from('estimates')
-      .select('id, status, amount');
+      .select('id, status, amount, estimatedprice, estimatedPrice');
     if (estimatesErr) throw estimatesErr;
     const totalEstimates = (estimatesAll || []).length;
     const pendingEstimates = (estimatesAll || []).filter(e => e.status === 'pending').length;
@@ -153,8 +154,16 @@ router.get('/dashboard', async (req, res) => {
     const transferredEstimates = (estimatesAll || []).filter(e => e.status === 'transferred').length;
 
     const completed = (estimatesAll || []).filter(e => e.status === 'completed');
-    const totalRevenue = completed.reduce((sum, e) => sum + ((e.amount || 0) * 0.05), 0);
-    const averageEstimateAmount = completed.length > 0 ? completed.reduce((s, e) => s + (e.amount || 0), 0) / completed.length : 0;
+    const getAmount = (row) => {
+      if (typeof row.amount === 'number') return row.amount;
+      if (typeof row.estimatedprice === 'number') return row.estimatedprice;
+      if (typeof row.estimatedPrice === 'number') return row.estimatedPrice;
+      return 0;
+    };
+    const totalRevenue = completed.reduce((sum, e) => sum + (getAmount(e) * 0.05), 0);
+    const averageEstimateAmount = completed.length > 0
+      ? completed.reduce((s, e) => s + getAmount(e), 0) / completed.length
+      : 0;
 
     res.json({
       totalUsers,
@@ -171,7 +180,8 @@ router.get('/dashboard', async (req, res) => {
       averageEstimateAmount,
     });
   } catch (error) {
-    res.status(500).json({ message: '대시보드 데이터 조회 실패' });
+    console.error('[admin/dashboard] error:', error);
+    res.status(500).json({ message: '대시보드 데이터 조회 실패', error: String(error?.message || error) });
   }
 });
 
