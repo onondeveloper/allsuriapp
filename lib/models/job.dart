@@ -62,7 +62,7 @@ class Job {
   }
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       if (id != null) 'id': id,
       'title': title,
       'description': description,
@@ -77,10 +77,14 @@ class Job {
       'location': location,
       'category': category,
       'urgency': urgency,
-      'media_urls': mediaUrls,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
+    // Only send media_urls when present to allow DB default '{}' to apply otherwise
+    if (mediaUrls != null) {
+      map['media_urls'] = mediaUrls;
+    }
+    return map;
   }
 
   Job copyWith({
