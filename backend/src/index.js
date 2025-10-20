@@ -23,8 +23,38 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan('dev'));
 
-// 정적 파일 제공 (관리자 대시보드)
-app.use('/admin', express.static(path.join(__dirname, '..', 'public')));
+// Basic Auth for Admin UI (protects '/', '/admin', and static admin assets)
+const basicAuth = (req, res, next) => {
+  const { ADMIN_USER, ADMIN_PASS } = process.env;
+  // If not configured, skip protection (for local/dev by default)
+  if (!ADMIN_USER || !ADMIN_PASS) return next();
+
+  // Only require auth for GET access to root/admin UI endpoints
+  const isAdminUiPath = req.path === '/' || req.path === '/admin' || req.path.startsWith('/admin/');
+  const isGet = req.method === 'GET';
+  if (!isAdminUiPath || !isGet) return next();
+
+  const header = req.headers['authorization'];
+  if (!header || !header.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="Allsuri Admin"');
+    return res.status(401).send('Authentication required');
+  }
+  try {
+    const base64 = header.split(' ')[1];
+    const decoded = Buffer.from(base64, 'base64').toString('utf8');
+    const sep = decoded.indexOf(':');
+    const user = sep >= 0 ? decoded.slice(0, sep) : '';
+    const pass = sep >= 0 ? decoded.slice(sep + 1) : '';
+    if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
+  } catch (e) {
+    // fallthrough to 401 below
+  }
+  res.set('WWW-Authenticate', 'Basic realm="Allsuri Admin"');
+  return res.status(401).send('Invalid credentials');
+};
+
+// 정적 파일 제공 (관리자 대시보드) - 보호 적용
+app.use('/admin', basicAuth, express.static(path.join(__dirname, '..', 'public')));
 // 광고 정적 파일 제공 (광고 전용 경로)
 app.use('/ads', express.static(path.join(__dirname, '..', 'public', 'ads')));
 
@@ -43,8 +73,13 @@ try {
   console.warn('ads_public route not loaded:', e?.message);
 }
 
-// 관리자 대시보드 라우트
-app.get('/admin', (req, res) => {
+// 루트 및 관리자 대시보드 라우트 (보호 적용)
+app.get('/', basicAuth, (req, res) => {
+  // 루트 접근 시 관리자 페이지로 이동 (동일 보호)
+  res.redirect('/admin');
+});
+
+app.get('/admin', basicAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
 });
 
