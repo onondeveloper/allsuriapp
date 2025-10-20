@@ -487,7 +487,8 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                             ],
                           ),
                         ),
-                      );
+                      ),
+                    );
                     },
                   );
                 },
@@ -616,7 +617,7 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
               const SizedBox(height: 16),
               
               // Images
-              if (mediaUrls.isNotEmpty) ....[
+              if (mediaUrls.isNotEmpty) ...[
                 SizedBox(
                   height: 200,
                   child: ListView.builder(
