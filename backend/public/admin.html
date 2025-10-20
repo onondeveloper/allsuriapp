@@ -752,10 +752,22 @@
                             </div>
                         </div>
 
+                        <div class="stat-card info">
+                            <div class="stat-card-header">
+                                <div>
+                                    <div class="stat-card-title">총 견적 금액</div>
+                                    <div class="stat-card-value" id="totalEstimateAmount">₩0</div>
+                                </div>
+                                <div class="stat-card-icon">
+                                    <span class="material-icons">account_balance_wallet</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="stat-card danger">
                             <div class="stat-card-header">
                                 <div>
-                                    <div class="stat-card-title">총 수익</div>
+                                    <div class="stat-card-title">총 수익 (30%)</div>
                                     <div class="stat-card-value" id="totalRevenue">₩0</div>
                                 </div>
                                 <div class="stat-card-icon">
@@ -890,6 +902,22 @@
             <div class="modal-body" id="estimateModalBody"></div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeEstimateModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call Detail Modal -->
+    <div id="callModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Call 공사 상세</h3>
+                <button class="modal-close" onclick="closeCallModal()">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" id="callModalBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>
             </div>
         </div>
     </div>

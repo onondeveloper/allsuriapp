@@ -80,6 +80,8 @@ async function apiCall(endpoint, options = {}) {
                 document.getElementById('inProgressEstimates').textContent = data.inProgressEstimates || 0;
                 document.getElementById('awardedEstimates').textContent = data.awardedEstimates || 0;
                 document.getElementById('transferredEstimates').textContent = data.transferredEstimates || 0;
+                // 총 견적 금액을 원화 형식으로 표시
+                document.getElementById('totalEstimateAmount').textContent = '₩' + (data.totalEstimateAmount?.toLocaleString('ko-KR') || '0');
                 // 총 수익을 원화 형식으로 표시
                 document.getElementById('totalRevenue').textContent = '₩' + (data.totalRevenue?.toLocaleString('ko-KR') || '0');
             } catch (error) {
@@ -338,7 +340,7 @@ async function loadEstimates() {
                                 const status = e.status || '-';
                                 return `
                                 <tr>
-                                    <td class="clickable-title" data-estimate-id="${e.id}" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${title}</td>
+                                    <td class="clickable-title" data-estimate-id="${e.id}" style="cursor: pointer; color: #1a73e8; text-decoration: underline;" onclick="showEstimateDetail('${e.id}')">${title}</td>
                                     <td>${customerName}</td>
                                     <td>${businessName}</td>
                                     <td>${amountText}</td>
@@ -1206,7 +1208,7 @@ function displayCalls(calls) {
             </thead>
             <tbody>
                 ${calls.map(item => `
-                    <tr>
+                    <tr style="cursor: pointer;" onclick="showCallDetail('${item.id}')">
                         <td><strong>${item.title || '-'}</strong></td>
                         <td>${item.location || '-'}</td>
                         <td>${item.category || '-'}</td>
@@ -1225,6 +1227,204 @@ function displayCalls(calls) {
         </table>
     `;
     container.innerHTML = statsHtml + table;
+}
+
+// Call 상세 보기 함수
+async function showCallDetail(jobId) {
+    try {
+        const calls = await apiCall('/calls');
+        const job = calls.find(c => c.id === jobId);
+        
+        if (!job) {
+            alert('Call 정보를 찾을 수 없습니다.');
+            return;
+        }
+        
+        const modalBody = document.getElementById('callModalBody');
+        const statusText = getCallStatusText(job.status, job.assigned_business_id);
+        const statusClass = getStatusClass(job.status, job.assigned_business_id);
+        
+        let detailHtml = `
+            <div class="detail-group">
+                <div class="detail-item">
+                    <span class="detail-label">제목:</span>
+                    <span class="detail-value">${job.title || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">지역:</span>
+                    <span class="detail-value">${job.location || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">카테고리:</span>
+                    <span class="detail-value">${job.category || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">예산 금액:</span>
+                    <span class="detail-value">${typeof job.budget_amount === 'number' ? '₩' + job.budget_amount.toLocaleString('ko-KR') : '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">상태:</span>
+                    <span class="detail-value"><span class="status-badge status-${statusClass}">${statusText}</span></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">등록 사업자:</span>
+                    <span class="detail-value">${job.owner_business_name || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">가져간 사업자:</span>
+                    <span class="detail-value">${job.assigned_business_name || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">생성일:</span>
+                    <span class="detail-value">${formatDate(job.created_at)}</span>
+                </div>
+        `;
+        
+        // 상세 설명이 있으면 추가
+        if (job.description) {
+            detailHtml += `
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <span class="detail-label">설명:</span>
+                    <span class="detail-value">${job.description}</span>
+                </div>
+            `;
+        }
+        
+        // 미디어 URL이 있으면 추가
+        if (job.media_urls && Array.isArray(job.media_urls) && job.media_urls.length > 0) {
+            detailHtml += `
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <span class="detail-label">첨부 이미지:</span>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                        ${job.media_urls.map(url => `
+                            <img src="${url}" alt="첨부 이미지" style="width: 120px; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer;" onclick="window.open('${url}', '_blank')">
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        detailHtml += `</div>`;
+        
+        modalBody.innerHTML = detailHtml;
+        document.getElementById('callModal').style.display = 'flex';
+    } catch (error) {
+        console.error('Call 상세 정보 로드 오류:', error);
+        alert('Call 상세 정보를 불러오는데 실패했습니다.');
+    }
+}
+
+// Call 모달 닫기
+function closeCallModal() {
+    document.getElementById('callModal').style.display = 'none';
+}
+
+// 견적 상세 보기 함수
+async function showEstimateDetail(estimateId) {
+    try {
+        // allEstimates에서 해당 견적을 찾거나 API로 다시 가져오기
+        let estimate = allEstimates.find(e => e.id === estimateId);
+        
+        if (!estimate) {
+            alert('견적 정보를 찾을 수 없습니다.');
+            return;
+        }
+        
+        const modalBody = document.getElementById('estimateModalBody');
+        
+        let detailHtml = `
+            <div class="detail-group">
+                <div class="detail-item">
+                    <span class="detail-label">제목:</span>
+                    <span class="detail-value">${estimate.title || estimate.description || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">고객명:</span>
+                    <span class="detail-value">${estimate.customerName || estimate.customername || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">사업자명:</span>
+                    <span class="detail-value">${estimate.businessName || estimate.businessname || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">견적 금액:</span>
+                    <span class="detail-value">${typeof (estimate.amount || estimate.estimatedPrice) === 'number' ? '₩' + (estimate.amount || estimate.estimatedPrice).toLocaleString('ko-KR') : '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">상태:</span>
+                    <span class="detail-value"><span class="status-badge status-${estimate.status}">${getStatusText(estimate.status)}</span></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">생성일:</span>
+                    <span class="detail-value">${formatDate(estimate.createdAt || estimate.createdat)}</span>
+                </div>
+        `;
+        
+        // 추가 정보가 있으면 표시
+        if (estimate.orderid) {
+            detailHtml += `
+                <div class="detail-item">
+                    <span class="detail-label">주문 ID:</span>
+                    <span class="detail-value">${estimate.orderid}</span>
+                </div>
+            `;
+        }
+        
+        if (estimate.customerid) {
+            detailHtml += `
+                <div class="detail-item">
+                    <span class="detail-label">고객 ID:</span>
+                    <span class="detail-value">${estimate.customerid}</span>
+                </div>
+            `;
+        }
+        
+        if (estimate.businessid) {
+            detailHtml += `
+                <div class="detail-item">
+                    <span class="detail-label">사업자 ID:</span>
+                    <span class="detail-value">${estimate.businessid}</span>
+                </div>
+            `;
+        }
+        
+        // 상세 설명이 있으면 추가
+        if (estimate.details || estimate.description) {
+            detailHtml += `
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <span class="detail-label">상세 설명:</span>
+                    <span class="detail-value">${estimate.details || estimate.description}</span>
+                </div>
+            `;
+        }
+        
+        // 미디어 URL이 있으면 추가
+        if (estimate.mediaurls && Array.isArray(estimate.mediaurls) && estimate.mediaurls.length > 0) {
+            detailHtml += `
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <span class="detail-label">첨부 이미지:</span>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                        ${estimate.mediaurls.map(url => `
+                            <img src="${url}" alt="견적 이미지" style="width: 120px; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer;" onclick="window.open('${url}', '_blank')">
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        detailHtml += `</div>`;
+        
+        modalBody.innerHTML = detailHtml;
+        document.getElementById('estimateModal').style.display = 'flex';
+    } catch (error) {
+        console.error('견적 상세 정보 로드 오류:', error);
+        alert('견적 상세 정보를 불러오는데 실패했습니다.');
+    }
+}
+
+// 견적 모달 닫기
+function closeEstimateModal() {
+    document.getElementById('estimateModal').style.display = 'none';
 }
 
 // ===== 광고 관리 =====

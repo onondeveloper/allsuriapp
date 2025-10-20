@@ -51,8 +51,10 @@ export const handler: Handler = async (event) => {
       const inProgressEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'in_progress').length : 0
       const awardedEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'awarded').length : 0
       const transferredEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'transferred').length : 0
-      // 모든 견적 금액의 30% 계산 (완료된 것만이 아님)
-      const totalRevenue = Array.isArray(estimates) ? estimates.reduce((sum: number, e: any) => sum + ((e.amount || 0) * 0.30), 0) : 0
+      // 총 견적 금액 계산 (모든 견적의 합)
+      const totalEstimateAmount = Array.isArray(estimates) ? estimates.reduce((sum: number, e: any) => sum + (e.amount || 0), 0) : 0
+      // 총 수익: 모든 견적 금액의 30% 계산
+      const totalRevenue = totalEstimateAmount * 0.3
       
       return ok({
         totalUsers,
@@ -66,6 +68,7 @@ export const handler: Handler = async (event) => {
         inProgressEstimates,
         awardedEstimates,
         transferredEstimates,
+        totalEstimateAmount,
         totalRevenue
       })
     }
