@@ -192,6 +192,46 @@ export const handler: Handler = async (event) => {
       }
     }
 
+    // Call 공사 목록 (jobs 테이블)
+    if (event.httpMethod === 'GET' && path === '/calls') {
+      const jobsRes = await fetch(`${SUPABASE_URL}/rest/v1/jobs?select=*&order=created_at.desc`, {
+        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+      })
+      const jobs = await jobsRes.json()
+      
+      if (!Array.isArray(jobs)) {
+        return ok([])
+      }
+      
+      // 사업자 정보 가져오기
+      const ownerIds = [...new Set(jobs.map((j: any) => j.owner_business_id).filter(Boolean))]
+      const assignedIds = [...new Set(jobs.map((j: any) => j.assigned_business_id).filter(Boolean))]
+      const allUserIds = [...new Set([...ownerIds, ...assignedIds])]
+      
+      let usersMap: Record<string, any> = {}
+      if (allUserIds.length > 0) {
+        const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber&id=in.(${allUserIds.map(id => `"${id}"`).join(',')})`, {
+          headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+        })
+        const users = await usersRes.json()
+        if (Array.isArray(users)) {
+          usersMap = users.reduce((acc: any, user: any) => {
+            acc[user.id] = user
+            return acc
+          }, {})
+        }
+      }
+      
+      // 사업자 정보를 포함한 데이터 반환
+      const jobsWithUsers = jobs.map((job: any) => ({
+        ...job,
+        owner_business_name: usersMap[job.owner_business_id]?.businessname || usersMap[job.owner_business_id]?.name || '알 수 없음',
+        assigned_business_name: job.assigned_business_id ? (usersMap[job.assigned_business_id]?.businessname || usersMap[job.assigned_business_id]?.name || '알 수 없음') : null,
+      }))
+      
+      return ok(jobsWithUsers)
+    }
+
     // Ads endpoints via Supabase
     if (path.startsWith('/ads')) {
       const sub = path.replace(/^\/ads/, '')
