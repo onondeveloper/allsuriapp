@@ -273,12 +273,12 @@ class HomeScreen extends StatelessWidget {
 
                 // const SizedBox(height: 24),
 
-                // 광고 배너 영역
-                const SizedBox(height: 32),
+                // 광고 섹션 (카테고리 버튼 크기로 축소)
+                const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Container(
-                    height: 400,
+                    height: 80, // 카테고리 버튼과 비슷한 높이로 축소
                     decoration: BoxDecoration(
                       color: Colors.grey[300],
                       borderRadius: BorderRadius.circular(16),
@@ -288,29 +288,21 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                     child: Center(
-                      child: Column(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
                             Icons.campaign_outlined,
-                            size: 48,
+                            size: 24,
                             color: Colors.grey[600],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(width: 8),
                           Text(
                             '광고 문의',
                             style: TextStyle(
-                              fontSize: 18,
+                              fontSize: 16,
                               fontWeight: FontWeight.w600,
                               color: Colors.grey[700],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '이 공간에 귀사의 광고를 게재하세요',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
                             ),
                           ),
                         ],
@@ -320,7 +312,7 @@ class HomeScreen extends StatelessWidget {
                 ),
 
                 // 하단으로 밀어내기
-                const SizedBox(height: 50),
+                const SizedBox(height: 30),
 
                 // Kakao 공식 스타일 버튼 (노란색, 카카오톡 우선 자동 로그인)
                 Padding(
@@ -444,29 +436,26 @@ class HomeScreen extends StatelessWidget {
                           }
                         }
                       },
-                      child: Transform.scale(
-                        scale: 1.3, // 30% 크기 증가
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            alignment: Alignment.center,
-                            color: Colors.transparent,
-                            child: Image.asset(
-                              'assets/images/kakao_login_image.png', // 제공된 이미지로 교체
-                              fit: BoxFit.none, // 원본 크기 유지
-                              filterQuality: FilterQuality.high,
-                              errorBuilder: (context, error, stack) {
-                                // 에셋이 없으면 노란 배경 + 로고만(원본 크기) 표시
-                                return Container(
-                                  color: const Color(0xFFFEE500),
-                                  alignment: Alignment.center,
-                                  child: Image.asset(
-                                    'assets/images/kakao_logo.png',
-                                    fit: BoxFit.none,
-                                  ),
-                                );
-                              },
-                            ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          alignment: Alignment.center,
+                          color: Colors.transparent,
+                          child: Image.asset(
+                            'assets/images/kakao_login_image.png', // 제공된 이미지로 교체
+                            fit: BoxFit.none, // 원본 크기 유지
+                            filterQuality: FilterQuality.high,
+                            errorBuilder: (context, error, stack) {
+                              // 에셋이 없으면 노란 배경 + 로고만(원본 크기) 표시
+                              return Container(
+                                color: const Color(0xFFFEE500),
+                                alignment: Alignment.center,
+                                child: Image.asset(
+                                  'assets/images/kakao_logo.png',
+                                  fit: BoxFit.none,
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),
