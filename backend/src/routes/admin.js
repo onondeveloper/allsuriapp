@@ -260,6 +260,71 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
+// Call 공사 목록 조회 (jobs 테이블)
+router.get('/calls', async (req, res) => {
+  try {
+    console.log('[ADMIN CALLS] Fetching jobs data...');
+    
+    const { data: jobs, error } = await supabase
+      .from('jobs')
+      .select(`
+        id,
+        title,
+        description,
+        owner_business_id,
+        assigned_business_id,
+        budget_amount,
+        awarded_amount,
+        commission_rate,
+        commission_amount,
+        status,
+        location,
+        category,
+        urgency,
+        created_at,
+        updated_at
+      `)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('[ADMIN CALLS] Error:', error);
+      throw error;
+    }
+    
+    console.log('[ADMIN CALLS] Jobs count:', jobs?.length || 0);
+    
+    // 사업자 정보 가져오기
+    const ownerIds = [...new Set(jobs?.map(j => j.owner_business_id).filter(Boolean) || [])];
+    const assignedIds = [...new Set(jobs?.map(j => j.assigned_business_id).filter(Boolean) || [])];
+    const allUserIds = [...new Set([...ownerIds, ...assignedIds])];
+    
+    let usersMap = {};
+    if (allUserIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, name, businessname, phonenumber')
+        .in('id', allUserIds);
+      
+      usersMap = (users || []).reduce((acc, user) => {
+        acc[user.id] = user;
+        return acc;
+      }, {});
+    }
+    
+    // 사업자 정보를 포함한 데이터 반환
+    const jobsWithUsers = (jobs || []).map(job => ({
+      ...job,
+      owner_business_name: usersMap[job.owner_business_id]?.businessname || usersMap[job.owner_business_id]?.name || '알 수 없음',
+      assigned_business_name: job.assigned_business_id ? (usersMap[job.assigned_business_id]?.businessname || usersMap[job.assigned_business_id]?.name || '알 수 없음') : null,
+    }));
+    
+    res.json(jobsWithUsers);
+  } catch (error) {
+    console.error('[admin/calls] error:', error);
+    res.status(500).json({ message: 'Call 공사 목록 조회 실패', error: String(error?.message || error) });
+  }
+});
+
 // 메시징 기능
 router.get('/messages', async (req, res) => {
   try {

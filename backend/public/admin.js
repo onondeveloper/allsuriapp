@@ -69,10 +69,7 @@ async function apiCall(endpoint, options = {}) {
                 
                 console.log('[DASHBOARD] Received data:', data);
                 
-                // totalUsers 제거, totalJobs 및 pendingJobs, completedJobs 추가
-                document.getElementById('totalJobs').textContent = data.totalJobs || 0;
-                document.getElementById('pendingJobs').textContent = data.pendingJobs || 0;
-                document.getElementById('completedJobs').textContent = data.completedJobs || 0;
+                // totalUsers 및 totalJobs 관련 제거
                 document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers || 0;
                 document.getElementById('totalCustomers').textContent = data.totalCustomers || 0;
                 document.getElementById('pendingUsers').textContent = (data.totalBusinessUsers || 0) - (data.approvedUsers || 0);
@@ -1098,15 +1095,9 @@ async function deleteUser(userId) {
 // ===== Call 현황 (마켓플레이스) =====
 async function loadCalls() {
     try {
-        const status = document.getElementById('callStatusFilter')?.value || 'all';
-        const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
-        const res = await fetch(`${MARKET_API_BASE}/listings${qs}`, {
-            headers: {
-                'admin-token': ADMIN_TOKEN,
-            }
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const calls = await res.json();
+        console.log('[LOAD CALLS] Fetching jobs data...');
+        const calls = await apiCall('/calls');
+        console.log('[LOAD CALLS] Received:', calls.length, 'jobs');
         displayCalls(calls);
     } catch (e) {
         console.error('Call 로드 오류:', e);
@@ -1124,13 +1115,23 @@ function displayCalls(calls) {
     }
     
     // 상태 매핑 함수
-    const getCallStatusText = (status) => {
-        if (status === 'open') return '대기';
-        if (status === 'assigned' || status === 'completed') return '완료';
-        return status || '-';
+    const getCallStatusText = (status, assignedBusinessId) => {
+        // assigned_business_id가 있으면 "완료" (다른 사업자가 가져간 경우)
+        if (assignedBusinessId) return '완료';
+        // assigned_business_id가 없고 completed나 cancelled가 아니면 "대기 중"
+        if (status === 'completed') return '종료됨';
+        if (status === 'cancelled') return '취소됨';
+        return '대기 중';
     };
     
-    // 날짜 포맷 함수 (yyyy-MM-dd)
+    const getStatusClass = (status, assignedBusinessId) => {
+        if (assignedBusinessId) return 'success';
+        if (status === 'completed') return 'completed';
+        if (status === 'cancelled') return 'cancelled';
+        return 'warning';
+    };
+    
+    // 날짜 포맷 함수 (yyyy-MM-dd HH:mm)
     const formatDate = (dateStr) => {
         if (!dateStr) return '-';
         try {
@@ -1138,22 +1139,67 @@ function displayCalls(calls) {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}`;
         } catch (e) {
             return '-';
         }
     };
+    
+    // 통계 계산
+    const total = calls.length;
+    const pending = calls.filter(c => !c.assigned_business_id && c.status !== 'completed' && c.status !== 'cancelled').length;
+    const completed = calls.filter(c => c.assigned_business_id).length;
+    
+    const statsHtml = `
+        <div class="stats-grid" style="margin-bottom: 20px;">
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div>
+                        <div class="stat-card-title">전체 Call 공사</div>
+                        <div class="stat-card-value">${total}</div>
+                    </div>
+                    <div class="stat-card-icon">
+                        <span class="material-icons">build</span>
+                    </div>
+                </div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-card-header">
+                    <div>
+                        <div class="stat-card-title">대기 중</div>
+                        <div class="stat-card-value">${pending}</div>
+                    </div>
+                    <div class="stat-card-icon">
+                        <span class="material-icons">schedule</span>
+                    </div>
+                </div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-card-header">
+                    <div>
+                        <div class="stat-card-title">완료 (가져간 공사)</div>
+                        <div class="stat-card-value">${completed}</div>
+                    </div>
+                    <div class="stat-card-icon">
+                        <span class="material-icons">done_all</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
     
     const table = `
         <table class="table">
             <thead>
                 <tr>
                     <th>제목</th>
-                    <th>지역</th>
+                    <th>위치</th>
                     <th>카테고리</th>
-                    <th>견적 금액</th>
+                    <th>예산</th>
                     <th>상태</th>
-                    <th>게시한 사업자</th>
+                    <th>등록한 사업자</th>
                     <th>가져간 사업자</th>
                     <th>생성일</th>
                 </tr>
@@ -1161,24 +1207,24 @@ function displayCalls(calls) {
             <tbody>
                 ${calls.map(item => `
                     <tr>
-                        <td>${item.title || '-'}</td>
-                        <td>${item.region || '-'}</td>
+                        <td><strong>${item.title || '-'}</strong></td>
+                        <td>${item.location || '-'}</td>
                         <td>${item.category || '-'}</td>
-                        <td>${typeof item.budget_amount === 'number' ? item.budget_amount.toLocaleString() + '원' : '-'}</td>
+                        <td>${typeof item.budget_amount === 'number' ? '₩' + item.budget_amount.toLocaleString('ko-KR') : '-'}</td>
                         <td>
-                            <span class="status-badge status-${item.status || 'pending'}">
-                                ${getCallStatusText(item.status)}
+                            <span class="status-badge status-${getStatusClass(item.status, item.assigned_business_id)}">
+                                ${getCallStatusText(item.status, item.assigned_business_id)}
                             </span>
                         </td>
-                        <td>${item.posted_by || item.posted_by_name || '-'}</td>
-                        <td>${item.assigned_to || item.assigned_to_name || item.accepted_by || item.accepted_by_name || '-'}</td>
-                        <td>${formatDate(item.createdat || item.created_at)}</td>
+                        <td>${item.owner_business_name || '-'}</td>
+                        <td>${item.assigned_business_name || '<span style="color: #999;">-</span>'}</td>
+                        <td>${formatDate(item.created_at)}</td>
                     </tr>
                 `).join('')}
             </tbody>
         </table>
     `;
-    container.innerHTML = table;
+    container.innerHTML = statsHtml + table;
 }
 
 // ===== 광고 관리 =====
