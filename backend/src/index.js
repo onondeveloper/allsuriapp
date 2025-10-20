@@ -29,10 +29,10 @@ const basicAuth = (req, res, next) => {
   // If not configured, skip protection (for local/dev by default)
   if (!ADMIN_USER || !ADMIN_PASS) return next();
 
-  // Only require auth for GET access to root/admin UI endpoints
+  // Only require auth for read-like access (GET/HEAD) to root/admin UI endpoints
   const isAdminUiPath = req.path === '/' || req.path === '/admin' || req.path.startsWith('/admin/');
-  const isGet = req.method === 'GET';
-  if (!isAdminUiPath || !isGet) return next();
+  const isReadLike = req.method === 'GET' || req.method === 'HEAD';
+  if (!isAdminUiPath || !isReadLike) return next();
 
   const header = req.headers['authorization'];
   if (!header || !header.startsWith('Basic ')) {
