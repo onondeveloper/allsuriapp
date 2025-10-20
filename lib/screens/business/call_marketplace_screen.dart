@@ -296,7 +296,7 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                               ),
                               const SizedBox(height: 8),
                               // Images thumbnail
-                              if (mediaUrls.isNotEmpty) ..[
+                              if (mediaUrls.isNotEmpty) ...[
                                 SizedBox(
                                   height: 80,
                                   child: ListView.builder(
@@ -616,7 +616,7 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
               const SizedBox(height: 16),
               
               // Images
-              if (mediaUrls.isNotEmpty) ...[
+              if (mediaUrls.isNotEmpty) ....[
                 SizedBox(
                   height: 200,
                   child: ListView.builder(

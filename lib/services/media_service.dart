@@ -73,7 +73,6 @@ class MediaService {
   Future<String?> uploadAiImage({required File file}) async {
     try {
       final fileName = 'ai_${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
-      // Reuse existing bucket to avoid new bucket provisioning
       final path = 'ai/$fileName';
       await _sb.storage.from('attachments_messages').upload(path, file);
       final publicUrl = _sb.storage.from('attachments_messages').getPublicUrl(path);
@@ -83,9 +82,6 @@ class MediaService {
       return null;
     }
   }
-}
-
-
 
   Future<String?> uploadEstimateImage({required File file}) async {
     try {
@@ -99,3 +95,4 @@ class MediaService {
       return null;
     }
   }
+}
