@@ -163,6 +163,7 @@ router.get('/dashboard', async (req, res) => {
       throw estimatesResult.error;
     }
     console.log('[ADMIN DASHBOARD] Estimates count:', estimatesAll?.length || 0);
+    console.log('[ADMIN DASHBOARD] Estimates data sample:', estimatesAll?.slice(0, 3));
 
     const estimates = estimatesAll || [];
     const totalEstimates = estimates.length;
