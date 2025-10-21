@@ -1557,3 +1557,20 @@ async function showAdsStats() {
         alert('광고 통계 조회 실패');
     }
 }
+
+// ===== 초기화 및 전체 로드 =====
+async function loadAll() {
+    try {
+        await loadDashboard();
+        console.log('✅ Dashboard loaded successfully');
+    } catch (error) {
+        console.error('❌ Error loading dashboard:', error);
+    }
+}
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Admin page initializing...');
+    checkLogin();
+    loadAll();
+});
