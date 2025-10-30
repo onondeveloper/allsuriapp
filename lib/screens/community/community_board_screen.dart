@@ -26,12 +26,16 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
 
   Future<void> _refresh() async {
     setState(() => _loading = true);
+    debugPrint('[CommunityBoardScreen] _refresh 시작');
     try {
       final svc = Provider.of<CommunityService>(context, listen: false);
       final rows = await svc.getPosts(query: _searchController.text.trim());
+      debugPrint('[CommunityBoardScreen] getPosts 결과 - ${rows.length}개 항목');
       setState(() => _posts = rows);
+      debugPrint('[CommunityBoardScreen] _posts 업데이트 완료: ${_posts.length}개 항목');
     } finally {
       setState(() => _loading = false);
+      debugPrint('[CommunityBoardScreen] _refresh 완료');
     }
   }
 
@@ -147,9 +151,23 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                           )
                         : ListView.separated(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            itemBuilder: (_, idx) => _buildModernPostTile(_posts[idx]),
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
                             itemCount: _posts.length,
+                            itemBuilder: (_, idx) {
+                              debugPrint('[CommunityBoardScreen] 게시글 빌드 중: ${idx+1}/${_posts.length} - ${_posts[idx].title}');
+                              try {
+                                final tile = _buildModernPostTile(_posts[idx]);
+                                debugPrint('[CommunityBoardScreen] 게시글 타일 생성 성공: ${idx+1}');
+                                return tile;
+                              } catch (e) {
+                                debugPrint('[CommunityBoardScreen] 게시글 타일 생성 실패: ${idx+1} - $e');
+                                return Container(
+                                  height: 100,
+                                  color: Colors.red[100],
+                                  child: Center(child: Text('게시글 로드 오류: $e')),
+                                );
+                              }
+                            },
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
                           ),
                   ),
           ),
@@ -219,6 +237,36 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Author profile section
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: post.authorProfileImageUrl != null
+                          ? NetworkImage(post.authorProfileImageUrl!)
+                          : null,
+                      child: post.authorProfileImageUrl == null
+                          ? Icon(Icons.person, color: Colors.grey[600], size: 20)
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    // Expanded 추가: Text 위젯이 Row 내에서 공간 제약 없이 너무 커지는 것을 방지
+                    Expanded(
+                      child: Text(
+                        post.authorName ?? '알 수 없는 사업자',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                        maxLines: 1, // 한 줄로 제한
+                        overflow: TextOverflow.ellipsis, // 넘치면 ... 표시
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12), // Spacing between author and tags/title
                 // Tags
                 if (post.tags.isNotEmpty)
                   Padding(
@@ -272,23 +320,35 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                   children: [
                     Icon(Icons.access_time_outlined, size: 14, color: Colors.grey[500]),
                     const SizedBox(width: 4),
-                    Text(
-                      _formatTime(post.createdAt),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    Flexible( // Flexible 추가
+                      child: Text(
+                        _formatTime(post.createdAt),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        maxLines: 1, // 추가
+                        overflow: TextOverflow.ellipsis, // 추가
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Icon(Icons.thumb_up_outlined, size: 14, color: Colors.grey[500]),
                     const SizedBox(width: 4),
-                    Text(
-                      post.upvotes.toString(),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    Flexible( // Flexible 추가
+                      child: Text(
+                        post.upvotes.toString(),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        maxLines: 1, // 추가
+                        overflow: TextOverflow.ellipsis, // 추가
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Icon(Icons.comment_outlined, size: 14, color: Colors.grey[500]),
                     const SizedBox(width: 4),
-                    Text(
-                      post.commentsCount.toString(),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    Flexible( // Flexible 추가 (기존 Expanded를 Flexible로 변경)
+                      child: Text(
+                        post.commentsCount.toString(),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),

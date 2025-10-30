@@ -33,7 +33,17 @@ router.post('/kakao/login', async (req, res) => {
       if (upsertErr) throw upsertErr;
       const secret = process.env.JWT_SECRET || 'change_me';
       const token = jwt.sign({ sub: userId, provider: 'kakao' }, secret, { expiresIn: '30d' });
-      return res.json({ ok: true, token, user: { id: userId, name: userRow.name, email: userRow.email } });
+      return res.json({ 
+        ok: true, 
+        success: true, 
+        token, 
+        data: {
+          token,
+          user: { id: userId, name: userRow.name, email: userRow.email },
+          supabase_access_token: null,
+          supabase_refresh_token: null,
+        }
+      });
     }
 
     // Kakao 사용자 정보 조회
@@ -92,7 +102,44 @@ router.post('/kakao/login', async (req, res) => {
     const secret = process.env.JWT_SECRET || 'change_me';
     const token = jwt.sign({ sub: userId, provider: 'kakao' }, secret, { expiresIn: '30d' });
 
-    res.json({ ok: true, token, user: { id: userId, name, email } });
+    // Supabase JWT 토큰 생성 (Supabase Service Role Key를 사용하여 사용자 세션 생성)
+    let supabaseAccessToken = null;
+    let supabaseRefreshToken = null;
+    
+    try {
+      // Supabase Admin API를 사용하여 사용자 세션 생성
+      const { data: authData, error: authError } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email || `${userId}@example.local`,
+        options: {
+          redirectTo: 'allsuri://auth-callback',
+        }
+      });
+      
+      if (!authError && authData) {
+        // 생성된 링크에서 토큰 추출
+        const url = new URL(authData.properties.action_link);
+        supabaseAccessToken = url.searchParams.get('access_token');
+        supabaseRefreshToken = url.searchParams.get('refresh_token');
+        console.log('[Kakao Login] Supabase 세션 토큰 생성 성공');
+      } else {
+        console.error('[Kakao Login] Supabase 세션 토큰 생성 실패:', authError);
+      }
+    } catch (supaError) {
+      console.error('[Kakao Login] Supabase 세션 생성 에러:', supaError);
+    }
+
+    res.json({ 
+      ok: true, 
+      success: true,
+      token, 
+      data: {
+        token,
+        user: { id: userId, name, email },
+        supabase_access_token: supabaseAccessToken,
+        supabase_refresh_token: supabaseRefreshToken,
+      }
+    });
   } catch (e) {
     console.error('Kakao login error:', e);
     res.status(500).json({ message: 'Kakao login failed' });

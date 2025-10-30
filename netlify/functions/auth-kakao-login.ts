@@ -19,7 +19,17 @@ export const handler: Handler = async (event) => {
     if (process.env.ALLOW_TEST_KAKAO === 'true' && accessToken === 'TEST_BYPASS') {
       const userId = 'kakao:test'
       const token = await issueJwt(userId)
-      return ok({ token, user: { id: userId, name: '카카오 테스트 사용자', email: 'kakao_test@example.local' } })
+      return ok({ 
+        ok: true,
+        success: true,
+        token,
+        data: {
+          token,
+          user: { id: userId, name: '카카오 테스트 사용자', email: 'kakao_test@example.local' },
+          supabase_access_token: null,
+          supabase_refresh_token: null,
+        }
+      })
     }
 
     // Validate Kakao token and get profile
@@ -58,7 +68,17 @@ export const handler: Handler = async (event) => {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       const localId = `kakao:${kakaoId}`
       const token = await issueJwt(localId)
-      return ok({ token, user: { id: localId, name, email: email || `${localId}@example.local`, role: 'customer' } })
+      return ok({ 
+        ok: true,
+        success: true,
+        token,
+        data: {
+          token,
+          user: { id: localId, name, email: email || `${localId}@example.local`, role: 'customer' },
+          supabase_access_token: null,
+          supabase_refresh_token: null,
+        }
+      })
     }
 
     const externalId = `kakao:${kakaoId}`
@@ -124,15 +144,22 @@ export const handler: Handler = async (event) => {
         const uuid = crypto.randomUUID()
         const token = await issueJwt(uuid)
         return ok({ 
+          ok: true,
+          success: true,
           token, 
-          user: { 
-            id: uuid, 
-            name, 
-            email: email || `${externalId}@example.local`, 
-            role: 'customer',
-            external_id: externalId,
-            kakao_id: kakaoId,
-          }, 
+          data: {
+            token,
+            user: { 
+              id: uuid, 
+              name, 
+              email: email || `${externalId}@example.local`, 
+              role: 'customer',
+              external_id: externalId,
+              kakao_id: kakaoId,
+            },
+            supabase_access_token: null,
+            supabase_refresh_token: null,
+          },
           warning: 'supabase_insert_failed_using_temp_uuid' 
         })
       }
@@ -183,16 +210,63 @@ export const handler: Handler = async (event) => {
     const businessStatus = row?.businessStatus || row?.businessstatus
     
     const token = await issueJwt(userId)
+    
+    // Supabase JWT 토큰 생성 (Supabase Admin API 사용)
+    let supabaseAccessToken = null
+    let supabaseRefreshToken = null
+    
+    try {
+      // Supabase Admin API를 사용하여 사용자 세션 생성
+      const userEmail = row?.email || email || `${externalId}@example.local`
+      const magicLinkResponse = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'magiclink',
+          email: userEmail,
+          options: {
+            redirect_to: 'allsuri://auth-callback',
+          },
+        }),
+      })
+      
+      if (magicLinkResponse.ok) {
+        const authData = await magicLinkResponse.json()
+        if (authData.properties && authData.properties.action_link) {
+          const url = new URL(authData.properties.action_link)
+          supabaseAccessToken = url.searchParams.get('access_token')
+          supabaseRefreshToken = url.searchParams.get('refresh_token')
+          console.log('[Kakao Login] Supabase 세션 토큰 생성 성공')
+        }
+      } else {
+        const errorText = await magicLinkResponse.text()
+        console.error('[Kakao Login] Supabase 세션 토큰 생성 실패:', magicLinkResponse.status, errorText)
+      }
+    } catch (supaError) {
+      console.error('[Kakao Login] Supabase 세션 생성 에러:', supaError)
+    }
+    
     return ok({ 
+      ok: true,
+      success: true,
       token, 
-      user: { 
-        id: userId, 
-        name: row?.name || name, 
-        email: row?.email || email || `${externalId}@example.local`, 
-        role: userRole,
-        businessStatus: businessStatus,
-        external_id: row?.external_id || externalId,
-      } 
+      data: {
+        token,
+        user: { 
+          id: userId, 
+          name: row?.name || name, 
+          email: row?.email || email || `${externalId}@example.local`, 
+          role: userRole,
+          businessStatus: businessStatus,
+          external_id: row?.external_id || externalId,
+        },
+        supabase_access_token: supabaseAccessToken,
+        supabase_refresh_token: supabaseRefreshToken,
+      }
     })
   } catch (e: any) {
     return { statusCode: 500, body: JSON.stringify({ message: 'Kakao login failed', error: String(e) }) }

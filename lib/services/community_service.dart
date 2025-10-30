@@ -8,14 +8,43 @@ class CommunityService extends ChangeNotifier {
 
   Future<List<CommunityPost>> getPosts({String? query, int limit = 50}) async {
     try {
-      var sel = _sb.from('community_posts').select();
+      debugPrint('[CommunityService] getPosts 시작');
+      // Select community_posts fields and join with users to get businessname and avatar_url
+      var sel = _sb
+          .from('community_posts')
+          .select('*, users!community_posts_authorid_fkey(businessname, avatar_url)'); // Using foreign key relationship
       if (query != null && query.trim().isNotEmpty) {
         final q = query.trim();
         sel = sel.or('title.ilike.%$q%,content.ilike.%$q%');
       }
+      debugPrint('[CommunityService] 쿼리 실행 중...');
       final rows = await sel.order('createdat', ascending: false).limit(limit);
-      return rows.map<CommunityPost>((r) => CommunityPost.fromMap(Map<String, dynamic>.from(r))).toList();
-    } catch (_) {
+      debugPrint('[CommunityService] 쿼리 결과 - ${rows.length}개 행');
+      
+      // 각 행의 상세 정보 로깅
+      for (int i = 0; i < rows.length; i++) {
+        final row = rows[i];
+        debugPrint('[CommunityService] 행 $i - id: ${row['id']}, title: ${row['title']}, users: ${row['users']}');
+      }
+      
+      final posts = rows.map<CommunityPost>((r) {
+        // Map<String, dynamic>.from(r) ensures we can manipulate the map
+        final Map<String, dynamic> postMap = Map<String, dynamic>.from(r);
+        // Extract user data and flatten into the postMap for CommunityPost.fromMap
+        if (postMap['users'] != null && postMap['users'] is Map) {
+          final userMap = postMap['users'] as Map<String, dynamic>;
+          postMap['users_businessname'] = userMap['businessname'];
+          postMap['users_avatar_url'] = userMap['avatar_url'];
+        }
+        final post = CommunityPost.fromMap(postMap);
+        debugPrint('[CommunityService] 변환된 게시글 - id: ${post.id}, title: ${post.title}, authorName: ${post.authorName}');
+        return post;
+      }).toList();
+      
+      debugPrint('[CommunityService] 최종 반환 - ${posts.length}개 게시글');
+      return posts;
+    } catch (e) {
+      debugPrint('[CommunityService] getPosts 에러: $e');
       return [];
     }
   }

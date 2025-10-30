@@ -21,6 +21,9 @@ class MarketplaceService extends ChangeNotifier {
       if (status.isNotEmpty && status != 'all') {
         query = query.eq('status', status);
         debugPrint('listListings: status 필터 추가 - $status');
+      } else if (status == 'all') { // 'all' 상태 처리 추가
+        query = query.inFilter('status', ['open', 'withdrawn', 'created']);
+        debugPrint('listListings: \'all\' 상태 필터 추가 - [open, withdrawn, created]');
       }
       if (region != null && region.isNotEmpty) {
         query = query.eq('region', region);
@@ -40,8 +43,15 @@ class MarketplaceService extends ChangeNotifier {
       }
       
       debugPrint('listListings: 쿼리 실행 중...');
+      debugPrint('listListings: 현재 사용자 ID - ${_sb.auth.currentUser?.id}');
       final data = await query.order('createdat', ascending: false);
       debugPrint('listListings: 쿼리 결과 - ${data.length}개 행');
+      
+      // 각 레코드의 상세 정보 로깅
+      for (int i = 0; i < data.length; i++) {
+        final item = data[i];
+        debugPrint('listListings: 레코드 $i - id: ${item['id']}, status: ${item['status']}, posted_by: ${item['posted_by']}, title: ${item['title']}');
+      }
       
       final result = data.map((e) => Map<String, dynamic>.from(e)).toList();
       debugPrint('listListings: 변환 완료 - ${result.length}개 항목');
