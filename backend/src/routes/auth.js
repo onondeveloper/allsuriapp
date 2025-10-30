@@ -102,7 +102,30 @@ router.post('/kakao/login', async (req, res) => {
     const secret = process.env.JWT_SECRET || 'change_me';
     const token = jwt.sign({ sub: userId, provider: 'kakao' }, secret, { expiresIn: '30d' });
 
-    // 일단 Supabase 토큰 없이 응답 (RLS 정책을 anon으로 변경했으므로 작동)
+    // Supabase JWT 토큰 발급 (클라이언트에서 Supabase 세션 설정용)
+    const supabaseSecret = process.env.SUPABASE_JWT_SECRET;
+    let supabaseAccessToken = null;
+    if (supabaseSecret) {
+      try {
+        supabaseAccessToken = jwt.sign(
+          {
+            aud: 'authenticated',
+            sub: userId,
+            email: email,
+            phone: '',
+            iss: 'https://your-project.supabase.co/auth/v1',
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 30, // 30 days
+          },
+          supabaseSecret,
+          { algorithm: 'HS256' }
+        );
+        console.log('[Kakao Login] Supabase JWT 토큰 생성 완료');
+      } catch (tokenErr) {
+        console.warn('[Kakao Login] Supabase JWT 생성 실패:', tokenErr.message);
+      }
+    }
+
     console.log('[Kakao Login] 로그인 성공, userId:', userId);
 
     res.json({ 
@@ -111,7 +134,8 @@ router.post('/kakao/login', async (req, res) => {
       token, 
       data: {
         token,
-        user: { id: userId, name, email }
+        user: { id: userId, name, email },
+        supabase_access_token: supabaseAccessToken,
       }
     });
   } catch (e) {

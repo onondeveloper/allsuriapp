@@ -197,6 +197,20 @@ class AuthService extends ChangeNotifier {
             if (user != null) {
               final uid = user['id'] as String;
               
+              // Supabase JWT 토큰 설정 (백엔드에서 발급한 토큰)
+              final supabaseAccessToken = actualData['supabase_access_token'] as String?;
+              if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
+                print('🔍 [signInWithKakao] Supabase JWT 토큰 설정 중...');
+                try {
+                  // Supabase 세션 설정
+                  await _sb.auth.setSession(supabaseAccessToken);
+                  print('✅ [signInWithKakao] Supabase 세션 설정 완료');
+                  print('   - Current User: ${_sb.auth.currentUser?.id}');
+                } catch (e) {
+                  print('❌ [signInWithKakao] Supabase 세션 설정 실패: $e');
+                }
+              }
+              
               // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)
               print('🔍 [signInWithKakao] 백엔드 응답 받음, Supabase에서 전체 정보 로드 시작');
               print('   - UID: $uid');

@@ -208,10 +208,35 @@ export const handler: Handler = async (event) => {
     const userId = row?.id || externalId
     const userRole = row?.role || 'customer'
     const businessStatus = row?.businessStatus || row?.businessstatus
+    const userEmail = row?.email || email || `${externalId}@example.local`
     
     const token = await issueJwt(userId)
     
-    // 일단 Supabase 토큰 없이 응답 (나중에 추가)
+    // Supabase JWT 토큰 발급
+    const supabaseSecret = process.env.SUPABASE_JWT_SECRET
+    let supabaseAccessToken: string | null = null
+    if (supabaseSecret) {
+      try {
+        const enc = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+        const supabaseHeader = enc({ alg: 'HS256', typ: 'JWT' })
+        const supabasePayload = enc({
+          aud: 'authenticated',
+          sub: userId,
+          email: userEmail,
+          phone: '',
+          iss: 'https://your-project.supabase.co/auth/v1',
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 30,
+        })
+        const supabaseData = `${supabaseHeader}.${supabasePayload}`
+        const supabaseSig = require('crypto').createHmac('sha256', supabaseSecret).update(supabaseData).digest('base64url')
+        supabaseAccessToken = `${supabaseData}.${supabaseSig}`
+        console.log('[Kakao Login] Supabase JWT 생성 완료')
+      } catch (err: any) {
+        console.warn('[Kakao Login] Supabase JWT 생성 실패:', err.message)
+      }
+    }
+    
     console.log('[Kakao Login] 로그인 성공, userId:', userId)
     
     return ok({ 
@@ -223,11 +248,12 @@ export const handler: Handler = async (event) => {
         user: { 
           id: userId, 
           name: row?.name || name, 
-          email: row?.email || email || `${externalId}@example.local`, 
+          email: userEmail, 
           role: userRole,
           businessStatus: businessStatus,
           external_id: row?.external_id || externalId,
-        }
+        },
+        supabase_access_token: supabaseAccessToken,
       }
     })
   } catch (e: any) {
@@ -248,5 +274,4 @@ async function issueJwt(sub: string): Promise<string> {
 function ok(body: any) {
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
 }
-
 

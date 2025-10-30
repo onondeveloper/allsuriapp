@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:allsuriapp/models/estimate.dart';
 import 'package:allsuriapp/services/estimate_service.dart';
 import 'package:allsuriapp/screens/chat_screen.dart';
+import 'package:allsuriapp/services/notification_service.dart';
 
 class CallMarketplaceScreen extends StatefulWidget {
   final bool showSuccessMessage;
@@ -56,6 +57,27 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
           callback: (payload) {
             print('CallMarketplaceScreen Realtime 이벤트: $payload');
             if (!mounted) return;
+            
+            // 새로운 INSERT 이벤트 감지
+            if (payload.eventType == 'INSERT') {
+              final newListing = payload.newRecord;
+              final title = newListing['title'] ?? 'Call 공사';
+              final region = newListing['region'] ?? '지역 미정';
+              
+              print('🔔 새로운 Call 공사 감지: $title in $region');
+              
+              // 로컬 알림 표시
+              try {
+                NotificationService().showNewJobNotification(
+                  title: '새로운 Call 공사!',
+                  body: '$title - $region',
+                  jobId: newListing['id']?.toString() ?? 'unknown',
+                );
+              } catch (e) {
+                print('알림 표시 실패: $e');
+              }
+            }
+            
             _reload();
           },
         )
@@ -542,22 +564,63 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
 
   Future<void> _claimListing(String id) async {
     try {
-      final ok = await _market.claimListing(id);
-      if (!mounted) return;
-      if (ok) {
+      print('🔍 [_claimListing] 공사 잡기 시작: $id');
+      
+      // 사용자 로그인 확인
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      print('   현재 사용자: ${currentUser?.id ?? "null"}');
+      
+      if (currentUser == null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Call을 성공적으로 잡았습니다!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('로그인이 필요합니다'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
         );
-        _reload();
-      } else {
+        return;
+      }
+      
+      print('   → marketplace_service에서 공사 잡기 요청 중...');
+      final ok = await _market.claimListing(id);
+      
+      if (!mounted) return;
+      
+      if (ok) {
+        print('   ✅ 공사 잡기 성공!');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미 다른 사업자가 잡았거나 오류가 발생했습니다.'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('공사를 성공적으로 잡았습니다!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        
+        // 목록 새로고침
+        await _reload();
+      } else {
+        print('   ❌ 공사 잡기 실패 (이미 다른 사업자가 잡았거나 오류)');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('이미 다른 사업자가 가져갔거나 오류가 발생했습니다'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [_claimListing] 에러 발생: $e');
+      print('   StackTrace: $stackTrace');
+      
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('오류: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('공사 잡기 실패: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }

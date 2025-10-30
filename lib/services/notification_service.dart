@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'api_service.dart';
 
 class NotificationService {
@@ -11,6 +12,8 @@ class NotificationService {
   NotificationService._internal();
 
   final SupabaseClient _sb = Supabase.instance.client;
+  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
   
   // 알림 권한 상태 저장용
   static const String _notificationPermissionKey = 'notification_permission';
@@ -292,6 +295,55 @@ class NotificationService {
           .eq('userid', userId);
     } catch (e) {
       print('사용자 알림 모두 삭제 실패: $e');
+    }
+  }
+
+  /// 로컬 푸시 알림 표시 (Call 공사 추가 시)
+  Future<void> showNewJobNotification({
+    required String title,
+    required String body,
+    required String jobId,
+  }) async {
+    try {
+      print('🔔 [NotificationService] 로컬 알림 표시: $title');
+      
+      const AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
+        'call_jobs_channel',
+        'Call 공사 알림',
+        channelDescription: '새로운 Call 공사 등록 알림',
+        importance: Importance.max,
+        priority: Priority.high,
+        showWhen: true,
+        enableVibration: true,
+        playSound: true,
+        fullScreenIntent: true,
+      );
+      
+      const DarwinNotificationDetails iosPlatformChannelSpecifics =
+          DarwinNotificationDetails(
+        sound: 'default',
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      
+      const NotificationDetails platformChannelSpecifics = NotificationDetails(
+        android: androidPlatformChannelSpecifics,
+        iOS: iosPlatformChannelSpecifics,
+      );
+      
+      await _flutterLocalNotificationsPlugin.show(
+        jobId.hashCode, // notification ID (unique per job)
+        title,
+        body,
+        platformChannelSpecifics,
+        payload: jobId, // payload to handle tap
+      );
+      
+      print('✅ [NotificationService] 알림 표시 완료');
+    } catch (e) {
+      print('❌ [NotificationService] 알림 표시 실패: $e');
     }
   }
 }
