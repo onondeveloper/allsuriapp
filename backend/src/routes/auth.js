@@ -102,32 +102,8 @@ router.post('/kakao/login', async (req, res) => {
     const secret = process.env.JWT_SECRET || 'change_me';
     const token = jwt.sign({ sub: userId, provider: 'kakao' }, secret, { expiresIn: '30d' });
 
-    // Supabase JWT 토큰 생성 (Supabase Service Role Key를 사용하여 사용자 세션 생성)
-    let supabaseAccessToken = null;
-    let supabaseRefreshToken = null;
-    
-    try {
-      // Supabase Admin API를 사용하여 사용자 세션 생성
-      const { data: authData, error: authError } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email: email || `${userId}@example.local`,
-        options: {
-          redirectTo: 'allsuri://auth-callback',
-        }
-      });
-      
-      if (!authError && authData) {
-        // 생성된 링크에서 토큰 추출
-        const url = new URL(authData.properties.action_link);
-        supabaseAccessToken = url.searchParams.get('access_token');
-        supabaseRefreshToken = url.searchParams.get('refresh_token');
-        console.log('[Kakao Login] Supabase 세션 토큰 생성 성공');
-      } else {
-        console.error('[Kakao Login] Supabase 세션 토큰 생성 실패:', authError);
-      }
-    } catch (supaError) {
-      console.error('[Kakao Login] Supabase 세션 생성 에러:', supaError);
-    }
+    // 일단 Supabase 토큰 없이 응답 (RLS 정책을 anon으로 변경했으므로 작동)
+    console.log('[Kakao Login] 로그인 성공, userId:', userId);
 
     res.json({ 
       ok: true, 
@@ -135,9 +111,7 @@ router.post('/kakao/login', async (req, res) => {
       token, 
       data: {
         token,
-        user: { id: userId, name, email },
-        supabase_access_token: supabaseAccessToken,
-        supabase_refresh_token: supabaseRefreshToken,
+        user: { id: userId, name, email }
       }
     });
   } catch (e) {

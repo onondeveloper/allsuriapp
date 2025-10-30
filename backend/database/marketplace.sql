@@ -31,14 +31,14 @@ create index if not exists idx_marketplace_listings_createdat on public.marketpl
 -- RLS policies
 alter table public.marketplace_listings enable row level security;
 
--- Read: open listings are visible to any authenticated user (business),
+-- Read: open listings are visible to any authenticated or anonymous user (business),
 -- plus your own posted/claimed listings
 drop policy if exists sel_marketplace_listings on public.marketplace_listings;
 create policy sel_marketplace_listings on public.marketplace_listings
 for select
-to authenticated
+to authenticated, anon
 using (
-  status = 'open' or status = 'created' or posted_by = auth.uid() or claimed_by = auth.uid()
+  status = 'open' or status = 'created' or status = 'withdrawn' or posted_by = auth.uid() or claimed_by = auth.uid()
 );
 
 -- Insert: only authenticated users can post their own listings

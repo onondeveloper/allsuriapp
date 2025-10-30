@@ -177,24 +177,10 @@ class AuthService extends ChangeNotifier {
         if (backendToken != null && backendToken.isNotEmpty) {
           ApiService.setBearerToken(backendToken);
           
-          // Supabase 세션 설정
-          final supabaseAccessToken = data['supabase_access_token'] as String?;
-          final supabaseRefreshToken = data['supabase_refresh_token'] as String?;
-          
-          if (supabaseAccessToken != null && supabaseRefreshToken != null) {
-            print('🔍 [signInWithKakao] Supabase 세션 설정 중...');
-            try {
-              await _sb.auth.setSession(supabaseAccessToken);
-              print('   ✅ Supabase 세션 설정 완료');
-              print('   - Current User ID: ${_sb.auth.currentUser?.id}');
-            } catch (e) {
-              print('   ⚠️ Supabase 세션 설정 실패: $e');
-            }
-          }
-          
           final user = data['user'] as Map<String, dynamic>?;
           if (user != null) {
             final uid = user['id'] as String;
+            
             // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)
             print('🔍 [signInWithKakao] 백엔드 응답 받음, Supabase에서 전체 정보 로드 시작');
             print('   - UID: $uid');

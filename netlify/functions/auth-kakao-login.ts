@@ -211,44 +211,8 @@ export const handler: Handler = async (event) => {
     
     const token = await issueJwt(userId)
     
-    // Supabase JWT 토큰 생성 (Supabase Admin API 사용)
-    let supabaseAccessToken = null
-    let supabaseRefreshToken = null
-    
-    try {
-      // Supabase Admin API를 사용하여 사용자 세션 생성
-      const userEmail = row?.email || email || `${externalId}@example.local`
-      const magicLinkResponse = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'magiclink',
-          email: userEmail,
-          options: {
-            redirect_to: 'allsuri://auth-callback',
-          },
-        }),
-      })
-      
-      if (magicLinkResponse.ok) {
-        const authData = await magicLinkResponse.json()
-        if (authData.properties && authData.properties.action_link) {
-          const url = new URL(authData.properties.action_link)
-          supabaseAccessToken = url.searchParams.get('access_token')
-          supabaseRefreshToken = url.searchParams.get('refresh_token')
-          console.log('[Kakao Login] Supabase 세션 토큰 생성 성공')
-        }
-      } else {
-        const errorText = await magicLinkResponse.text()
-        console.error('[Kakao Login] Supabase 세션 토큰 생성 실패:', magicLinkResponse.status, errorText)
-      }
-    } catch (supaError) {
-      console.error('[Kakao Login] Supabase 세션 생성 에러:', supaError)
-    }
+    // 일단 Supabase 토큰 없이 응답 (나중에 추가)
+    console.log('[Kakao Login] 로그인 성공, userId:', userId)
     
     return ok({ 
       ok: true,
@@ -263,9 +227,7 @@ export const handler: Handler = async (event) => {
           role: userRole,
           businessStatus: businessStatus,
           external_id: row?.external_id || externalId,
-        },
-        supabase_access_token: supabaseAccessToken,
-        supabase_refresh_token: supabaseRefreshToken,
+        }
       }
     })
   } catch (e: any) {
