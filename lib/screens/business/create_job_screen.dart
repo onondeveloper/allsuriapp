@@ -90,6 +90,8 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
         setState(() {
           _selectedImages.add(image);
         });
+        // 자동 업로드
+        await _uploadImages();
       }
     } catch (e) {
       if (mounted) {
@@ -107,6 +109,8 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
         setState(() {
           _selectedImages.add(image);
         });
+        // 자동 업로드
+        await _uploadImages();
       }
     } catch (e) {
       if (mounted) {
@@ -152,14 +156,21 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
     setState(() => _isUploadingImages = true);
 
     try {
+      print('🔍 [_uploadImages] ${_selectedImages.length}개 이미지 업로드 시작');
       final List<String> urls = [];
-      for (final image in _selectedImages) {
+      for (int i = 0; i < _selectedImages.length; i++) {
+        final image = _selectedImages[i];
+        print('   이미지 $i: ${image.path}');
         final url = await _mediaService.uploadEstimateImage(file: image);
+        print('   반환된 URL: $url');
         if (url != null) {
           urls.add(url);
         }
       }
 
+      print('✅ [_uploadImages] 총 ${urls.length}개 URL 수집됨');
+      print('   URLs: $urls');
+      
       setState(() {
         _uploadedImageUrls.addAll(urls);
         _selectedImages.clear();
@@ -171,6 +182,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
         );
       }
     } catch (e) {
+      print('❌ [_uploadImages] 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('이미지 업로드 실패: $e')),
@@ -205,6 +217,11 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
       final jobService = context.read<JobService>();
       final ownerId = auth.currentUser?.id;
       
+      print('🔍 [_submitJob] 공사 생성 시작');
+      print('   사용자 ID: $ownerId');
+      print('   업로드된 이미지 URL 개수: ${_uploadedImageUrls.length}');
+      print('   업로드된 이미지 URLs: $_uploadedImageUrls');
+      
       if (ownerId == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -216,6 +233,11 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
       final double? budget = _budgetController.text.trim().isEmpty
           ? null
           : double.tryParse(_budgetController.text.replaceAll(',', ''));
+
+      print('   제목: ${_titleController.text.trim()}');
+      print('   예산: $budget');
+      print('   카테고리: $_selectedCategory');
+      print('   → jobs 테이블에 저장 중...');
 
       final createdJobId = await jobService.createJob(
         ownerBusinessId: ownerId,
@@ -229,20 +251,28 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
         mediaUrls: _uploadedImageUrls.isEmpty ? null : _uploadedImageUrls,
       );
 
+      print('   ✅ 공사 생성 완료: $createdJobId');
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('공사가 성공적으로 등록되었습니다! 다음 단계를 선택하세요.')),
+        const SnackBar(content: Text('공사가 성공적으로 등록되었습니다!')),
       );
 
-      // 다음 단계 선택: 이관하기 또는 Call에 올리기
+      // 다음 단계 선택: Call 공사로 올리기 또는 이관하기
+      if (!mounted) return;
       await _showPostCreateOptions(createdJobId,
           title: _titleController.text.trim(),
           description: _descController.text.trim(),
           budget: budget,
           region: _locationController.text.trim(),
           category: _selectedCategory);
+      
+      // 선택 후 홈 화면으로 이동
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+      
     } catch (e) {
+      print('❌ [_submitJob] 실패: $e');
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(

@@ -15,6 +15,7 @@ create table if not exists public.marketplace_listings (
   budget_amount numeric,
   posted_by uuid not null references public.users(id) on delete cascade,
   status text not null check (status in ('open','assigned','withdrawn','expired','cancelled', 'created')) default 'open',
+  media_urls text[] default '{}',
   claimed_by uuid references public.users(id) on delete set null,
   claimed_at timestamptz,
   expires_at timestamptz,

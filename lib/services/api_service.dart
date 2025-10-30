@@ -67,11 +67,14 @@ class ApiService extends ChangeNotifier {
         body: json.encode(data),
       );
       print('[API][POST] ${response.statusCode} ${response.reasonPhrase}');
+      print('[API][POST] Response body: ${response.body}');
       
       if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = json.decode(response.body);
+        print('[API][POST] Decoded response: $responseData');
         return {
           'success': true,
-          'data': json.decode(response.body),
+          'data': responseData,
           'message': 'Created successfully',
         };
       } else {

@@ -99,13 +99,28 @@ class MediaService {
 
   Future<String?> uploadEstimateImage({required File file}) async {
     try {
-      final fileName = 'est_${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
-      final path = 'attachments_estimates/$fileName';
-      await _sb.storage.from('attachments_messages').upload(path, file);
-      final publicUrl = _sb.storage.from('attachments_messages').getPublicUrl(path);
+      debugPrint('🔍 [uploadEstimateImage] 시작');
+      debugPrint('   파일: ${file.path}');
+      debugPrint('   파일 크기: ${file.lengthSync()} bytes');
+      
+      final fileName = 'job_${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
+      debugPrint('   생성된 파일명: $fileName');
+      
+      final path = fileName;
+      debugPrint('   경로: $path');
+      debugPrint('   버킷: attachments_estimates');
+      
+      debugPrint('   → Supabase에 업로드 중...');
+      await _sb.storage.from('attachments_estimates').upload(path, file);
+      debugPrint('   ✅ 업로드 완료');
+      
+      debugPrint('   → Public URL 생성 중...');
+      final publicUrl = _sb.storage.from('attachments_estimates').getPublicUrl(path);
+      debugPrint('   ✅ Public URL: $publicUrl');
+      
       return publicUrl;
     } catch (e) {
-      debugPrint('견적 이미지 업로드 실패: $e');
+      debugPrint('❌ [uploadEstimateImage] 실패: $e');
       return null;
     }
   }

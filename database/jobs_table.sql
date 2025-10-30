@@ -105,7 +105,8 @@ BEGIN
     category,
     budget_amount,
     posted_by,
-    status, -- 여기에 NEW.status를 사용합니다.
+    status,
+    media_urls,
     createdat,
     updatedat
   ) VALUES (
@@ -116,7 +117,8 @@ BEGIN
     NEW.category,
     NEW.budget_amount,
     NEW.owner_business_id,
-    NEW.status, -- NEW.status 값으로 변경
+    NEW.status,
+    NEW.media_urls,
     NEW.created_at,
     NOW()
   );

@@ -17,6 +17,7 @@ import 'package:allsuriapp/services/marketplace_service.dart';
 import '../services/order_service.dart';
 import '../screens/community/community_board_screen.dart';
 import '../screens/labs/ai_assistant_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BusinessDashboard extends StatefulWidget {
   const BusinessDashboard({Key? key}) : super(key: key);
@@ -31,11 +32,56 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   late Future<int> _callOpenCountFuture;
   late Future<int> _estimateRequestsCountFuture;
   late Future<int> _totalWaitingFuture;
+  
+  RealtimeChannel? _marketplaceChannel;
+  RealtimeChannel? _ordersChannel;
 
   @override
   void initState() {
     super.initState();
+    _setupRealtimeListeners();
     // Futures are initialized in didChangeDependencies to safely read providers
+  }
+
+  void _setupRealtimeListeners() {
+    // marketplace_listings 변경 감시
+    _marketplaceChannel = Supabase.instance.client
+        .channel('public:marketplace_listings')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'marketplace_listings',
+          callback: (payload) {
+            print('🔄 [marketplace_listings] 변경 감지');
+            if (mounted) {
+              _refreshCounts();
+            }
+          },
+        )
+        .subscribe();
+
+    // orders (고객 견적) 변경 감시
+    _ordersChannel = Supabase.instance.client
+        .channel('public:orders')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'orders',
+          callback: (payload) {
+            print('🔄 [orders] 변경 감지');
+            if (mounted) {
+              _refreshCounts();
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _marketplaceChannel?.unsubscribe();
+    _ordersChannel?.unsubscribe();
+    super.dispose();
   }
 
   @override
@@ -54,14 +100,16 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
 
   Future<int> _getCallOpenCount() async {
     try {
-      // Call 마켓에서 화면에 보이는 기준과 동일하게: open + withdrawn 만 집계
+      // Call 마켓에서 화면에 보이는 기준: open + withdrawn + created (사업자가 올린 모든 공사)
       final items = await _market.listListings(status: 'all');
       final count = items.where((row) {
         final s = (row['status'] ?? '').toString();
-        return s == 'open' || s == 'withdrawn';
+        return s == 'open' || s == 'withdrawn' || s == 'created';
       }).length;
+      print('🔍 [_getCallOpenCount] Call 공사 개수: $count');
       return count;
-    } catch (_) {
+    } catch (e) {
+      print('❌ [_getCallOpenCount] 에러: $e');
       return 0;
     }
   }
@@ -71,8 +119,10 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       final orderService = Provider.of<OrderService>(context, listen: false);
       final all = await orderService.getOrders();
       final available = all.where((o) => o.status == 'pending' && !o.isAwarded).length;
+      print('🔍 [_getEstimateRequestsCount] 고객 견적 요청 개수: $available');
       return available;
-    } catch (_) {
+    } catch (e) {
+      print('❌ [_getEstimateRequestsCount] 에러: $e');
       return 0;
     }
   }
@@ -83,8 +133,11 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
         _getCallOpenCount(),
         _getEstimateRequestsCount(),
       ]);
-      return results.fold<int>(0, (sum, v) => sum + v);
-    } catch (_) {
+      final total = results.fold<int>(0, (sum, v) => sum + v);
+      print('🔍 [_getTotalWaitingCount] 총 공사 개수: $total');
+      return total;
+    } catch (e) {
+      print('❌ [_getTotalWaitingCount] 에러: $e');
       return 0;
     }
   }

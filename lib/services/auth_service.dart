@@ -164,6 +164,7 @@ class AuthService extends ChangeNotifier {
 
       // 백엔드로 토큰 교환 (타임아웃 설정)
       final api = ApiService();
+      print('🔍 [signInWithKakao] 백엔드로 카카오 토큰 전송 중...');
       final resp = await api.post('/auth/kakao/login', {
         'access_token': token.accessToken,
       }).timeout(
@@ -171,25 +172,41 @@ class AuthService extends ChangeNotifier {
         onTimeout: () => {'success': false, 'error': 'timeout'},
       );
       
+      print('🔍 [signInWithKakao] 백엔드 응답: $resp');
+      print('🔍 [signInWithKakao] resp[\'success\']: ${resp['success']}');
+      
       if (resp['success'] == true) {
-        final data = resp['data'] as Map<String, dynamic>;
-        final backendToken = data['token'] as String?;
-        if (backendToken != null && backendToken.isNotEmpty) {
-          ApiService.setBearerToken(backendToken);
+        // ApiService.post()가 응답을 한 번 감싸므로, resp['data']가 실제 백엔드 응답
+        final backendResponse = resp['data'] as Map<String, dynamic>;
+        print('🔍 [signInWithKakao] backendResponse: $backendResponse');
+        
+        // 백엔드 응답에서 실제 데이터 추출
+        final actualData = backendResponse['data'] as Map<String, dynamic>?;
+        print('🔍 [signInWithKakao] actualData: $actualData');
+        
+        if (actualData != null) {
+          final backendToken = actualData['token'] as String?;
+          print('🔍 [signInWithKakao] token: ${backendToken != null ? "존재" : "null"}');
           
-          final user = data['user'] as Map<String, dynamic>?;
-          if (user != null) {
-            final uid = user['id'] as String;
+          if (backendToken != null && backendToken.isNotEmpty) {
+            ApiService.setBearerToken(backendToken);
             
-            // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)
-            print('🔍 [signInWithKakao] 백엔드 응답 받음, Supabase에서 전체 정보 로드 시작');
-            print('   - UID: $uid');
-            await _loadUserData(uid);
-            print('🔍 [signInWithKakao] Supabase 로드 완료');
-            print('   - Business Status: ${_currentUser?.businessStatus}');
-            print('   - Business Name: ${_currentUser?.businessName}');
+            final user = actualData['user'] as Map<String, dynamic>?;
+            print('🔍 [signInWithKakao] user: $user');
+            
+            if (user != null) {
+              final uid = user['id'] as String;
+              
+              // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)
+              print('🔍 [signInWithKakao] 백엔드 응답 받음, Supabase에서 전체 정보 로드 시작');
+              print('   - UID: $uid');
+              await _loadUserData(uid);
+              print('🔍 [signInWithKakao] Supabase 로드 완료');
+              print('   - Business Status: ${_currentUser?.businessStatus}');
+              print('   - Business Name: ${_currentUser?.businessName}');
+            }
+            return true;
           }
-          return true;
         }
       } else if (const bool.fromEnvironment('ALLOW_TEST_KAKAO', defaultValue: false)) {
         // 서버 검증 실패 시 테스트 바이패스 세컨드 찬스

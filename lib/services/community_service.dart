@@ -98,11 +98,22 @@ class CommunityService extends ChangeNotifier {
     try {
       final rows = await _sb
           .from('community_comments')
-          .select()
+          .select('*, users!community_comments_authorid_fkey(businessname, avatar_url)')
           .eq('postid', postId)
           .order('createdat', ascending: true);
-      return rows.map<CommunityComment>((r) => CommunityComment.fromMap(Map<String, dynamic>.from(r))).toList();
-    } catch (_) {
+      
+      // users 데이터를 평탄화
+      return rows.map<CommunityComment>((r) {
+        final Map<String, dynamic> commentMap = Map<String, dynamic>.from(r);
+        if (commentMap['users'] != null && commentMap['users'] is Map) {
+          final userMap = commentMap['users'] as Map<String, dynamic>;
+          commentMap['users_businessname'] = userMap['businessname'];
+          commentMap['users_avatar_url'] = userMap['avatar_url'];
+        }
+        return CommunityComment.fromMap(commentMap);
+      }).toList();
+    } catch (e) {
+      debugPrint('getComments error: $e');
       return [];
     }
   }
@@ -128,6 +139,17 @@ class CommunityService extends ChangeNotifier {
     } catch (e) {
       debugPrint('addComment error: $e');
       return null;
+    }
+  }
+
+  Future<void> deletePost(String postId) async {
+    try {
+      debugPrint('[CommunityService] 게시글 삭제 시작: $postId');
+      await _sb.from('community_posts').delete().eq('id', postId);
+      debugPrint('[CommunityService] 게시글 삭제 완료: $postId');
+    } catch (e) {
+      debugPrint('[CommunityService] 게시글 삭제 실패: $e');
+      rethrow;
     }
   }
 }

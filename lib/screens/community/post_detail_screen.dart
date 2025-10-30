@@ -123,13 +123,34 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(radius: 14, child: Text('익명', style: TextStyle(fontSize: 10))),
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: CupertinoColors.systemGrey5,
+            backgroundImage: c.authorProfileImageUrl != null 
+                ? NetworkImage(c.authorProfileImageUrl!) 
+                : null,
+            child: c.authorProfileImageUrl == null 
+                ? const Icon(Icons.person, size: 14, color: CupertinoColors.systemGrey) 
+                : null,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_formatTime(c.createdAt), style: const TextStyle(fontFamily: 'Arial', fontSize: 15, color: CupertinoColors.black)),
+                Row(
+                  children: [
+                    Text(
+                      c.authorName ?? '알 수 없는 사업자', 
+                      style: const TextStyle(fontFamily: 'Arial', fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.black),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _formatTime(c.createdAt), 
+                      style: const TextStyle(fontFamily: 'Arial', fontSize: 12, color: CupertinoColors.systemGrey),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text(c.content, style: const TextStyle(fontFamily: 'Arial', fontSize: 15, color: CupertinoColors.black)),
               ],

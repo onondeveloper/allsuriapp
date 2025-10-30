@@ -5,6 +5,7 @@ import '../../services/community_service.dart';
 import '../../models/community_post.dart';
 import 'create_post_screen.dart';
 import 'post_detail_screen.dart';
+import '../../services/auth_service.dart';
 
 class CommunityBoardScreen extends StatefulWidget {
   const CommunityBoardScreen({super.key});
@@ -69,34 +70,41 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: '검색어를 입력하세요',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                  child: SizedBox(
+                    height: 52,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: '검색어를 입력하세요',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      onSubmitted: (_) => _refresh(),
                     ),
-                    onSubmitted: (_) => _refresh(),
                   ),
                 ),
                 const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _refresh,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    backgroundColor: const Color(0xFF7B1FA2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                SizedBox(
+                  width: 80,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _refresh,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      backgroundColor: const Color(0xFF7B1FA2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
                     ),
-                    elevation: 0,
+                    child: const Text('검색', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
-                  child: const Text('검색', style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -208,6 +216,9 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
   }
 
   Widget _buildModernPostTile(CommunityPost post) {
+    final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.id;
+    final isAuthor = currentUserId == post.authorId;
+    
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -237,7 +248,7 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Author profile section
+                // Author profile section with delete button
                 Row(
                   children: [
                     CircleAvatar(
@@ -251,7 +262,6 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                           : null,
                     ),
                     const SizedBox(width: 8),
-                    // Expanded 추가: Text 위젯이 Row 내에서 공간 제약 없이 너무 커지는 것을 방지
                     Expanded(
                       child: Text(
                         post.authorName ?? '알 수 없는 사업자',
@@ -260,10 +270,38 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                           fontWeight: FontWeight.w600,
                           color: Colors.grey[800],
                         ),
-                        maxLines: 1, // 한 줄로 제한
-                        overflow: TextOverflow.ellipsis, // 넘치면 ... 표시
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (isAuthor)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('글 삭제'),
+                              content: const Text('이 글을 삭제하시겠습니까?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  child: const Text('취소'),
+                                ),
+                                TextButton(
+                                  onPressed: () async {
+                                    Navigator.pop(dialogContext);
+                                    await _deletePost(post.id);
+                                  },
+                                  child: const Text('삭제', style: TextStyle(color: Colors.red)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12), // Spacing between author and tags/title
@@ -366,5 +404,20 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
     if (diff.inHours < 1) return '${diff.inMinutes}분 전';
     if (diff.inDays < 1) return '${diff.inHours}시간 전';
     return '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _deletePost(String postId) async {
+    final svc = Provider.of<CommunityService>(context, listen: false);
+    try {
+      await svc.deletePost(postId);
+      debugPrint('[CommunityBoardScreen] 게시글 삭제 성공: $postId');
+      if (!mounted) return;
+      await _refresh();
+    } catch (e) {
+      debugPrint('[CommunityBoardScreen] 게시글 삭제 실패: $postId - $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('게시글 삭제 실패: $e')),
+      );
+    }
   }
 }
