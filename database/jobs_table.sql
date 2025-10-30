@@ -28,6 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 
 -- Business users can view all jobs
+DROP POLICY IF EXISTS "Business users can view all jobs" ON jobs;
 CREATE POLICY "Business users can view all jobs" ON jobs
   FOR SELECT USING (
     EXISTS (
@@ -38,6 +39,7 @@ CREATE POLICY "Business users can view all jobs" ON jobs
   );
 
 -- Business users can create jobs
+DROP POLICY IF EXISTS "Business users can create jobs" ON jobs;
 CREATE POLICY "Business users can create jobs" ON jobs
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -48,10 +50,12 @@ CREATE POLICY "Business users can create jobs" ON jobs
   );
 
 -- Job owner can update their jobs
+DROP POLICY IF EXISTS "Job owners can update their jobs" ON jobs;
 CREATE POLICY "Job owners can update their jobs" ON jobs
   FOR UPDATE USING (owner_business_id = auth.uid());
 
 -- Job owner can delete their jobs
+DROP POLICY IF EXISTS "Job owners can delete their jobs" ON jobs;
 CREATE POLICY "Job owners can delete their jobs" ON jobs
   FOR DELETE USING (owner_business_id = auth.uid());
 
@@ -65,6 +69,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS trigger_update_jobs_updated_at ON jobs;
 CREATE TRIGGER trigger_update_jobs_updated_at
   BEFORE UPDATE ON jobs
   FOR EACH ROW
@@ -82,7 +87,46 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to automatically calculate commission
+DROP TRIGGER IF EXISTS trigger_calculate_commission ON jobs;
 CREATE TRIGGER trigger_calculate_commission
   BEFORE INSERT OR UPDATE ON jobs
   FOR EACH ROW
   EXECUTE FUNCTION calculate_commission_amount();
+
+-- Function to create a marketplace listing from a new job
+CREATE OR REPLACE FUNCTION create_marketplace_listing_from_job()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.marketplace_listings (
+    jobid,
+    title,
+    description,
+    region,
+    category,
+    budget_amount,
+    posted_by,
+    status, -- 여기에 NEW.status를 사용합니다.
+    createdat,
+    updatedat
+  ) VALUES (
+    NEW.id,
+    NEW.title,
+    NEW.description,
+    NEW.location,
+    NEW.category,
+    NEW.budget_amount,
+    NEW.owner_business_id,
+    NEW.status, -- NEW.status 값으로 변경
+    NEW.created_at,
+    NOW()
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to automatically create a marketplace listing when a new job is inserted
+DROP TRIGGER IF EXISTS trigger_create_marketplace_listing ON jobs;
+CREATE TRIGGER trigger_create_marketplace_listing
+  AFTER INSERT ON jobs
+  FOR EACH ROW
+  EXECUTE FUNCTION create_marketplace_listing_from_job();

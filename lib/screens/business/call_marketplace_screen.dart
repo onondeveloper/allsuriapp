@@ -35,6 +35,15 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
   void initState() {
     super.initState();
     print('CallMarketplaceScreen initState 시작');
+    
+    // 사용자 인증 상태 확인
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    print('CallMarketplaceScreen: 현재 사용자 - ${currentUser?.id ?? "null (로그인 안됨)"}');
+    
+    if (currentUser == null) {
+      print('⚠️ [CallMarketplaceScreen] 사용자가 로그인되어 있지 않습니다!');
+    }
+    
     _future = _market.listListings(status: _status, throwOnError: true, postedBy: widget.createdByUserId);
     print('CallMarketplaceScreen: _future 설정됨');
     
@@ -145,9 +154,9 @@ class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
                   final items = snapshot.data ?? [];
                   final visibleItems = items.where((row) {
                     final s = (row['status'] ?? '').toString();
-                    return s == 'open' || s == 'withdrawn';
+                    return s == 'open' || s == 'withdrawn' || s == 'created'; // 'created' 상태 추가
                   }).toList();
-                  print('CallMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회만)');
+                  print('CallMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회/생성됨만)');
                   if (visibleItems.isEmpty) {
                     print('CallMarketplaceScreen: 빈 목록 표시');
                     return ListView(

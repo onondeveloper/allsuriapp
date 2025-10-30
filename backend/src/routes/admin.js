@@ -564,11 +564,12 @@ router.patch('/users/:id/status', async (req, res) => {
 
 router.delete('/users/:id', async (req, res) => {
   try {
-    const { error } = await supabase.from('users').update({ role: 'customer', businessstatus: 'rejected' }).eq('id', req.params.id);
+    const { error } = await supabase.from('users').delete().eq('id', req.params.id);
     if (error) throw error;
-    res.json({ success: true, message: '사용자 처리 완료(고객 강등/거절)' });
+    res.json({ success: true, message: '사용자 삭제 완료' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '사용자 삭제 실패' });
+    console.error('[ADMIN] 사용자 삭제 실패:', error);
+    res.status(500).json({ success: false, message: '사용자 삭제 실패', error: error.message });
   }
 });
 

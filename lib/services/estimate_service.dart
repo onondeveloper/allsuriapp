@@ -145,6 +145,13 @@ class EstimateService extends ChangeNotifier {
       }
       _notifyListenersSafely();
 
+      // Update estimates_created_count for the business user
+      try {
+        await _sb.rpc('increment_user_estimates_created_count', params: {'user_id': estimate.businessId});
+      } catch (e) {
+        debugPrint('Failed to increment estimates_created_count: $e');
+      }
+
       // 알림: 견적 제출 완료 (본인)
       final uid = _sb.auth.currentUser?.id;
       if (uid != null && uid.isNotEmpty) {
@@ -236,6 +243,18 @@ class EstimateService extends ChangeNotifier {
         );
         _estimates[index] = updatedEstimate;
         _notifyListenersSafely();
+      }
+
+      // Increment projects_awarded_count for the business user
+      try {
+        if (row != null) { // Ensure estimate exists before trying to update user count
+          final businessId = row['businessid']?.toString();
+          if (businessId != null && businessId.isNotEmpty) {
+            await _sb.rpc('increment_user_projects_awarded_count', params: {'user_id': businessId});
+          }
+        }
+      } catch (e) {
+        debugPrint('Failed to increment projects_awarded_count: $e');
       }
 
       // 알림: 견적 낙찰(본인)

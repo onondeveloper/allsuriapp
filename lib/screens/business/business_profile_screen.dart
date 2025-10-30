@@ -172,61 +172,89 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   }
 
   void _showServiceAreaDialog() {
+    String searchText = '';
+    List<String> filteredCities = List.from(KoreanCities.cities);
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('활동 지역 선택'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 400,
-            child: Column(
-              children: [
-                Text('최대 5개까지 선택 가능합니다. (현재 ${_selectedServiceAreas.length}개)'),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: KoreanCities.cities.length,
-                    itemBuilder: (context, index) {
-                      final city = KoreanCities.cities[index];
-                      final isSelected = _selectedServiceAreas.contains(city);
-                      
-                      return CheckboxListTile(
-                        title: Text(city),
-                        value: isSelected,
-                        onChanged: (bool? value) {
-                          setState(() {
-                            if (value == true) {
-                              if (_selectedServiceAreas.length < 5) {
-                                _selectedServiceAreas.add(city);
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('최대 5개까지만 선택할 수 있습니다.'),
-                                    backgroundColor: Colors.orange,
-                                  ),
-                                );
-                              }
-                            } else {
-                              _selectedServiceAreas.remove(city);
-                            }
-                          });
-                          setDialogState(() {}); // Dialog 내부 UI 업데이트
-                        },
-                      );
+        builder: (context, setDialogState) {
+          // Filter cities based on search text
+          filteredCities = KoreanCities.cities
+              .where((city) => city.toLowerCase().contains(searchText.toLowerCase()))
+              .toList();
+
+          return AlertDialog(
+            title: const Text('활동 지역 선택'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 400,
+              child: Column(
+                children: [
+                  Text('최대 5개까지 선택 가능합니다. (현재 ${_selectedServiceAreas.length}개)'),
+                  const SizedBox(height: 16),
+                  TextField( // Search input field
+                    decoration: InputDecoration(
+                      hintText: '지역 검색',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        searchText = value;
+                      });
                     },
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: filteredCities.length,
+                      itemBuilder: (context, index) {
+                        final city = filteredCities[index];
+                        final isSelected = _selectedServiceAreas.contains(city);
+
+                        return CheckboxListTile(
+                          title: Text(city),
+                          value: isSelected,
+                          onChanged: (bool? value) {
+                            setDialogState(() { // Use setDialogState to update the dialog's state
+                              if (value == true) {
+                                if (_selectedServiceAreas.length < 5) {
+                                  _selectedServiceAreas.add(city);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('최대 5개까지만 선택할 수 있습니다.'),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                _selectedServiceAreas.remove(city);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('확인'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('확인'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

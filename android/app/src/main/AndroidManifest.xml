@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     
     <application
-        android:label="allsuriapp"
+        android:label="올수리"
         android:name=".MainApplication"
         android:icon="@mipmap/launcher_icon"
         android:enableOnBackInvokedCallback="true"

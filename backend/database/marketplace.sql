@@ -13,9 +13,9 @@ create table if not exists public.marketplace_listings (
   region text,
   category text,
   budget_amount numeric,
-  posted_by uuid not null references public.users(id),
-  status text not null check (status in ('open','assigned','withdrawn','expired','cancelled')) default 'open',
-  claimed_by uuid references public.users(id),
+  posted_by uuid not null references public.users(id) on delete cascade,
+  status text not null check (status in ('open','assigned','withdrawn','expired','cancelled', 'created')) default 'open',
+  claimed_by uuid references public.users(id) on delete set null,
   claimed_at timestamptz,
   expires_at timestamptz,
   createdat timestamptz not null default now(),
@@ -38,7 +38,7 @@ create policy sel_marketplace_listings on public.marketplace_listings
 for select
 to authenticated
 using (
-  status = 'open' or posted_by = auth.uid() or claimed_by = auth.uid()
+  status = 'open' or status = 'created' or posted_by = auth.uid() or claimed_by = auth.uid()
 );
 
 -- Insert: only authenticated users can post their own listings

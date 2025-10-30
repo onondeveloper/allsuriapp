@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 class CommunityPost {
   final String id;
   final String authorId;
+  final String? authorName;
+  final String? authorProfileImageUrl;
   final String title;
   final String content;
   final List<String> tags;
@@ -14,6 +16,8 @@ class CommunityPost {
   const CommunityPost({
     required this.id,
     required this.authorId,
+    this.authorName,
+    this.authorProfileImageUrl,
     required this.title,
     required this.content,
     required this.tags,
@@ -26,6 +30,8 @@ class CommunityPost {
   factory CommunityPost.fromMap(Map<String, dynamic> map) {
     final id = (map['id'] ?? '').toString();
     final authorId = (map['authorid'] ?? map['authorId'] ?? '').toString();
+    final authorName = (map['author_name'] ?? map['authorName'] ?? map['users_name'] ?? map['users_businessname'])?.toString();
+    final authorProfileImageUrl = (map['author_profile_image_url'] ?? map['authorProfileImageUrl'] ?? map['users_avatar_url'])?.toString();
     final title = (map['title'] ?? '').toString();
     final content = (map['content'] ?? map['body'] ?? '').toString();
     final rawTags = map['tags'];
@@ -42,6 +48,8 @@ class CommunityPost {
     return CommunityPost(
       id: id,
       authorId: authorId,
+      authorName: authorName,
+      authorProfileImageUrl: authorProfileImageUrl,
       title: title,
       content: content,
       tags: tags,
@@ -56,6 +64,8 @@ class CommunityPost {
     return {
       'id': id,
       'authorid': authorId,
+      if (authorName != null) 'author_name': authorName,
+      if (authorProfileImageUrl != null) 'author_profile_image_url': authorProfileImageUrl,
       'title': title,
       'content': content,
       'tags': tags,

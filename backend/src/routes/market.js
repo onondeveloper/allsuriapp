@@ -136,6 +136,13 @@ router.post('/listings/:id/claim', async (req, res) => {
         .eq('id', listing.jobid);
     }
 
+    // Increment jobs_accepted_count for the assigned business
+    try {
+      await supabase.rpc('increment_user_jobs_accepted_count', { user_id: businessId });
+    } catch (e) {
+      console.warn('[market] Failed to increment jobs_accepted_count:', e.message || e);
+    }
+
     // Notifications + Chat room (best-effort)
     try {
       const notifPayloads = [
