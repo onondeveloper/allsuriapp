@@ -12,6 +12,7 @@ import 'package:allsuriapp/services/estimate_service.dart';
 import 'package:allsuriapp/screens/chat_screen.dart';
 import 'package:allsuriapp/services/notification_service.dart';
 import 'package:allsuriapp/services/auth_service.dart';
+import 'package:allsuriapp/screens/business/order_bidders_screen.dart';
 
 class OrderMarketplaceScreen extends StatefulWidget {
   final bool showSuccessMessage;
@@ -271,6 +272,12 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                           : '-';
                       final estimateAmount = e['estimate_amount'] ?? e['estimateAmount'];
                       final mediaUrls = e['media_urls'] is List ? List<String>.from(e['media_urls']) : <String>[];
+                      final bidCount = e['bid_count'] ?? 0;
+                      
+                      // 현재 사용자가 오더 소유자인지 확인
+                      final authService = Provider.of<AuthService>(context, listen: false);
+                      final currentUserId = authService.currentUser?.id;
+                      final isOwner = currentUserId == postedBy;
 
                       // 상태 라벨은 이 화면에서 불필요 (항상 오픈/철회만 표시)
 
@@ -335,6 +342,33 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                       ],
                                     ),
                                   ),
+                                  // 입찰자 수 배지 (오더 소유자만 표시)
+                                  if (isOwner && bidCount > 0) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.blue, width: 1.5),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.people, size: 12, color: Colors.blue),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '입찰 $bidCount',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.blue,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                               const SizedBox(height: 12),
@@ -705,8 +739,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     final createdAt = data['createdat'] ?? data['createdAt'];
     final String jobId = (data['jobid'] ?? data['id'] ?? '').toString();
     final String postedBy = (data['posted_by'] ?? '').toString();
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final currentUserId = authService.currentUser?.id;
     final isOwner = currentUserId == postedBy;
+    final bidCount = data['bid_count'] ?? 0;
 
     Navigator.push(
       context,
@@ -965,25 +1001,76 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                     child: SizedBox(
                       width: double.infinity,
                       height: 56,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          await _claimListing(data['id'].toString());
-                        },
-                        icon: const Icon(Icons.touch_app_rounded, size: 20),
-                        label: const Text(
-                          '오더 잡기',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF57C00),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
+                      child: isOwner
+                          ? ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => OrderBiddersScreen(
+                                      listingId: data['id'].toString(),
+                                      orderTitle: title,
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.people, size: 20),
+                              label: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    '입찰자 보기',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                  ),
+                                  if (bidCount > 0) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '$bidCount',
+                                        style: const TextStyle(
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            )
+                          : ElevatedButton.icon(
+                              onPressed: () async {
+                                Navigator.pop(context);
+                                await _claimListing(data['id'].toString());
+                              },
+                              icon: const Icon(Icons.touch_app_rounded, size: 20),
+                              label: const Text(
+                                '오더 잡기',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFF57C00),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                 ),

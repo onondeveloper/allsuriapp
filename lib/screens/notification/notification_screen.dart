@@ -6,6 +6,7 @@ import '../../services/notification_service.dart';
 import '../../widgets/common_app_bar.dart';
 import '../business/job_management_screen.dart';
 import '../business/order_marketplace_screen.dart';
+import '../business/order_bidders_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({Key? key}) : super(key: key);
@@ -256,7 +257,30 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 onPressed: () async {
                   await _markAsRead(notification);
                   if (!mounted) return;
-                  if ((type == 'call_assigned' || type == 'call_update') && (jobId?.isNotEmpty ?? false)) {
+                  
+                  // 알림 타입에 따라 다른 화면으로 이동
+                  if (type == 'new_bid') {
+                    // 새로운 입찰 → 입찰자 목록 화면
+                    final listingId = notification['jobId']?.toString() ?? '';
+                    final title = notification['title']?.toString() ?? '오더';
+                    if (listingId.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OrderBiddersScreen(
+                            listingId: listingId,
+                            orderTitle: title,
+                          ),
+                        ),
+                      );
+                    }
+                  } else if (type == 'bid_selected') {
+                    // 입찰 선택됨 → 오더 마켓 (채팅방으로 이동 가능)
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const OrderMarketplaceScreen()));
+                  } else if (type == 'bid_rejected') {
+                    // 입찰 거절됨 → 오더 마켓
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const OrderMarketplaceScreen()));
+                  } else if ((type == 'call_assigned' || type == 'call_update') && (jobId?.isNotEmpty ?? false)) {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const OrderMarketplaceScreen()));
                   } else {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const JobManagementScreen()));

@@ -103,7 +103,7 @@ router.post('/listings/:id/bid', async (req, res) => {
       throw error;
     }
 
-    // 알림 생성
+    // 알림 생성 및 기기 푸시
     try {
       const { data: listing } = await supabase
         .from('marketplace_listings')
@@ -112,15 +112,37 @@ router.post('/listings/:id/bid', async (req, res) => {
         .maybeSingle();
 
       if (listing) {
+        const notificationTitle = '새로운 입찰';
+        const notificationBody = `${listing.title || '오더'}에 새로운 입찰이 들어왔습니다.`;
+        
+        // DB 알림 생성
         await supabase.from('notifications').insert({
           userid: listing.posted_by,
-          title: '새로운 입찰',
-          body: `${listing.title || '오더'}에 새로운 입찰이 들어왔습니다.`,
+          title: notificationTitle,
+          body: notificationBody,
           type: 'new_bid',
           jobId: id,
           isread: false,
           createdat: new Date().toISOString(),
         });
+        
+        // 기기 푸시 알림 전송 (Supabase Edge Function 호출)
+        try {
+          await supabase.functions.invoke('send-push-notification', {
+            body: {
+              userId: listing.posted_by,
+              title: notificationTitle,
+              body: notificationBody,
+              data: {
+                type: 'new_bid',
+                listingId: id,
+              },
+            },
+          });
+          console.log('✅ [market] 푸시 알림 전송 완료');
+        } catch (pushErr) {
+          console.warn('[market] 푸시 알림 전송 실패 (무시):', pushErr.message || pushErr);
+        }
       }
     } catch (e) {
       console.warn('[market] notification failed:', e.message || e);

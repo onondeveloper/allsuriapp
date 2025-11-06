@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'api_service.dart';
 import 'fcm_service.dart';
+import 'notification_service.dart';
 import '../supabase_config.dart';
 import '../models/user.dart' as app_models;
 
@@ -218,6 +219,13 @@ class AuthService extends ChangeNotifier {
               print('🔍 [signInWithKakao] Supabase 로드 완료');
               print('   - Business Status: ${_currentUser?.businessStatus}');
               print('   - Business Name: ${_currentUser?.businessName}');
+              
+              // FCM 토큰 초기화 및 저장
+              try {
+                await NotificationService().initializeFCM(uid);
+              } catch (e) {
+                print('⚠️ [signInWithKakao] FCM 초기화 실패 (무시): $e');
+              }
             }
             return true;
           }

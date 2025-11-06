@@ -208,6 +208,70 @@ async function handleBidListing(event: HandlerEvent, path: string) {
       throw new Error(data.message || 'Bid failed')
     }
 
+    // 알림 및 푸시 알림 전송
+    try {
+      const listingResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/marketplace_listings?id=eq.${id}&select=title,posted_by`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          }
+        }
+      )
+      const listings = await listingResponse.json()
+      const listing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null
+
+      if (listing) {
+        const notificationTitle = '새로운 입찰'
+        const notificationBody = `${listing.title || '오더'}에 새로운 입찰이 들어왔습니다.`
+        
+        // DB 알림 생성
+        await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userid: listing.posted_by,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'new_bid',
+            jobId: id,
+            isread: false,
+            createdat: new Date().toISOString(),
+          })
+        })
+
+        // 푸시 알림 전송 (Supabase Edge Function)
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: listing.posted_by,
+              title: notificationTitle,
+              body: notificationBody,
+              data: {
+                type: 'new_bid',
+                listingId: id,
+              },
+            }),
+          })
+          console.log('✅ [market] 푸시 알림 전송 완료')
+        } catch (pushErr: any) {
+          console.warn('[market] 푸시 알림 전송 실패 (무시):', pushErr.message)
+        }
+      }
+    } catch (e: any) {
+      console.warn('[market] notification failed:', e.message)
+    }
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -283,6 +347,127 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
 
     if (!response.ok) {
       throw new Error(data.message || 'Select bidder failed')
+    }
+
+    // 알림 및 푸시 알림 전송
+    try {
+      // 오더 정보 조회
+      const listingResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/marketplace_listings?id=eq.${id}&select=title,jobid`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          }
+        }
+      )
+      const listings = await listingResponse.json()
+      const listing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null
+
+      if (listing) {
+        const nowIso = new Date().toISOString()
+
+        // 선택된 입찰자에게 알림
+        const selectedTitle = '오더 선택됨'
+        const selectedBody = `${listing.title || '오더'}에 선택되었습니다!`
+        
+        await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userid: bidderId,
+            title: selectedTitle,
+            body: selectedBody,
+            type: 'bid_selected',
+            jobId: listing.jobid,
+            isread: false,
+            createdat: nowIso,
+          })
+        })
+
+        // 선택된 사업자에게 푸시 알림
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: bidderId,
+              title: selectedTitle,
+              body: selectedBody,
+              data: { type: 'bid_selected', listingId: id },
+            }),
+          })
+        } catch (pushErr: any) {
+          console.warn('[market] 푸시 알림 실패:', pushErr.message)
+        }
+
+        // 거절된 입찰자들에게 알림
+        const rejectedResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${id}&status=eq.rejected&select=bidder_id`,
+          {
+            headers: {
+              apikey: SUPABASE_SERVICE_ROLE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            }
+          }
+        )
+        const rejectedBids = await rejectedResponse.json()
+
+        if (Array.isArray(rejectedBids) && rejectedBids.length > 0) {
+          const rejectedTitle = '오더가 다른 사업자에게 이관되었습니다'
+          const rejectedBody = `${listing.title || '오더'}가 다른 사업자에게 이관되었습니다. 다음 기회를 노려보시기 바랍니다.`
+          
+          // 각 거절된 입찰자에게 알림
+          for (const bid of rejectedBids) {
+            // DB 알림
+            await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+              method: 'POST',
+              headers: {
+                apikey: SUPABASE_SERVICE_ROLE_KEY,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                userid: bid.bidder_id,
+                title: rejectedTitle,
+                body: rejectedBody,
+                type: 'bid_rejected',
+                jobId: listing.jobid,
+                isread: false,
+                createdat: nowIso,
+              })
+            })
+
+            // 푸시 알림
+            try {
+              await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  userId: bid.bidder_id,
+                  title: rejectedTitle,
+                  body: rejectedBody,
+                  data: { type: 'bid_rejected', listingId: id },
+                }),
+              })
+            } catch (pushErr: any) {
+              console.warn('[market] 푸시 알림 실패:', pushErr.message)
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[market] notification/push failed:', e.message)
     }
 
     return {

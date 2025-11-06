@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'api_service.dart';
 
 class NotificationService {
@@ -344,6 +345,86 @@ class NotificationService {
       print('✅ [NotificationService] 알림 표시 완료');
     } catch (e) {
       print('❌ [NotificationService] 알림 표시 실패: $e');
+    }
+  }
+
+  /// FCM 토큰 초기화 및 저장
+  Future<void> initializeFCM(String userId) async {
+    try {
+      print('🔔 [NotificationService] FCM 초기화 시작');
+      
+      // FCM 권한 요청
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+      
+      print('   FCM 권한 상태: ${settings.authorizationStatus}');
+      
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        // FCM 토큰 가져오기
+        final token = await messaging.getToken();
+        print('   FCM 토큰: ${token?.substring(0, 20)}...');
+        
+        if (token != null) {
+          // Supabase에 토큰 저장
+          await _sb.from('users').update({
+            'fcm_token': token,
+          }).eq('id', userId);
+          
+          print('✅ [NotificationService] FCM 토큰 저장 완료');
+          
+          // 토큰 갱신 리스너
+          messaging.onTokenRefresh.listen((newToken) {
+            print('🔄 [NotificationService] FCM 토큰 갱신: ${newToken.substring(0, 20)}...');
+            _sb.from('users').update({
+              'fcm_token': newToken,
+            }).eq('id', userId);
+          });
+        }
+        
+        // 포그라운드 메시지 리스너
+        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+          print('🔔 [NotificationService] 포그라운드 메시지 수신');
+          print('   제목: ${message.notification?.title}');
+          print('   내용: ${message.notification?.body}');
+          
+          // 로컬 알림으로 표시
+          if (message.notification != null) {
+            showNewJobNotification(
+              title: message.notification!.title ?? '새 알림',
+              body: message.notification!.body ?? '',
+              jobId: message.data['jobId'] ?? 'unknown',
+            );
+          }
+        });
+        
+        // 백그라운드 메시지 탭 리스너
+        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+          print('🔔 [NotificationService] 백그라운드 메시지 탭');
+          print('   데이터: ${message.data}');
+          // TODO: 알림 타입에 따라 적절한 화면으로 이동
+        });
+      } else {
+        print('❌ [NotificationService] FCM 권한 거부됨');
+      }
+    } catch (e) {
+      print('❌ [NotificationService] FCM 초기화 실패: $e');
+    }
+  }
+
+  /// FCM 토큰 가져오기
+  Future<String?> getFCMToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      return token;
+    } catch (e) {
+      print('❌ [NotificationService] FCM 토큰 가져오기 실패: $e');
+      return null;
     }
   }
 }
