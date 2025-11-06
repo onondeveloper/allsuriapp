@@ -4,10 +4,20 @@ const SUPABASE_URL = process.env.SUPABASE_URL as string
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string
 
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
-  const path = event.path.replace('/.netlify/functions/market', '')
+  // Netlify redirects: /api/market/* -> /.netlify/functions/market/*
+  // event.path will be like: /api/market/listings/xxx/claim
+  let path = event.path
+  
+  // Remove /api/market prefix
+  if (path.startsWith('/api/market')) {
+    path = path.replace('/api/market', '')
+  } else if (path.startsWith('/.netlify/functions/market')) {
+    path = path.replace('/.netlify/functions/market', '')
+  }
+  
   const method = event.httpMethod
 
-  console.log(`[market] ${method} ${path}`)
+  console.log(`[market] ${method} ${event.path} -> ${path}`)
 
   try {
     // GET /listings
