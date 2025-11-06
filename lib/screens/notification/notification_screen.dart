@@ -5,7 +5,7 @@ import '../../providers/user_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/common_app_bar.dart';
 import '../business/job_management_screen.dart';
-import '../business/call_marketplace_screen.dart';
+import '../business/order_marketplace_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({Key? key}) : super(key: key);
@@ -257,7 +257,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   await _markAsRead(notification);
                   if (!mounted) return;
                   if ((type == 'call_assigned' || type == 'call_update') && (jobId?.isNotEmpty ?? false)) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const CallMarketplaceScreen()));
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const OrderMarketplaceScreen()));
                   } else {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const JobManagementScreen()));
                   }

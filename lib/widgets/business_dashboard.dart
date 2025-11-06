@@ -5,7 +5,7 @@ import '../screens/business/estimate_management_screen.dart';
 import '../screens/business/transfer_estimate_screen.dart';
 import '../screens/notification/notification_screen.dart';
 import '../screens/business/job_management_screen.dart';
-import '../screens/business/call_marketplace_screen.dart';
+import '../screens/business/order_marketplace_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
@@ -100,13 +100,13 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
 
   Future<int> _getCallOpenCount() async {
     try {
-      // Call 마켓에서 화면에 보이는 기준: open + withdrawn + created (사업자가 올린 모든 공사)
+      // 오더 마켓에서 화면에 보이는 기준: open + withdrawn + created (사업자가 올린 모든 공사)
       final items = await _market.listListings(status: 'all');
       final count = items.where((row) {
         final s = (row['status'] ?? '').toString();
         return s == 'open' || s == 'withdrawn' || s == 'created';
       }).length;
-      print('🔍 [_getCallOpenCount] Call 공사 개수: $count');
+      print('🔍 [_getCallOpenCount] 오더 개수: $count');
       return count;
     } catch (e) {
       print('❌ [_getCallOpenCount] 에러: $e');
@@ -321,14 +321,14 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                     ),
                    _buildCleanMenuCard(
                       context,
-                      'Call 공사',
+                      '오더',
                       Icons.handyman_outlined,
                       const Color(0xFFFFF3E0), // Light orange
                       const Color(0xFFF57C00), // Orange for icon
                       () async {
                         await Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const CallMarketplaceScreen(showSuccessMessage: false)),
+                          MaterialPageRoute(builder: (context) => const OrderMarketplaceScreen(showSuccessMessage: false)),
                         );
                         if (!mounted) return;
                         _refreshCounts();

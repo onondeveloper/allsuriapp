@@ -298,7 +298,7 @@ class NotificationService {
     }
   }
 
-  /// 로컬 푸시 알림 표시 (Call 공사 추가 시)
+  /// 로컬 푸시 알림 표시 (오더 추가 시)
   Future<void> showNewJobNotification({
     required String title,
     required String body,
@@ -309,9 +309,9 @@ class NotificationService {
       
       const AndroidNotificationDetails androidPlatformChannelSpecifics =
           AndroidNotificationDetails(
-        'call_jobs_channel',
-        'Call 공사 알림',
-        channelDescription: '새로운 Call 공사 등록 알림',
+        'order_jobs_channel',
+        '오더 알림',
+        channelDescription: '새로운 오더 등록 알림',
         importance: Importance.max,
         priority: Priority.high,
         showWhen: true,

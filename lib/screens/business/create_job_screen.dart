@@ -7,7 +7,7 @@ import '../../services/job_service.dart';
 import '../../services/marketplace_service.dart';
 import '../../services/media_service.dart';
 import 'transfer_job_screen.dart';
-import 'call_marketplace_screen.dart';
+import 'order_marketplace_screen.dart';
 import '../../widgets/interactive_card.dart';
 import 'package:flutter/services.dart';
 import '../../utils/navigation_utils.dart';
@@ -258,7 +258,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
         const SnackBar(content: Text('공사가 성공적으로 등록되었습니다!')),
       );
 
-      // 다음 단계 선택: Call 공사로 올리기 또는 이관하기
+      // 다음 단계 선택: 오더로 올리기 또는 이관하기
       if (!mounted) return;
       await _showPostCreateOptions(createdJobId,
           title: _titleController.text.trim(),
@@ -639,7 +639,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                 ),
                 const SizedBox(height: 24),
                 
-                // Call 공사 버튼 (메인 - 크고 눈에 띄게)
+                // 오더 버튼 (메인 - 크고 눈에 띄게)
                 Container(
                   height: 70,
                   decoration: BoxDecoration(
@@ -661,7 +661,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                     onPressed: () async {
                       Navigator.pop(sheetContext);
                       try {
-                        print('Call 공사 등록 시작: jobId=$jobId, title=$title');
+                        print('오더 등록 시작: jobId=$jobId, title=$title');
                         
                         final result = await _marketplaceService.createListing(
                           jobId: jobId,
@@ -672,32 +672,32 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                           budgetAmount: budget,
                         );
                         
-                        print('Call 공사 등록 결과: $result');
+                        print('오더 등록 결과: $result');
                           
                           if (!mounted) return;
                           
                           if (result != null) {
-                            print('CallMarketplaceScreen으로 네비게이션 시작');
+                            print('OrderMarketplaceScreen으로 네비게이션 시작');
                             
-                            // 즉시 CallMarketplaceScreen으로 이동 (모든 이전 화면 제거)
+                            // 즉시 OrderMarketplaceScreen으로 이동 (모든 이전 화면 제거)
                             Navigator.pushAndRemoveUntil(
                               parentContext,
                               MaterialPageRoute(
-                                builder: (_) => CallMarketplaceScreen(
+                                builder: (_) => OrderMarketplaceScreen(
                                   showSuccessMessage: true, // 성공 메시지 표시 플래그
                                   createdByUserId: Supabase.instance.client.auth.currentUser?.id,
                                 ),
                               ),
                               (route) => false, // 모든 이전 화면 제거
                             );
-                            print('CallMarketplaceScreen으로 네비게이션 완료');
+                            print('OrderMarketplaceScreen으로 네비게이션 완료');
                           } else {
                             ScaffoldMessenger.of(parentContext).showSnackBar(
                               const SnackBar(content: Text('Call 등록에 실패했습니다. 다시 시도해주세요.')),
                             );
                           }
                       } catch (e) {
-                        print('Call 공사 등록 에러: $e');
+                        print('오더 등록 에러: $e');
                         if (!mounted) return;
                         ScaffoldMessenger.of(parentContext).showSnackBar(
                           SnackBar(content: Text('Call 등록 실패: $e')),
@@ -714,7 +714,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                     ),
                     icon: const Icon(Icons.campaign, size: 28),
                     label: const Text(
-                      'Call 공사로 올리기 (추천)',
+                      '오더로 올리기 (추천)',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
