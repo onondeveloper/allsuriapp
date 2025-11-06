@@ -80,8 +80,213 @@ router.post('/listings', async (req, res) => {
   }
 });
 
+// POST /api/market/listings/:id/bid
+// Body: { businessId, message? }
+// 새로운 입찰 시스템: 여러 사업자가 입찰 가능
+router.post('/listings/:id/bid', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { businessId, message } = req.body || {};
+    if (!businessId) return res.status(400).json({ message: 'businessId는 필수입니다' });
+
+    // RPC 호출: create_order_bid
+    const { data, error } = await supabase.rpc('create_order_bid', {
+      p_listing_id: id,
+      p_bidder_id: businessId,
+      p_message: message || null,
+    });
+
+    if (error) {
+      if (error.code === '23505') { // unique violation
+        return res.status(409).json({ success: false, message: '이미 입찰하셨습니다' });
+      }
+      throw error;
+    }
+
+    // 알림 생성
+    try {
+      const { data: listing } = await supabase
+        .from('marketplace_listings')
+        .select('title, posted_by')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (listing) {
+        await supabase.from('notifications').insert({
+          userid: listing.posted_by,
+          title: '새로운 입찰',
+          body: `${listing.title || '오더'}에 새로운 입찰이 들어왔습니다.`,
+          type: 'new_bid',
+          jobId: id,
+          isread: false,
+          createdat: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('[market] notification failed:', e.message || e);
+    }
+
+    return res.json({ success: true, bidId: data });
+  } catch (error) {
+    console.error('[market] bid error:', error);
+    res.status(500).json({ message: '입찰 처리 실패' });
+  }
+});
+
+// POST /api/market/listings/:id/select-bidder
+// Body: { bidderId, ownerId }
+// 오더 소유자가 입찰자 선택
+router.post('/listings/:id/select-bidder', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { bidderId, ownerId } = req.body || {};
+    if (!bidderId || !ownerId) {
+      return res.status(400).json({ message: 'bidderId, ownerId는 필수입니다' });
+    }
+
+    // RPC 호출: select_bidder
+    const { data, error } = await supabase.rpc('select_bidder', {
+      p_listing_id: id,
+      p_bidder_id: bidderId,
+      p_owner_id: ownerId,
+    });
+
+    if (error) throw error;
+
+    // 선택된 입찰자에게 알림
+    try {
+      const { data: listing } = await supabase
+        .from('marketplace_listings')
+        .select('title, jobid')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (listing) {
+        const nowIso = new Date().toISOString();
+        
+        // 선택된 입찰자에게 알림
+        await supabase.from('notifications').insert({
+          userid: bidderId,
+          title: '오더 선택됨',
+          body: `${listing.title || '오더'}에 선택되었습니다!`,
+          type: 'bid_selected',
+          jobId: listing.jobid,
+          isread: false,
+          createdat: nowIso,
+        });
+
+        // 거절된 입찰자들에게 알림
+        const { data: rejectedBids } = await supabase
+          .from('order_bids')
+          .select('bidder_id')
+          .eq('listing_id', id)
+          .eq('status', 'rejected');
+
+        if (rejectedBids && rejectedBids.length > 0) {
+          const rejectedNotifs = rejectedBids.map(bid => ({
+            userid: bid.bidder_id,
+            title: '오더가 다른 사업자에게 이관되었습니다',
+            body: `${listing.title || '오더'}가 다른 사업자에게 이관되었습니다. 다음 기회를 노려보시기 바랍니다.`,
+            type: 'bid_rejected',
+            jobId: listing.jobid,
+            isread: false,
+            createdat: nowIso,
+          }));
+          await supabase.from('notifications').insert(rejectedNotifs);
+        }
+
+        // 채팅방 생성
+        const { data: owner } = await supabase
+          .from('marketplace_listings')
+          .select('posted_by')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (owner) {
+          const roomId = `order_${id}`;
+          await supabase.from('chat_rooms').upsert({
+            id: roomId,
+            listingid: id,
+            jobid: listing.jobid,
+            participant_a: owner.posted_by,
+            participant_b: bidderId,
+            createdat: nowIso,
+            updatedat: nowIso,
+            active: true,
+          });
+
+          await supabase.from('chat_messages').insert({
+            room_id: roomId,
+            sender_id: owner.posted_by,
+            content: '안녕하세요, 오더 관련 채팅방입니다',
+            type: 'system',
+            createdat: nowIso,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[market] notification/chat failed:', e.message || e);
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[market] select bidder error:', error);
+    res.status(500).json({ message: '입찰자 선택 실패' });
+  }
+});
+
+// GET /api/market/listings/:id/bids
+// 오더의 모든 입찰 조회 (오더 소유자만)
+router.get('/listings/:id/bids', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('order_bids')
+      .select(`
+        *,
+        bidder:users!order_bids_bidder_id_fkey(id, businessname, avatar_url, estimates_created_count, jobs_accepted_count)
+      `)
+      .eq('listing_id', id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    console.error('[market] get bids error:', error);
+    res.status(500).json({ message: '입찰 목록 조회 실패' });
+  }
+});
+
+// POST /api/market/bids/:id/withdraw
+// Body: { bidderId }
+// 입찰 취소
+router.post('/bids/:id/withdraw', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { bidderId } = req.body || {};
+    if (!bidderId) return res.status(400).json({ message: 'bidderId는 필수입니다' });
+
+    const { data, error } = await supabase.rpc('withdraw_bid', {
+      p_bid_id: id,
+      p_bidder_id: bidderId,
+    });
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ success: false, message: '입찰을 찾을 수 없거나 취소할 수 없습니다' });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[market] withdraw bid error:', error);
+    res.status(500).json({ message: '입찰 취소 실패' });
+  }
+});
+
 // POST /api/market/listings/:id/claim
 // Body: { businessId }
+// [DEPRECATED] 기존 호환성 유지, 새로운 시스템에서는 /bid 사용
 router.post('/listings/:id/claim', async (req, res) => {
   try {
     const { id } = req.params;

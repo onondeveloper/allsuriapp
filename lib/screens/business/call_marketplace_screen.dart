@@ -11,23 +11,22 @@ import 'package:allsuriapp/models/estimate.dart';
 import 'package:allsuriapp/services/estimate_service.dart';
 import 'package:allsuriapp/screens/chat_screen.dart';
 import 'package:allsuriapp/services/notification_service.dart';
-import 'package:allsuriapp/services/auth_service.dart';
 
-class OrderMarketplaceScreen extends StatefulWidget {
+class CallMarketplaceScreen extends StatefulWidget {
   final bool showSuccessMessage;
   final String? createdByUserId;
   
-  const OrderMarketplaceScreen({
+  const CallMarketplaceScreen({
     Key? key,
     this.showSuccessMessage = false,
     this.createdByUserId,
   }) : super(key: key);
 
   @override
-  State<OrderMarketplaceScreen> createState() => _OrderMarketplaceScreenState();
+  State<CallMarketplaceScreen> createState() => _CallMarketplaceScreenState();
 }
 
-class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
+class _CallMarketplaceScreenState extends State<CallMarketplaceScreen> {
   final MarketplaceService _market = MarketplaceService();
   late Future<List<Map<String, dynamic>>> _future;
   String _status = 'all';
@@ -36,18 +35,18 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
   @override
   void initState() {
     super.initState();
-    print('OrderMarketplaceScreen initState 시작');
+    print('CallMarketplaceScreen initState 시작');
     
     // 사용자 인증 상태 확인
     final currentUser = Supabase.instance.client.auth.currentUser;
-    print('OrderMarketplaceScreen: 현재 사용자 - ${currentUser?.id ?? "null (로그인 안됨)"}');
+    print('CallMarketplaceScreen: 현재 사용자 - ${currentUser?.id ?? "null (로그인 안됨)"}');
     
     if (currentUser == null) {
-      print('⚠️ [OrderMarketplaceScreen] 사용자가 로그인되어 있지 않습니다!');
+      print('⚠️ [CallMarketplaceScreen] 사용자가 로그인되어 있지 않습니다!');
     }
     
     _future = _market.listListings(status: _status, throwOnError: true, postedBy: widget.createdByUserId);
-    print('OrderMarketplaceScreen: _future 설정됨');
+    print('CallMarketplaceScreen: _future 설정됨');
     
     _channel = Supabase.instance.client
         .channel('public:marketplace_listings')
@@ -56,21 +55,21 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           schema: 'public',
           table: 'marketplace_listings',
           callback: (payload) {
-            print('OrderMarketplaceScreen Realtime 이벤트: $payload');
+            print('CallMarketplaceScreen Realtime 이벤트: $payload');
             if (!mounted) return;
             
             // 새로운 INSERT 이벤트 감지
             if (payload.eventType == 'INSERT') {
               final newListing = payload.newRecord;
-              final title = newListing['title'] ?? '오더';
+              final title = newListing['title'] ?? 'Call 공사';
               final region = newListing['region'] ?? '지역 미정';
               
-              print('🔔 새로운 오더 감지: $title in $region');
+              print('🔔 새로운 Call 공사 감지: $title in $region');
               
               // 로컬 알림 표시
               try {
                 NotificationService().showNewJobNotification(
-                  title: '새로운 오더!',
+                  title: '새로운 Call 공사!',
                   body: '$title - $region',
                   jobId: newListing['id']?.toString() ?? 'unknown',
                 );
@@ -83,9 +82,9 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           },
         )
         .subscribe();
-    print('OrderMarketplaceScreen: Realtime 구독 완료');
+    print('CallMarketplaceScreen: Realtime 구독 완료');
     
-    // 오더 등록 성공 후 이동한 경우 성공 메시지 표시
+    // Call 공사 등록 성공 후 이동한 경우 성공 메시지 표시
     if (widget.showSuccessMessage) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -109,11 +108,11 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
   }
 
   Future<void> _reload() async {
-    print('OrderMarketplaceScreen _reload 시작: status=$_status');
+    print('CallMarketplaceScreen _reload 시작: status=$_status');
     setState(() {
       _future = _market.listListings(status: _status, postedBy: widget.createdByUserId);
     });
-    print('OrderMarketplaceScreen _reload 완료');
+    print('CallMarketplaceScreen _reload 완료');
   }
 
   @override
@@ -129,7 +128,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('오더 현황', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: const Text('Call 공사 현황', style: TextStyle(fontWeight: FontWeight.w600)),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
@@ -154,14 +153,14 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
               child: FutureBuilder<List<Map<String, dynamic>>>(
                 future: _future,
                 builder: (context, snapshot) {
-                  print('OrderMarketplaceScreen FutureBuilder: connectionState=${snapshot.connectionState}, hasError=${snapshot.hasError}, data=${snapshot.data?.length ?? 0}');
+                  print('CallMarketplaceScreen FutureBuilder: connectionState=${snapshot.connectionState}, hasError=${snapshot.hasError}, data=${snapshot.data?.length ?? 0}');
                   
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    print('OrderMarketplaceScreen: 로딩 중...');
+                    print('CallMarketplaceScreen: 로딩 중...');
                     return const ShimmerList(itemCount: 6, itemHeight: 110);
                   }
                   if (snapshot.hasError) {
-                    print('OrderMarketplaceScreen: 에러 발생 - ${snapshot.error}');
+                    print('CallMarketplaceScreen: 에러 발생 - ${snapshot.error}');
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
@@ -179,9 +178,9 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                     final s = (row['status'] ?? '').toString();
                     return s == 'open' || s == 'withdrawn' || s == 'created'; // 'created' 상태 추가
                   }).toList();
-                  print('OrderMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회/생성됨만)');
+                  print('CallMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회/생성됨만)');
                   if (visibleItems.isEmpty) {
-                    print('OrderMarketplaceScreen: 빈 목록 표시');
+                    print('CallMarketplaceScreen: 빈 목록 표시');
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
@@ -447,7 +446,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  // 오더 잡기 버튼
+                                  // Call 잡기 버튼
                                   SizedBox(
                                     height: 36,
                                     width: 100,
@@ -459,24 +458,12 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                         elevation: 0,
                                       ),
-                                    onPressed: (status == 'open' || status == 'withdrawn')
-                                        ? () async {
-                                            // AuthService에서 사용자 ID 가져오기
-                                            final authService = Provider.of<AuthService>(context, listen: false);
-                                            final userId = authService.currentUser?.id;
-                                            
-                                            if (userId == null) {
+                                      onPressed: (status == 'open' || status == 'withdrawn')
+                                          ? () async {
+                                              final ok = await _market.claimListing(id);
                                               if (!mounted) return;
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(content: Text('로그인이 필요합니다')),
-                                              );
-                                              return;
-                                            }
-                                            
-                                            final ok = await _market.claimListing(id, businessId: userId);
-                                            if (!mounted) return;
-                                            if (ok) {
-                                              final me = userId;
+                                              if (ok) {
+                                                final me = Supabase.instance.client.auth.currentUser?.id;
                                                 if (postedBy != null && postedBy.isNotEmpty && me != null && me.isNotEmpty) {
                                                   try {
                                                     await ChatService().createChatRoom('call_$id', postedBy, me);
@@ -550,7 +537,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                       ),
                     );
                       } catch (e, stackTrace) {
-                        print('OrderMarketplaceScreen 카드 렌더링 에러: $e');
+                        print('CallMarketplaceScreen 카드 렌더링 에러: $e');
                         print('StackTrace: $stackTrace');
                         return Container(
                           height: 100,
@@ -577,7 +564,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
 
   Future<void> _claimListing(String id) async {
     try {
-      print('🔍 [_claimListing] 오더 잡기 시작: $id');
+      print('🔍 [_claimListing] 공사 잡기 시작: $id');
       
       // 사용자 로그인 확인 (AuthService 사용)
       final authService = Provider.of<AuthService>(context, listen: false);
@@ -597,13 +584,13 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         return;
       }
       
-      print('   → marketplace_service에서 오더 잡기 요청 중...');
-      final ok = await _market.claimListing(id, businessId: currentUserId);
+      print('   → marketplace_service에서 공사 잡기 요청 중...');
+      final ok = await _market.claimListing(id);
       
       if (!mounted) return;
       
       if (ok) {
-        print('   ✅ 오더 잡기 성공!');
+        print('   ✅ 공사 잡기 성공!');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('공사를 성공적으로 잡았습니다!'),
@@ -615,7 +602,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         // 목록 새로고침
         await _reload();
       } else {
-        print('   ❌ 오더 잡기 실패 (이미 다른 사업자가 잡았거나 오류)');
+        print('   ❌ 공사 잡기 실패 (이미 다른 사업자가 잡았거나 오류)');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -632,7 +619,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('오더 잡기 실패: ${e.toString()}'),
+          content: Text('공사 잡기 실패: ${e.toString()}'),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 3),
         ),
@@ -950,7 +937,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                         },
                         icon: const Icon(Icons.touch_app_rounded, size: 20),
                         label: const Text(
-                          '오더 잡기',
+                          '공사 잡기',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                         ),
                         style: ElevatedButton.styleFrom(

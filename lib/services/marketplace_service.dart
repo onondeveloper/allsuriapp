@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:allsuriapp/services/api_service.dart';
 
 class MarketplaceService extends ChangeNotifier {
   final SupabaseClient _sb = Supabase.instance.client;
@@ -120,23 +121,31 @@ class MarketplaceService extends ChangeNotifier {
     }
   }
 
-  Future<bool> claimListing(String listingId) async {
-    final businessId = _sb.auth.currentUser?.id;
-    if (businessId == null) {
-      throw StateError('로그인이 필요합니다');
-    }
+  Future<bool> claimListing(String listingId, {required String businessId}) async {
     try {
-      final result = await _sb.rpc('claim_listing', params: {
-        'p_listing_id': listingId,
-        'p_business_id': businessId,
+      debugPrint('🔍 [MarketplaceService.claimListing] 시작: $listingId');
+      debugPrint('   사용자 ID: $businessId');
+      
+      // Backend API를 통해 claim (Supabase 세션 없이도 작동)
+      final api = ApiService();
+      
+      // 새로운 입찰 시스템 사용
+      final response = await api.post('/market/listings/$listingId/bid', {
+        'businessId': businessId,
+        'message': '오더를 맡고 싶습니다.',
       });
-      if (result is bool) {
-        return result;
+      
+      debugPrint('   응답: ${response}');
+      
+      if (response['success'] == true) {
+        debugPrint('✅ [MarketplaceService.claimListing] 성공');
+        return true;
       }
+      
+      debugPrint('❌ [MarketplaceService.claimListing] 실패: ${response['message']}');
       return false;
-    } on PostgrestException catch (_) {
-      return false;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ [MarketplaceService.claimListing] 에러: $e');
       return false;
     }
   }
