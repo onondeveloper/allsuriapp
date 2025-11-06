@@ -129,9 +129,10 @@ class MarketplaceService extends ChangeNotifier {
       // Backend API를 통해 claim (Supabase 세션 없이도 작동)
       final api = ApiService();
       
-      // 기존 claim 엔드포인트 사용 (Netlify 배포 완료 후 /bid로 변경 예정)
-      final response = await api.post('/market/listings/$listingId/claim', {
+      // 입찰 시스템 사용: 즉시 가져가기가 아닌 입찰 후 승인 프로세스
+      final response = await api.post('/market/listings/$listingId/bid', {
         'businessId': businessId,
+        'message': '이 오더를 맡고 싶습니다.',
       });
       
       debugPrint('   응답: ${response}');

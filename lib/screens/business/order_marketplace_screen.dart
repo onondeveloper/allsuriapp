@@ -56,16 +56,19 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           schema: 'public',
           table: 'marketplace_listings',
           callback: (payload) {
-            print('OrderMarketplaceScreen Realtime 이벤트: $payload');
+            print('🔄 [OrderMarketplaceScreen] Realtime 이벤트: ${payload.eventType}');
+            print('   - Old: ${payload.oldRecord}');
+            print('   - New: ${payload.newRecord}');
+            
             if (!mounted) return;
             
-            // 새로운 INSERT 이벤트 감지
+            // INSERT 이벤트: 새로운 오더
             if (payload.eventType == 'INSERT') {
               final newListing = payload.newRecord;
               final title = newListing['title'] ?? '오더';
               final region = newListing['region'] ?? '지역 미정';
               
-              print('🔔 새로운 오더 감지: $title in $region');
+              print('🔔 새로운 오더 추가: $title in $region');
               
               // 로컬 알림 표시
               try {
@@ -79,6 +82,25 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
               }
             }
             
+            // UPDATE 이벤트: 오더 상태 변경 (claimed, assigned 등)
+            if (payload.eventType == 'UPDATE') {
+              final oldRecord = payload.oldRecord;
+              final newRecord = payload.newRecord;
+              print('📝 오더 업데이트: ${newRecord['id']}');
+              print('   - Old Status: ${oldRecord['status']} -> New Status: ${newRecord['status']}');
+              
+              if (oldRecord['status'] != newRecord['status']) {
+                print('   ⚠️ 상태 변경 감지! 리스트 새로고침 필요');
+              }
+            }
+            
+            // DELETE 이벤트: 오더 삭제
+            if (payload.eventType == 'DELETE') {
+              final deletedListing = payload.oldRecord;
+              print('🗑️ 오더 삭제: ${deletedListing['title']}');
+            }
+            
+            print('   → 리스트 새로고침 시작');
             _reload();
           },
         )
@@ -603,12 +625,12 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       if (!mounted) return;
       
       if (ok) {
-        print('   ✅ 오더 잡기 성공!');
+        print('   ✅ 입찰 성공!');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('공사를 성공적으로 잡았습니다!'),
+            content: Text('입찰이 완료되었습니다! 오더를 만든 사업자의 승인을 기다리고 있어요~'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
+            duration: Duration(seconds: 4),
           ),
         );
         
