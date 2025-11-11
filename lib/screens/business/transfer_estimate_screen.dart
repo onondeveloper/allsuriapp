@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/estimate.dart';
 import '../../services/auth_service.dart';
 import '../../services/estimate_service.dart';
+import '../../services/chat_service.dart';
 
 class TransferEstimateScreen extends StatefulWidget {
   final Estimate estimate;
@@ -18,26 +20,54 @@ class TransferEstimateScreen extends StatefulWidget {
 
 class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _businessNameController = TextEditingController();
-  final _phoneNumberController = TextEditingController();
   final _reasonController = TextEditingController();
   bool _isSubmitting = false;
+  bool _isLoadingBusinesses = true;
+  List<Map<String, dynamic>> _businesses = [];
+  String? _selectedBusinessId;
+  String? _selectedBusinessName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBusinesses();
+  }
 
   @override
   void dispose() {
-    _businessNameController.dispose();
-    _phoneNumberController.dispose();
     _reasonController.dispose();
     super.dispose();
   }
 
-  Future<void> _transferEstimate() async {
-    if (_businessNameController.text.trim().isEmpty) {
-      _showError('상호명을 입력해주세요');
-      return;
+  Future<void> _loadBusinesses() async {
+    try {
+      final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.id;
+      
+      // 플랫폼 내 모든 사업자 조회 (본인 제외)
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('id, businessname, name, phonenumber')
+          .eq('role', 'business')
+          .neq('id', currentUserId ?? '');
+      
+      setState(() {
+        _businesses = List<Map<String, dynamic>>.from(response);
+        _isLoadingBusinesses = false;
+      });
+    } catch (e) {
+      print('사업자 목록 조회 오류: $e');
+      setState(() {
+        _isLoadingBusinesses = false;
+      });
+      if (mounted) {
+        _showError('사업자 목록을 불러오는데 실패했습니다: $e');
+      }
     }
-    if (_phoneNumberController.text.trim().isEmpty) {
-      _showError('전화번호를 입력해주세요');
+  }
+
+  Future<void> _transferEstimate() async {
+    if (_selectedBusinessId == null) {
+      _showError('이관할 사업자를 선택해주세요');
       return;
     }
 
@@ -45,22 +75,38 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
 
     try {
       final estimateService = Provider.of<EstimateService>(context, listen: false);
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id ?? '';
       
       // 견적 이관 처리
       await estimateService.transferEstimate(
         estimateId: widget.estimate.id,
-        newBusinessName: _businessNameController.text.trim(),
-        newPhoneNumber: _phoneNumberController.text.trim(),
+        newBusinessId: _selectedBusinessId!,
+        newBusinessName: _selectedBusinessName ?? '',
         reason: _reasonController.text.trim(),
-        transferredBy: Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '',
+        transferredBy: currentUserId,
       );
+
+      // 채팅방 자동 생성 (이관하는 사업자 ↔ 이관받는 사업자)
+      try {
+        final roomId = 'transfer_${widget.estimate.id}';
+        await ChatService().createChatRoom(
+          roomId,
+          currentUserId,  // 이관하는 사업자
+          _selectedBusinessId!,  // 이관받는 사업자
+          estimateId: widget.estimate.id,
+        );
+        print('✅ 견적 이관 채팅방 생성 완료: $roomId');
+      } catch (chatErr) {
+        print('⚠️ 채팅방 생성 실패 (무시): $chatErr');
+      }
 
       if (mounted) {
         showCupertinoDialog(
           context: context,
           builder: (context) => CupertinoAlertDialog(
             title: const Text('견적 이관 완료'),
-            content: const Text('견적이 성공적으로 이관되었습니다.'),
+            content: Text('$_selectedBusinessName님에게 견적이 성공적으로 이관되었습니다.\n채팅방이 자동으로 생성되었습니다.'),
             actions: [
               CupertinoDialogAction(
                 onPressed: () {
@@ -151,7 +197,7 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
                 const SizedBox(height: 32),
                 
                 const Text(
-                  '이관할 사업자 정보',
+                  '이관할 사업자 선택',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -160,24 +206,94 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
                 ),
                 const SizedBox(height: 16),
                 
-                CupertinoTextField(
-                  controller: _businessNameController,
-                  placeholder: '상호명을 입력해주세요',
-                  decoration: BoxDecoration(
-                    border: Border.all(color: CupertinoColors.separator),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                CupertinoTextField(
-                  controller: _phoneNumberController,
-                  placeholder: '전화번호를 입력해주세요 (예: 010-1234-5678)',
-                  decoration: BoxDecoration(
-                    border: Border.all(color: CupertinoColors.separator),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+                // 사업자 선택 드롭다운
+                _isLoadingBusinesses
+                    ? const Center(child: CupertinoActivityIndicator())
+                    : Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: CupertinoColors.separator),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: () {
+                            showCupertinoModalPopup(
+                              context: context,
+                              builder: (BuildContext context) => Container(
+                                height: 300,
+                                color: CupertinoColors.systemBackground,
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          CupertinoButton(
+                                            child: const Text('취소'),
+                                            onPressed: () => Navigator.pop(context),
+                                          ),
+                                          const Text(
+                                            '사업자 선택',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          CupertinoButton(
+                                            child: const Text('확인'),
+                                            onPressed: () => Navigator.pop(context),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: CupertinoPicker(
+                                        itemExtent: 50,
+                                        onSelectedItemChanged: (int index) {
+                                          setState(() {
+                                            _selectedBusinessId = _businesses[index]['id'];
+                                            _selectedBusinessName = _businesses[index]['businessname'] ?? _businesses[index]['name'];
+                                          });
+                                        },
+                                        children: _businesses.map((business) {
+                                          final name = business['businessname'] ?? business['name'] ?? '알 수 없음';
+                                          final phone = business['phonenumber'] ?? '';
+                                          return Center(
+                                            child: Text(
+                                              '$name${phone.isNotEmpty ? ' ($phone)' : ''}',
+                                              style: const TextStyle(fontSize: 16),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _selectedBusinessName ?? '사업자를 선택해주세요',
+                                style: TextStyle(
+                                  color: _selectedBusinessName == null
+                                      ? CupertinoColors.placeholderText
+                                      : CupertinoColors.label,
+                                ),
+                              ),
+                              const Icon(
+                                CupertinoIcons.chevron_down,
+                                size: 20,
+                                color: CupertinoColors.systemGrey,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                 const SizedBox(height: 16),
                 
                 CupertinoTextField(

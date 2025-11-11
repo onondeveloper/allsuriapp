@@ -331,20 +331,34 @@ class EstimateService extends ChangeNotifier {
     await updateEstimateStatus(estimateId, Estimate.STATUS_COMPLETED);
   }
 
-  // 견적 이관
+  // 견적 이관 (플랫폼 내 사업자 간)
   Future<void> transferEstimate({
     required String estimateId,
+    required String newBusinessId,
     required String newBusinessName,
-    required String newPhoneNumber,
     required String reason,
     required String transferredBy,
   }) async {
     try {
+      debugPrint('🔄 [EstimateService] 견적 이관 시작: $estimateId -> $newBusinessId');
+      
+      // 이관받는 사업자 정보 조회
+      final businessResponse = await _sb
+          .from('users')
+          .select('businessname, name, phonenumber')
+          .eq('id', newBusinessId)
+          .maybeSingle();
+      
+      final businessName = businessResponse?['businessname'] ?? businessResponse?['name'] ?? newBusinessName;
+      final businessPhone = businessResponse?['phonenumber'] ?? '';
+      
+      // 견적 업데이트
       await _sb
           .from('estimates')
           .update({
-            'businessName': newBusinessName,
-            'businessPhone': newPhoneNumber,
+            'businessid': newBusinessId,
+            'businessName': businessName,
+            'businessPhone': businessPhone,
             'transferredAt': DateTime.now().toIso8601String(),
             'transferredBy': transferredBy,
             'transferReason': reason,
@@ -352,28 +366,49 @@ class EstimateService extends ChangeNotifier {
           })
           .eq('id', estimateId);
 
+      // 이관 기록 저장
       await _sb.from('estimate_transfers').insert({
         'estimateId': estimateId,
-        'newBusinessName': newBusinessName,
-        'newPhoneNumber': newPhoneNumber,
+        'newBusinessId': newBusinessId,
+        'newBusinessName': businessName,
+        'newPhoneNumber': businessPhone,
         'reason': reason,
         'transferredBy': transferredBy,
         'transferredAt': DateTime.now().toIso8601String(),
       });
 
+      // 이관받는 사업자에게 알림
+      try {
+        await _sb.from('notifications').insert({
+          'userid': newBusinessId,
+          'title': '견적 이관 받음',
+          'body': '새로운 견적이 이관되었습니다. 채팅방에서 확인하세요.',
+          'type': 'estimate_transferred',
+          'jobid': estimateId,
+          'isread': false,
+          'createdat': DateTime.now().toIso8601String(),
+        });
+        debugPrint('✅ [EstimateService] 이관 알림 전송 완료');
+      } catch (notifErr) {
+        debugPrint('⚠️ [EstimateService] 알림 전송 실패 (무시): $notifErr');
+      }
+
       // 로컬 상태 업데이트
       final index = _estimates.indexWhere((e) => e.id == estimateId);
       if (index != -1) {
         final updatedEstimate = _estimates[index].copyWith(
-          businessName: newBusinessName,
-          businessPhone: newPhoneNumber,
+          businessId: newBusinessId,
+          businessName: businessName,
+          businessPhone: businessPhone,
           status: 'transferred',
         );
         _estimates[index] = updatedEstimate;
         _notifyListenersSafely();
       }
+      
+      debugPrint('✅ [EstimateService] 견적 이관 완료');
     } catch (e) {
-      print('견적 이관 오류: $e');
+      debugPrint('❌ [EstimateService] 견적 이관 오류: $e');
       rethrow;
     }
   }
