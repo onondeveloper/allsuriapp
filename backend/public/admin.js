@@ -79,7 +79,8 @@ async function apiCall(endpoint, options = {}) {
                 // 사용자 통계
                 document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers || 0;
                 document.getElementById('totalCustomers').textContent = data.totalCustomers || 0;
-                document.getElementById('pendingUsers').textContent = (data.totalBusinessUsers || 0) - (data.approvedUsers || 0);
+                // 승인 대기는 별도 API로 조회 필요 (현재는 0으로 표시)
+                document.getElementById('pendingUsers').textContent = 0;
                 
                 // 오더 통계
                 document.getElementById('totalOrders').textContent = data.totalOrders || 0;

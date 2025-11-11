@@ -192,20 +192,6 @@ router.get('/dashboard', async (req, res) => {
       ? totalEstimateAmount / completed.length
       : 0;
 
-    // 주문 통계도 추가
-    const ordersResult = await supabase
-      .from('orders')
-      .select('id, status, createdat');
-    
-    orders = ordersResult.data;
-    
-    if (ordersResult.error) {
-      console.error('[ADMIN DASHBOARD] Orders error:', ordersResult.error);
-      // 주문 에러는 치명적이지 않으므로 계속 진행
-    }
-
-    const totalOrders = (orders || []).length;
-
     // 오더 현황 통계 (marketplace_listings 테이블)
     let listings;
     const listingsResult = await supabase
@@ -219,14 +205,32 @@ router.get('/dashboard', async (req, res) => {
       // Listings 에러는 치명적이지 않으므로 계속 진행
     }
 
+    console.log('[ADMIN DASHBOARD] Listings count:', listings?.length || 0);
+    console.log('[ADMIN DASHBOARD] Listings sample:', listings?.slice(0, 3));
+
     const totalOrders = (listings || []).length;
     // 입찰 중: claimed_by가 null이고 status가 created 또는 open인 경우
     const pendingOrders = (listings || []).filter(l => !l.claimed_by && (l.status === 'created' || l.status === 'open')).length;
     // 완료: claimed_by가 있거나 status가 assigned인 경우
     const completedOrders = (listings || []).filter(l => l.claimed_by || l.status === 'assigned').length;
 
+    // Jobs 테이블 통계 (기존 jobs 테이블)
+    let jobs;
+    const jobsResult = await supabase
+      .from('jobs')
+      .select('id, status, createdat');
+    
+    jobs = jobsResult.data;
+    
+    if (jobsResult.error) {
+      console.error('[ADMIN DASHBOARD] Jobs error:', jobsResult.error);
+    }
+
+    const totalJobs = (jobs || []).length;
+    const pendingJobs = (jobs || []).filter(j => j.status === 'pending').length;
+    const completedJobs = (jobs || []).filter(j => j.status === 'completed').length;
+
     const dashboardData = {
-      // totalUsers 제거
       totalBusinessUsers,
       totalCustomers,
       totalEstimates,
@@ -242,6 +246,9 @@ router.get('/dashboard', async (req, res) => {
       totalOrders,
       pendingOrders,
       completedOrders,
+      totalJobs,
+      pendingJobs,
+      completedJobs,
     };
 
     console.log('[ADMIN DASHBOARD] Dashboard data:', dashboardData);
