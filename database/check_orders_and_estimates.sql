@@ -32,11 +32,7 @@ SELECT
   e.status as estimate_status
 FROM marketplace_listings ml
 LEFT JOIN jobs j ON ml.jobid = j.id
-LEFT JOIN estimates e ON (
-  j.id::text = e."orderId" OR 
-  j.id = e."orderId"::uuid OR
-  j.id::text = COALESCE(e."orderId", '')
-)
+LEFT JOIN estimates e ON j.id::text = e."orderId"::text
 WHERE ml.status = 'assigned' OR ml.claimed_by IS NOT NULL
 ORDER BY ml.createdat DESC;
 
