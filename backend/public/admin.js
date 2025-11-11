@@ -74,33 +74,54 @@ async function apiCall(endpoint, options = {}) {
                 await loadAdminMe();
                 const data = await apiCall('/dashboard');
                 
-                console.log('[DASHBOARD] Received data:', data);
+                console.log('[DASHBOARD] ===== 받은 데이터 상세 =====');
+                console.log('[DASHBOARD] 전체 데이터:', JSON.stringify(data, null, 2));
+                console.log('[DASHBOARD] totalOrders:', data.totalOrders);
+                console.log('[DASHBOARD] pendingOrders:', data.pendingOrders);
+                console.log('[DASHBOARD] completedOrders:', data.completedOrders);
+                console.log('[DASHBOARD] totalEstimates:', data.totalEstimates);
+                console.log('[DASHBOARD] ================================');
                 
                 // 사용자 통계
-                document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers || 0;
-                document.getElementById('totalCustomers').textContent = data.totalCustomers || 0;
-                // 승인 대기는 별도 API로 조회 필요 (현재는 0으로 표시)
+                const totalBusinessUsers = data.totalBusinessUsers || 0;
+                const totalCustomers = data.totalCustomers || 0;
+                document.getElementById('totalBusinessUsers').textContent = totalBusinessUsers;
+                document.getElementById('totalCustomers').textContent = totalCustomers;
                 document.getElementById('pendingUsers').textContent = 0;
+                console.log('[DASHBOARD] 사업자:', totalBusinessUsers, '고객:', totalCustomers);
                 
                 // 오더 통계
-                document.getElementById('totalOrders').textContent = data.totalOrders || 0;
-                document.getElementById('pendingOrders').textContent = data.pendingOrders || 0;
-                document.getElementById('completedOrders').textContent = data.completedOrders || 0;
+                const totalOrders = data.totalOrders || 0;
+                const pendingOrders = data.pendingOrders || 0;
+                const completedOrders = data.completedOrders || 0;
+                document.getElementById('totalOrders').textContent = totalOrders;
+                document.getElementById('pendingOrders').textContent = pendingOrders;
+                document.getElementById('completedOrders').textContent = completedOrders;
+                console.log('[DASHBOARD] 오더 - 전체:', totalOrders, '입찰중:', pendingOrders, '완료:', completedOrders);
                 
                 // 견적 통계
-                document.getElementById('totalEstimates').textContent = data.totalEstimates || 0;
-                document.getElementById('pendingEstimates').textContent = data.pendingEstimates || 0;
+                const totalEstimates = data.totalEstimates || 0;
+                const pendingEstimates = data.pendingEstimates || 0;
+                const completedEstimates = data.completedEstimates || 0;
+                const inProgressEstimates = data.inProgressEstimates || 0;
+                document.getElementById('totalEstimates').textContent = totalEstimates;
+                document.getElementById('pendingEstimates').textContent = pendingEstimates;
                 document.getElementById('approvedEstimates').textContent = data.approvedEstimates || 0;
-                document.getElementById('completedEstimates').textContent = data.completedEstimates || 0;
-                document.getElementById('inProgressEstimates').textContent = data.inProgressEstimates || 0;
+                document.getElementById('completedEstimates').textContent = completedEstimates;
+                document.getElementById('inProgressEstimates').textContent = inProgressEstimates;
                 document.getElementById('awardedEstimates').textContent = data.awardedEstimates || 0;
                 document.getElementById('transferredEstimates').textContent = data.transferredEstimates || 0;
+                console.log('[DASHBOARD] 견적 - 전체:', totalEstimates, '대기:', pendingEstimates, '완료:', completedEstimates, '진행중:', inProgressEstimates);
                 
                 // 금액 통계
-                document.getElementById('totalEstimateAmount').textContent = '₩' + (data.totalEstimateAmount?.toLocaleString('ko-KR') || '0');
-                document.getElementById('totalRevenue').textContent = '₩' + (data.totalRevenue?.toLocaleString('ko-KR') || '0');
+                const totalEstimateAmount = data.totalEstimateAmount || 0;
+                const totalRevenue = data.totalRevenue || 0;
+                document.getElementById('totalEstimateAmount').textContent = '₩' + totalEstimateAmount.toLocaleString('ko-KR');
+                document.getElementById('totalRevenue').textContent = '₩' + totalRevenue.toLocaleString('ko-KR');
+                console.log('[DASHBOARD] 금액 - 총 견적:', totalEstimateAmount, '수익:', totalRevenue);
             } catch (error) {
                 console.error('대시보드 로드 오류:', error);
+                alert('대시보드 데이터를 불러오는데 실패했습니다: ' + error.message);
             }
         }
 
