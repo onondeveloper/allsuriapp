@@ -44,6 +44,10 @@ export const handler: Handler = async (event) => {
       // Fetch estimates (use amount column, not estimatedPrice)
       const estimatesRes = await fetch(`${SUPABASE_URL}/rest/v1/estimates?select=status,amount`, { headers })
       const estimates = await estimatesRes.json()
+      
+      console.log('[ADMIN DASHBOARD] Estimates count:', Array.isArray(estimates) ? estimates.length : 0)
+      console.log('[ADMIN DASHBOARD] Estimates sample:', Array.isArray(estimates) ? estimates.slice(0, 5) : [])
+      
       const totalEstimates = Array.isArray(estimates) ? estimates.length : 0
       const pendingEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'pending').length : 0
       const approvedEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'approved').length : 0
@@ -52,9 +56,22 @@ export const handler: Handler = async (event) => {
       const awardedEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'awarded').length : 0
       const transferredEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'transferred').length : 0
       
-      // 완료된 견적의 총 금액 (status === 'completed'인 것만)
-      const completed = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'completed') : []
-      const totalEstimateAmount = completed.reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+      // 완료된 견적의 총 금액 계산
+      // completed, awarded, transferred 상태의 견적 모두 포함
+      const completedStatuses = ['completed', 'awarded', 'transferred']
+      const completedEstimatesList = Array.isArray(estimates) 
+        ? estimates.filter((e: any) => completedStatuses.includes(e.status)) 
+        : []
+      
+      const totalEstimateAmount = completedEstimatesList.reduce((sum: number, e: any) => {
+        const amount = e.amount || 0
+        console.log(`[ADMIN DASHBOARD] Estimate amount: ${amount}, status: ${e.status}`)
+        return sum + amount
+      }, 0)
+      
+      console.log('[ADMIN DASHBOARD] Total estimate amount:', totalEstimateAmount)
+      console.log('[ADMIN DASHBOARD] Completed estimates count:', completedEstimatesList.length)
+      
       // 총 수익: 완료된 견적 금액의 5% 계산
       const totalRevenue = totalEstimateAmount * 0.05
       

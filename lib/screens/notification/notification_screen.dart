@@ -126,6 +126,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Icons.assignment;
       case 'estimate_selected':
         return Icons.emoji_events;
+      case 'estimate_transferred':
+        return Icons.swap_horiz;
       case 'order_status':
         return Icons.update;
       default:
@@ -147,6 +149,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Colors.blue;
       case 'estimate_selected':
         return Colors.green;
+      case 'estimate_transferred':
+        return Colors.teal;
       case 'order_status':
         return Colors.orange;
       default:

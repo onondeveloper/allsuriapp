@@ -181,9 +181,18 @@ router.get('/dashboard', async (req, res) => {
       return 0;
     };
     
-    // 완료된 견적의 총 금액
-    const completed = estimates.filter(e => e.status === 'completed');
-    const totalEstimateAmount = completed.reduce((sum, e) => sum + getAmount(e), 0);
+    // 완료된 견적의 총 금액 계산
+    // completed, awarded, transferred 상태의 견적 모두 포함
+    const completedStatuses = ['completed', 'awarded', 'transferred'];
+    const completed = estimates.filter(e => completedStatuses.includes(e.status));
+    const totalEstimateAmount = completed.reduce((sum, e) => {
+      const amount = getAmount(e);
+      console.log(`[ADMIN DASHBOARD] Estimate amount: ${amount}, status: ${e.status}`);
+      return sum + amount;
+    }, 0);
+    
+    console.log('[ADMIN DASHBOARD] Total estimate amount:', totalEstimateAmount);
+    console.log('[ADMIN DASHBOARD] Completed estimates count:', completed.length);
     
     // 완료된 견적의 5% 수익
     const totalRevenue = totalEstimateAmount * 0.05;
