@@ -207,12 +207,25 @@ router.get('/dashboard', async (req, res) => {
 
     console.log('[ADMIN DASHBOARD] Listings count:', listings?.length || 0);
     console.log('[ADMIN DASHBOARD] Listings sample:', listings?.slice(0, 3));
+    
+    // 각 status별 카운트 로깅
+    const statusCounts = (listings || []).reduce((acc, l) => {
+      acc[l.status] = (acc[l.status] || 0) + 1;
+      return acc;
+    }, {});
+    console.log('[ADMIN DASHBOARD] Listings by status:', statusCounts);
 
     const totalOrders = (listings || []).length;
-    // 입찰 중: claimed_by가 null이고 status가 created 또는 open인 경우
-    const pendingOrders = (listings || []).filter(l => !l.claimed_by && (l.status === 'created' || l.status === 'open')).length;
-    // 완료: claimed_by가 있거나 status가 assigned인 경우
-    const completedOrders = (listings || []).filter(l => l.claimed_by || l.status === 'assigned').length;
+    // 입찰 중: status가 'created' 또는 'open'이고 아직 claimed_by가 없는 경우
+    const pendingOrders = (listings || []).filter(l => 
+      (l.status === 'created' || l.status === 'open') && !l.claimed_by
+    ).length;
+    // 완료: status가 'assigned'이거나 claimed_by가 있는 경우
+    const completedOrders = (listings || []).filter(l => 
+      l.status === 'assigned' || l.claimed_by
+    ).length;
+    
+    console.log('[ADMIN DASHBOARD] Orders breakdown - Total:', totalOrders, 'Pending:', pendingOrders, 'Completed:', completedOrders);
 
     // Jobs 테이블 통계 (기존 jobs 테이블)
     let jobs;
