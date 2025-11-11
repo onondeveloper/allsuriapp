@@ -76,10 +76,17 @@ async function apiCall(endpoint, options = {}) {
                 
                 console.log('[DASHBOARD] Received data:', data);
                 
-                // totalUsers 및 totalJobs 관련 제거
+                // 사용자 통계
                 document.getElementById('totalBusinessUsers').textContent = data.totalBusinessUsers || 0;
                 document.getElementById('totalCustomers').textContent = data.totalCustomers || 0;
                 document.getElementById('pendingUsers').textContent = (data.totalBusinessUsers || 0) - (data.approvedUsers || 0);
+                
+                // 오더 통계
+                document.getElementById('totalOrders').textContent = data.totalOrders || 0;
+                document.getElementById('pendingOrders').textContent = data.pendingOrders || 0;
+                document.getElementById('completedOrders').textContent = data.completedOrders || 0;
+                
+                // 견적 통계
                 document.getElementById('totalEstimates').textContent = data.totalEstimates || 0;
                 document.getElementById('pendingEstimates').textContent = data.pendingEstimates || 0;
                 document.getElementById('approvedEstimates').textContent = data.approvedEstimates || 0;
@@ -87,9 +94,9 @@ async function apiCall(endpoint, options = {}) {
                 document.getElementById('inProgressEstimates').textContent = data.inProgressEstimates || 0;
                 document.getElementById('awardedEstimates').textContent = data.awardedEstimates || 0;
                 document.getElementById('transferredEstimates').textContent = data.transferredEstimates || 0;
-                // 총 견적 금액을 원화 형식으로 표시
+                
+                // 금액 통계
                 document.getElementById('totalEstimateAmount').textContent = '₩' + (data.totalEstimateAmount?.toLocaleString('ko-KR') || '0');
-                // 총 수익을 원화 형식으로 표시
                 document.getElementById('totalRevenue').textContent = '₩' + (data.totalRevenue?.toLocaleString('ko-KR') || '0');
             } catch (error) {
                 console.error('대시보드 로드 오류:', error);

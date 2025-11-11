@@ -206,24 +206,24 @@ router.get('/dashboard', async (req, res) => {
 
     const totalOrders = (orders || []).length;
 
-    // Call 공사 통계 (jobs 테이블)
-    let jobs;
-    const jobsResult = await supabase
-      .from('jobs')
-      .select('id, status, assigned_business_id, createdat');
+    // 오더 현황 통계 (marketplace_listings 테이블)
+    let listings;
+    const listingsResult = await supabase
+      .from('marketplace_listings')
+      .select('id, status, claimed_by, createdat');
     
-    jobs = jobsResult.data;
+    listings = listingsResult.data;
     
-    if (jobsResult.error) {
-      console.error('[ADMIN DASHBOARD] Jobs error:', jobsResult.error);
-      // Jobs 에러는 치명적이지 않으므로 계속 진행
+    if (listingsResult.error) {
+      console.error('[ADMIN DASHBOARD] Listings error:', listingsResult.error);
+      // Listings 에러는 치명적이지 않으므로 계속 진행
     }
 
-    const totalJobs = (jobs || []).length;
-    // 대기 중: assigned_business_id가 null인 경우 (아직 다른 사업자가 가져가지 않음)
-    const pendingJobs = (jobs || []).filter(j => !j.assigned_business_id && j.status !== 'completed' && j.status !== 'cancelled').length;
-    // 완료: assigned_business_id가 있는 경우 (다른 사업자가 가져간 경우)
-    const completedJobs = (jobs || []).filter(j => j.assigned_business_id !== null).length;
+    const totalOrders = (listings || []).length;
+    // 입찰 중: claimed_by가 null이고 status가 created 또는 open인 경우
+    const pendingOrders = (listings || []).filter(l => !l.claimed_by && (l.status === 'created' || l.status === 'open')).length;
+    // 완료: claimed_by가 있거나 status가 assigned인 경우
+    const completedOrders = (listings || []).filter(l => l.claimed_by || l.status === 'assigned').length;
 
     const dashboardData = {
       // totalUsers 제거
@@ -240,9 +240,8 @@ router.get('/dashboard', async (req, res) => {
       totalRevenue: Math.round(totalRevenue),
       averageEstimateAmount: Math.round(averageEstimateAmount),
       totalOrders,
-      totalJobs,
-      pendingJobs,
-      completedJobs,
+      pendingOrders,
+      completedOrders,
     };
 
     console.log('[ADMIN DASHBOARD] Dashboard data:', dashboardData);
