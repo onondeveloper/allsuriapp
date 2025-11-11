@@ -41,21 +41,34 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
 
   Future<void> _loadBusinesses() async {
     try {
+      print('🔍 [TransferEstimate] 사업자 목록 로드 중...');
       final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.id;
+      
+      if (currentUserId == null || currentUserId.isEmpty) {
+        print('❌ [TransferEstimate] 현재 사용자 ID 없음');
+        throw Exception('로그인이 필요합니다');
+      }
       
       // 플랫폼 내 모든 사업자 조회 (본인 제외)
       final response = await Supabase.instance.client
           .from('users')
           .select('id, businessname, name, phonenumber')
           .eq('role', 'business')
-          .neq('id', currentUserId ?? '');
+          .neq('id', currentUserId);
+      
+      print('✅ [TransferEstimate] ${response.length}명의 사업자 조회 완료');
+      print('   첫 번째 사업자: ${response.isNotEmpty ? response[0] : "없음"}');
+      
+      if (response.isEmpty) {
+        print('⚠️ [TransferEstimate] 이관 가능한 사업자가 없습니다');
+      }
       
       setState(() {
         _businesses = List<Map<String, dynamic>>.from(response);
         _isLoadingBusinesses = false;
       });
     } catch (e) {
-      print('사업자 목록 조회 오류: $e');
+      print('❌ [TransferEstimate] 사업자 목록 조회 오류: $e');
       setState(() {
         _isLoadingBusinesses = false;
       });
@@ -72,11 +85,31 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
     }
 
     setState(() => _isSubmitting = true);
+    
+    // 로딩 상태 메시지 표시
+    if (mounted) {
+      showCupertinoDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (loadingContext) => CupertinoAlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CupertinoActivityIndicator(radius: 16),
+              const SizedBox(height: 16),
+              Text('$_selectedBusinessName님에게\n견적을 이관하고 있습니다...'),
+            ],
+          ),
+        ),
+      );
+    }
 
     try {
       final estimateService = Provider.of<EstimateService>(context, listen: false);
       final authService = Provider.of<AuthService>(context, listen: false);
       final currentUserId = authService.currentUser?.id ?? '';
+      
+      print('🔄 [TransferEstimate] 이관 시작: ${widget.estimate.id} -> $_selectedBusinessId');
       
       // 견적 이관 처리
       await estimateService.transferEstimate(
@@ -87,8 +120,11 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
         transferredBy: currentUserId,
       );
 
+      print('✅ [TransferEstimate] 이관 완료');
+
       // 채팅방 자동 생성 (이관하는 사업자 ↔ 이관받는 사업자)
       try {
+        print('🔄 [TransferEstimate] 채팅방 생성 중...');
         final roomId = 'transfer_${widget.estimate.id}';
         await ChatService().createChatRoom(
           roomId,
@@ -96,12 +132,14 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
           _selectedBusinessId!,  // 이관받는 사업자
           estimateId: widget.estimate.id,
         );
-        print('✅ 견적 이관 채팅방 생성 완료: $roomId');
+        print('✅ [TransferEstimate] 채팅방 생성 완료: $roomId');
       } catch (chatErr) {
-        print('⚠️ 채팅방 생성 실패 (무시): $chatErr');
+        print('⚠️ [TransferEstimate] 채팅방 생성 실패 (무시): $chatErr');
       }
 
       if (mounted) {
+        Navigator.pop(context); // 로딩 다이얼로그 닫기
+        
         showCupertinoDialog(
           context: context,
           builder: (context) => CupertinoAlertDialog(
@@ -120,7 +158,10 @@ class _TransferEstimateScreenState extends State<TransferEstimateScreen> {
         );
       }
     } catch (e) {
+      print('❌ [TransferEstimate] 이관 실패: $e');
+      
       if (mounted) {
+        Navigator.pop(context); // 로딩 다이얼로그 닫기
         _showError('견적 이관 중 오류가 발생했습니다: $e');
       }
     } finally {

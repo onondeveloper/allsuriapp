@@ -33,6 +33,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
   late Future<List<Map<String, dynamic>>> _future;
   String _status = 'all';
   RealtimeChannel? _channel;
+  Set<String> _myBidListingIds = {}; // 내가 이미 입찰한 오더 ID 목록
 
   @override
   void initState() {
@@ -47,6 +48,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       print('⚠️ [OrderMarketplaceScreen] 사용자가 로그인되어 있지 않습니다!');
     }
     
+    _loadMyBids(); // 내가 입찰한 오더 목록 로드
     _future = _market.listListings(status: _status, throwOnError: true, postedBy: widget.createdByUserId);
     print('OrderMarketplaceScreen: _future 설정됨');
     
@@ -131,8 +133,35 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     });
   }
 
+  Future<void> _loadMyBids() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      
+      if (currentUserId == null) return;
+      
+      print('🔍 [_loadMyBids] 내 입찰 목록 로드 중...');
+      
+      // 내가 입찰한 오더 목록 조회
+      final response = await Supabase.instance.client
+          .from('order_bids')
+          .select('listing_id')
+          .eq('bidder_id', currentUserId)
+          .eq('status', 'pending'); // pending 상태인 입찰만
+      
+      setState(() {
+        _myBidListingIds = response.map((e) => e['listing_id'].toString()).toSet();
+      });
+      
+      print('✅ [_loadMyBids] ${_myBidListingIds.length}개 입찰 확인');
+    } catch (e) {
+      print('⚠️ [_loadMyBids] 실패 (무시): $e');
+    }
+  }
+
   Future<void> _reload() async {
     print('OrderMarketplaceScreen _reload 시작: status=$_status');
+    await _loadMyBids(); // 입찰 목록도 새로고침
     setState(() {
       _future = _market.listListings(status: _status, postedBy: widget.createdByUserId);
     });
@@ -198,11 +227,29 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                     );
                   }
                   final items = snapshot.data ?? [];
+                  final authService = Provider.of<AuthService>(context, listen: false);
+                  final currentUserId = authService.currentUser?.id;
+                  
                   final visibleItems = items.where((row) {
                     final s = (row['status'] ?? '').toString();
-                    return s == 'open' || s == 'withdrawn' || s == 'created'; // 'created' 상태 추가
+                    final listingId = row['id']?.toString() ?? '';
+                    final postedBy = row['posted_by']?.toString() ?? '';
+                    
+                    // 상태 필터: open, withdrawn, created만
+                    if (s != 'open' && s != 'withdrawn' && s != 'created') return false;
+                    
+                    // 내가 올린 오더는 제외
+                    if (postedBy == currentUserId) return false;
+                    
+                    // 이미 입찰한 오더는 제외
+                    if (_myBidListingIds.contains(listingId)) {
+                      print('   [필터] 이미 입찰한 오더 제외: $listingId');
+                      return false;
+                    }
+                    
+                    return true;
                   }).toList();
-                  print('OrderMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회/생성됨만)');
+                  print('OrderMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회/생성됨, 미입찰만)');
                   if (visibleItems.isEmpty) {
                     print('OrderMarketplaceScreen: 빈 목록 표시');
                     return ListView(
@@ -660,6 +707,12 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       if (ok) {
         print('   ✅ 입찰 성공!');
+        
+        // 입찰한 오더 목록에 추가
+        setState(() {
+          _myBidListingIds.add(id);
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('입찰이 완료되었습니다! 오더를 만든 사업자의 승인을 기다리고 있어요~'),
