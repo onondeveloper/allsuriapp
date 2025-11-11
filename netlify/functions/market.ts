@@ -321,6 +321,8 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
   const body = JSON.parse(event.body || '{}')
   const { bidderId, ownerId } = body
 
+  console.log(`[handleSelectBidder] 시작:`, { id, bidderId, ownerId })
+
   if (!bidderId || !ownerId) {
     return {
       statusCode: 400,
@@ -329,6 +331,7 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
   }
 
   try {
+    console.log(`[handleSelectBidder] RPC 호출 중...`)
     const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/select_bidder`, {
       method: 'POST',
       headers: {
@@ -344,9 +347,11 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
     })
 
     const data = await response.json()
+    console.log(`[handleSelectBidder] RPC 응답:`, { status: response.status, data })
 
     if (!response.ok) {
-      throw new Error(data.message || 'Select bidder failed')
+      console.error(`[handleSelectBidder] RPC 실패:`, data)
+      throw new Error(data.message || data.hint || data.details || 'Select bidder failed')
     }
 
     // 알림 및 푸시 알림 전송
@@ -476,10 +481,14 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
       body: JSON.stringify({ success: true })
     }
   } catch (error: any) {
-    console.error('[market] select bidder error:', error)
+    console.error('[handleSelectBidder] 에러:', error)
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: '입찰자 선택 실패', error: error.message })
+      body: JSON.stringify({ 
+        success: false,
+        message: error.message || '입찰자 선택 실패',
+        error: error.message 
+      })
     }
   }
 }
