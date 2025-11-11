@@ -227,23 +227,30 @@ async function handleBidListing(event: HandlerEvent, path: string) {
         const notificationBody = `${listing.title || '오더'}에 새로운 입찰이 들어왔습니다.`
         
         // DB 알림 생성
-        await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+        const notifResponse = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
           method: 'POST',
           headers: {
             apikey: SUPABASE_SERVICE_ROLE_KEY,
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
             'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
           },
           body: JSON.stringify({
             userid: listing.posted_by,
             title: notificationTitle,
             body: notificationBody,
             type: 'new_bid',
-            jobId: id,
+            jobid: id, // listing ID를 jobid로 저장
             isread: false,
             createdat: new Date().toISOString(),
           })
         })
+        
+        if (!notifResponse.ok) {
+          console.warn('[market] 알림 생성 실패:', await notifResponse.text())
+        } else {
+          console.log('[market] 알림 생성 완료')
+        }
 
         // 푸시 알림 전송 (Supabase Edge Function)
         try {
@@ -376,23 +383,30 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
         const selectedTitle = '오더 선택됨'
         const selectedBody = `${listing.title || '오더'}에 선택되었습니다!`
         
-        await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+        const selectedNotifResponse = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
           method: 'POST',
           headers: {
             apikey: SUPABASE_SERVICE_ROLE_KEY,
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
             'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
           },
           body: JSON.stringify({
             userid: bidderId,
             title: selectedTitle,
             body: selectedBody,
             type: 'bid_selected',
-            jobId: listing.jobid,
+            jobid: listing.jobid,
             isread: false,
             createdat: nowIso,
           })
         })
+        
+        if (!selectedNotifResponse.ok) {
+          console.warn('[market] 선택 알림 생성 실패:', await selectedNotifResponse.text())
+        } else {
+          console.log('[market] 선택 알림 생성 완료')
+        }
 
         // 선택된 사업자에게 푸시 알림
         try {
@@ -432,23 +446,28 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
           // 각 거절된 입찰자에게 알림
           for (const bid of rejectedBids) {
             // DB 알림
-            await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+            const rejectedNotifResponse = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
               method: 'POST',
               headers: {
                 apikey: SUPABASE_SERVICE_ROLE_KEY,
                 Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
                 'Content-Type': 'application/json',
+                'Prefer': 'return=representation',
               },
               body: JSON.stringify({
                 userid: bid.bidder_id,
                 title: rejectedTitle,
                 body: rejectedBody,
                 type: 'bid_rejected',
-                jobId: listing.jobid,
+                jobid: listing.jobid,
                 isread: false,
                 createdat: nowIso,
               })
             })
+            
+            if (!rejectedNotifResponse.ok) {
+              console.warn('[market] 거절 알림 생성 실패:', await rejectedNotifResponse.text())
+            }
 
             // 푸시 알림
             try {

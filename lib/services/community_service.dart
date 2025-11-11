@@ -131,10 +131,46 @@ class CommunityService extends ChangeNotifier {
         'createdat': DateTime.now().toIso8601String(),
       };
       final row = await _sb.from('community_comments').insert(payload).select().single();
+      
       // best-effort: increment comments count
       try {
         await _sb.rpc('increment_post_comments', params: {'post_id': postId});
       } catch (_) {}
+      
+      // 게시글 작성자에게 알림 생성
+      try {
+        debugPrint('[CommunityService] 댓글 알림 생성 시작');
+        
+        // 게시글 정보 조회 (작성자 ID와 제목)
+        final post = await _sb
+            .from('community_posts')
+            .select('authorid, title')
+            .eq('id', postId)
+            .maybeSingle();
+        
+        if (post != null && post['authorid'] != authorId) {
+          // 자기 자신의 글에 댓글 단 경우는 알림 생성 안 함
+          final postAuthorId = post['authorid'].toString();
+          final postTitle = post['title']?.toString() ?? '게시글';
+          
+          debugPrint('[CommunityService] 알림 생성: $postAuthorId');
+          
+          await _sb.from('notifications').insert({
+            'userid': postAuthorId,
+            'title': '새로운 댓글',
+            'body': '"$postTitle"에 새로운 댓글이 달렸습니다.',
+            'type': 'comment',
+            'postid': postId,
+            'isread': false,
+            'createdat': DateTime.now().toIso8601String(),
+          });
+          
+          debugPrint('[CommunityService] 알림 생성 완료');
+        }
+      } catch (e) {
+        debugPrint('[CommunityService] 알림 생성 실패 (무시): $e');
+      }
+      
       return CommunityComment.fromMap(Map<String, dynamic>.from(row));
     } catch (e) {
       debugPrint('addComment error: $e');
