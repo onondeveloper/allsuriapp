@@ -174,22 +174,22 @@ router.get('/dashboard', async (req, res) => {
     const awardedEstimates = estimates.filter(e => e.status === 'awarded').length;
     const transferredEstimates = estimates.filter(e => e.status === 'transferred').length;
 
-    // 수익 계산 - 모든 견적 금액의 30%
+    // 수익 계산 - 완료된 견적 금액의 5%
     const getAmount = (row) => {
       // amount 컬럼만 확인
       if (typeof row.amount === 'number' && !isNaN(row.amount)) return row.amount;
       return 0;
     };
     
-    // 모든 견적의 30% 계산
-    const totalRevenue = estimates.reduce((sum, e) => {
-      const amount = getAmount(e);
-      return sum + (amount * 0.30); // 30% 수수료
-    }, 0);
-    
+    // 완료된 견적의 총 금액
     const completed = estimates.filter(e => e.status === 'completed');
+    const totalEstimateAmount = completed.reduce((sum, e) => sum + getAmount(e), 0);
+    
+    // 완료된 견적의 5% 수익
+    const totalRevenue = totalEstimateAmount * 0.05;
+    
     const averageEstimateAmount = completed.length > 0
-      ? completed.reduce((s, e) => s + getAmount(e), 0) / completed.length
+      ? totalEstimateAmount / completed.length
       : 0;
 
     // 주문 통계도 추가
@@ -236,6 +236,7 @@ router.get('/dashboard', async (req, res) => {
       inProgressEstimates,
       awardedEstimates,
       transferredEstimates,
+      totalEstimateAmount: Math.round(totalEstimateAmount),
       totalRevenue: Math.round(totalRevenue),
       averageEstimateAmount: Math.round(averageEstimateAmount),
       totalOrders,
@@ -260,43 +261,42 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// Call 공사 목록 조회 (jobs 테이블)
+// 오더 현황 목록 조회 (marketplace_listings 테이블)
 router.get('/calls', async (req, res) => {
   try {
-    console.log('[ADMIN CALLS] Fetching jobs data...');
+    console.log('[ADMIN ORDERS] Fetching marketplace listings data...');
     
-    const { data: jobs, error } = await supabase
-      .from('jobs')
+    const { data: listings, error } = await supabase
+      .from('marketplace_listings')
       .select(`
         id,
         title,
         description,
-        owner_business_id,
-        assigned_business_id,
+        posted_by,
+        claimed_by,
+        claimed_at,
         budget_amount,
-        awarded_amount,
-        commission_rate,
-        commission_amount,
         status,
-        location,
+        region,
         category,
-        urgency,
-        created_at,
-        updated_at
+        createdat,
+        updatedat,
+        media_urls,
+        bid_count
       `)
-      .order('created_at', { ascending: false });
+      .order('createdat', { ascending: false });
     
     if (error) {
-      console.error('[ADMIN CALLS] Error:', error);
+      console.error('[ADMIN ORDERS] Error:', error);
       throw error;
     }
     
-    console.log('[ADMIN CALLS] Jobs count:', jobs?.length || 0);
+    console.log('[ADMIN ORDERS] Listings count:', listings?.length || 0);
     
     // 사업자 정보 가져오기
-    const ownerIds = [...new Set(jobs?.map(j => j.owner_business_id).filter(Boolean) || [])];
-    const assignedIds = [...new Set(jobs?.map(j => j.assigned_business_id).filter(Boolean) || [])];
-    const allUserIds = [...new Set([...ownerIds, ...assignedIds])];
+    const ownerIds = [...new Set(listings?.map(l => l.posted_by).filter(Boolean) || [])];
+    const claimedIds = [...new Set(listings?.map(l => l.claimed_by).filter(Boolean) || [])];
+    const allUserIds = [...new Set([...ownerIds, ...claimedIds])];
     
     let usersMap = {};
     if (allUserIds.length > 0) {
@@ -312,16 +312,19 @@ router.get('/calls', async (req, res) => {
     }
     
     // 사업자 정보를 포함한 데이터 반환
-    const jobsWithUsers = (jobs || []).map(job => ({
-      ...job,
-      owner_business_name: usersMap[job.owner_business_id]?.businessname || usersMap[job.owner_business_id]?.name || '알 수 없음',
-      assigned_business_name: job.assigned_business_id ? (usersMap[job.assigned_business_id]?.businessname || usersMap[job.assigned_business_id]?.name || '알 수 없음') : null,
+    const listingsWithUsers = (listings || []).map(listing => ({
+      ...listing,
+      owner_business_name: usersMap[listing.posted_by]?.businessname || usersMap[listing.posted_by]?.name || '알 수 없음',
+      assigned_business_name: listing.claimed_by ? (usersMap[listing.claimed_by]?.businessname || usersMap[listing.claimed_by]?.name || '알 수 없음') : null,
+      created_at: listing.createdat,
+      updated_at: listing.updatedat,
+      location: listing.region,
     }));
     
-    res.json(jobsWithUsers);
+    res.json(listingsWithUsers);
   } catch (error) {
-    console.error('[admin/calls] error:', error);
-    res.status(500).json({ message: 'Call 공사 목록 조회 실패', error: String(error?.message || error) });
+    console.error('[admin/orders] error:', error);
+    res.status(500).json({ message: '오더 현황 조회 실패', error: String(error?.message || error) });
   }
 });
 

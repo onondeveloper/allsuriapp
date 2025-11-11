@@ -10,6 +10,13 @@ let estimatesSortColumn = null;
 let estimatesSortDirection = 'asc';
 let allEstimates = [];
 
+// 오더 현황 페이지네이션 및 정렬 상태
+let callsPage = 1;
+const callsPerPage = 15;
+let callsSortColumn = null;
+let callsSortDirection = 'asc';
+let allCalls = [];
+
 // 관리자 토큰 (.env 파일의 ADMIN_TOKEN과 일치해야 함)
 const ADMIN_TOKEN = 'allsuri-admin-2024';
 let ADMIN_ROLE = 'developer';
@@ -1094,40 +1101,78 @@ async function deleteUser(userId) {
             }
         }
 
-// ===== Call 현황 (마켓플레이스) =====
+// ===== 오더 현황 (마켓플레이스) =====
 async function loadCalls() {
     try {
-        console.log('[LOAD CALLS] Fetching jobs data...');
-        const calls = await apiCall('/calls');
-        console.log('[LOAD CALLS] Received:', calls.length, 'jobs');
-        displayCalls(calls);
+        console.log('[LOAD ORDERS] Fetching marketplace listings data...');
+        allCalls = await apiCall('/calls');
+        console.log('[LOAD ORDERS] Received:', allCalls.length, 'orders');
+        callsPage = 1; // Reset to first page
+        displayCalls();
     } catch (e) {
-        console.error('Call 로드 오류:', e);
+        console.error('오더 로드 오류:', e);
         const container = document.getElementById('callTableContainer');
-        if (container) container.innerHTML = '<div class="error">Call 목록을 불러오는데 실패했습니다: ' + e.message + '</div>';
+        if (container) container.innerHTML = '<div class="error">오더 목록을 불러오는데 실패했습니다: ' + e.message + '</div>';
     }
 }
 
-function displayCalls(calls) {
+function displayCalls() {
     const container = document.getElementById('callTableContainer');
     if (!container) return;
-    if (!calls || calls.length === 0) {
-        container.innerHTML = '<div class="loading">등록된 Call이 없습니다.</div>';
+    if (!allCalls || allCalls.length === 0) {
+        container.innerHTML = '<div class="loading">등록된 오더가 없습니다.</div>';
         return;
     }
     
+    // 정렬 적용
+    let sortedCalls = [...allCalls];
+    if (callsSortColumn) {
+        sortedCalls.sort((a, b) => {
+            let aVal = a[callsSortColumn];
+            let bVal = b[callsSortColumn];
+            
+            // 날짜 처리
+            if (callsSortColumn === 'created_at' || callsSortColumn === 'claimed_at') {
+                aVal = new Date(a[callsSortColumn] || 0).getTime();
+                bVal = new Date(b[callsSortColumn] || 0).getTime();
+            }
+            
+            // 금액 처리
+            if (callsSortColumn === 'budget_amount') {
+                aVal = a.budget_amount || 0;
+                bVal = b.budget_amount || 0;
+            }
+            
+            // 문자열 비교
+            if (typeof aVal === 'string') {
+                aVal = (aVal || '').toLowerCase();
+                bVal = (bVal || '').toLowerCase();
+            }
+            
+            if (aVal < bVal) return callsSortDirection === 'asc' ? -1 : 1;
+            if (aVal > bVal) return callsSortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+    
+    // 페이지네이션 적용
+    const totalPages = Math.ceil(sortedCalls.length / callsPerPage);
+    const startIdx = (callsPage - 1) * callsPerPage;
+    const endIdx = startIdx + callsPerPage;
+    const paginatedCalls = sortedCalls.slice(startIdx, endIdx);
+    
     // 상태 매핑 함수
-    const getCallStatusText = (status, assignedBusinessId) => {
-        // assigned_business_id가 있으면 "완료" (다른 사업자가 가져간 경우)
-        if (assignedBusinessId) return '완료';
-        // assigned_business_id가 없고 completed나 cancelled가 아니면 "대기 중"
+    const getCallStatusText = (status, claimedBy) => {
+        if (claimedBy) return '완료';
+        if (status === 'assigned') return '완료';
         if (status === 'completed') return '종료됨';
         if (status === 'cancelled') return '취소됨';
-        return '대기 중';
+        if (status === 'created' || status === 'open') return '대기 중';
+        return status || '대기 중';
     };
     
-    const getStatusClass = (status, assignedBusinessId) => {
-        if (assignedBusinessId) return 'success';
+    const getStatusClass = (status, claimedBy) => {
+        if (claimedBy || status === 'assigned') return 'success';
         if (status === 'completed') return 'completed';
         if (status === 'cancelled') return 'cancelled';
         return 'warning';
@@ -1150,83 +1195,86 @@ function displayCalls(calls) {
     };
     
     // 통계 계산
-    const total = calls.length;
-    const pending = calls.filter(c => !c.assigned_business_id && c.status !== 'completed' && c.status !== 'cancelled').length;
-    const completed = calls.filter(c => c.assigned_business_id).length;
-    
-    const statsHtml = `
-        <div class="stats-grid" style="margin-bottom: 20px;">
-            <div class="stat-card">
-                <div class="stat-card-header">
-                    <div>
-                        <div class="stat-card-title">전체 Call 공사</div>
-                        <div class="stat-card-value">${total}</div>
-                    </div>
-                    <div class="stat-card-icon">
-                        <span class="material-icons">build</span>
-                    </div>
-                </div>
-            </div>
-            <div class="stat-card warning">
-                <div class="stat-card-header">
-                    <div>
-                        <div class="stat-card-title">대기 중</div>
-                        <div class="stat-card-value">${pending}</div>
-                    </div>
-                    <div class="stat-card-icon">
-                        <span class="material-icons">schedule</span>
-                    </div>
-                </div>
-            </div>
-            <div class="stat-card success">
-                <div class="stat-card-header">
-                    <div>
-                        <div class="stat-card-title">완료 (가져간 공사)</div>
-                        <div class="stat-card-value">${completed}</div>
-                    </div>
-                    <div class="stat-card-icon">
-                        <span class="material-icons">done_all</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+    const total = sortedCalls.length;
+    const pending = sortedCalls.filter(c => !c.claimed_by && c.status !== 'completed' && c.status !== 'cancelled' && c.status !== 'assigned').length;
+    const completed = sortedCalls.filter(c => c.claimed_by || c.status === 'assigned').length;
     
     const table = `
         <table class="table">
             <thead>
                 <tr>
-                    <th>제목</th>
-                    <th>위치</th>
-                    <th>카테고리</th>
-                    <th>예산</th>
-                    <th>상태</th>
+                    <th class="sortable" data-column="title">제목</th>
+                    <th class="sortable" data-column="location">위치</th>
+                    <th class="sortable" data-column="category">카테고리</th>
+                    <th class="sortable" data-column="budget_amount">예산</th>
+                    <th class="sortable" data-column="status">상태</th>
                     <th>등록한 사업자</th>
                     <th>가져간 사업자</th>
-                    <th>생성일</th>
+                    <th class="sortable" data-column="claimed_at">입찰받은 날짜</th>
+                    <th class="sortable" data-column="created_at">생성일</th>
                 </tr>
             </thead>
             <tbody>
-                ${calls.map(item => `
+                ${paginatedCalls.map(item => `
                     <tr style="cursor: pointer;" onclick="showCallDetail('${item.id}')">
                         <td><strong>${item.title || '-'}</strong></td>
-                        <td>${item.location || '-'}</td>
+                        <td>${item.location || item.region || '-'}</td>
                         <td>${item.category || '-'}</td>
                         <td>${typeof item.budget_amount === 'number' ? '₩' + item.budget_amount.toLocaleString('ko-KR') : '-'}</td>
                         <td>
-                            <span class="status-badge status-${getStatusClass(item.status, item.assigned_business_id)}">
-                                ${getCallStatusText(item.status, item.assigned_business_id)}
+                            <span class="status-badge status-${getStatusClass(item.status, item.claimed_by)}">
+                                ${getCallStatusText(item.status, item.claimed_by)}
                             </span>
                         </td>
                         <td>${item.owner_business_name || '-'}</td>
-                        <td>${item.assigned_business_name || '<span style="color: #999;">-</span>'}</td>
+                        <td>${item.claimed_business_name || item.assigned_business_name || '<span style="color: #999;">-</span>'}</td>
+                        <td>${item.claimed_at ? formatDate(item.claimed_at) : '<span style="color: #999;">-</span>'}</td>
                         <td>${formatDate(item.created_at)}</td>
                     </tr>
                 `).join('')}
             </tbody>
         </table>
+        <div class="pagination">
+            <button onclick="changeCallsPage(-1)" ${callsPage === 1 ? 'disabled' : ''}>이전</button>
+            <span>페이지 ${callsPage} / ${totalPages} (전체 ${sortedCalls.length}건)</span>
+            <button onclick="changeCallsPage(1)" ${callsPage >= totalPages ? 'disabled' : ''}>다음</button>
+        </div>
     `;
-    container.innerHTML = statsHtml + table;
+    
+    container.innerHTML = table;
+    
+    // 정렬 표시 업데이트
+    if (callsSortColumn) {
+        const headers = container.querySelectorAll('th');
+        headers.forEach(th => {
+            const col = th.getAttribute('data-column');
+            if (col === callsSortColumn) {
+                th.classList.add(callsSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+        });
+    }
+    
+    // 컬럼 헤더 클릭 이벤트 리스너
+    const headers = container.querySelectorAll('th.sortable');
+    headers.forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.getAttribute('data-column');
+            if (callsSortColumn === column) {
+                callsSortDirection = callsSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                callsSortColumn = column;
+                callsSortDirection = 'asc';
+            }
+            displayCalls();
+        });
+    });
+}
+
+// 오더 페이지 변경
+function changeCallsPage(delta) {
+    const totalPages = Math.ceil(allCalls.length / callsPerPage);
+    callsPage = Math.max(1, Math.min(callsPage + delta, totalPages));
+    displayCalls();
 }
 
 // Call 상세 보기 함수

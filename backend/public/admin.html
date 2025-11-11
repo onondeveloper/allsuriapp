@@ -656,8 +656,8 @@
                     <span>견적 관리</span>
                 </div>
                 <div class="menu-item" onclick="showSection('calls')">
-                    <span class="material-icons">phone_in_talk</span>
-                    <span>Call 현황</span>
+                    <span class="material-icons">shopping_cart</span>
+                    <span>오더 현황</span>
                 </div>
                 <div class="menu-item" onclick="showSection('ads')">
                     <span class="material-icons">campaign</span>
@@ -831,13 +831,13 @@
                     </div>
                 </div>
 
-                <!-- Calls Section -->
+                <!-- Orders Section -->
                 <div id="section-calls" class="hidden">
                     <div class="section">
                         <div class="section-header">
                             <h2 class="section-title">
-                                <span class="material-icons">phone_in_talk</span>
-                                Call 현황
+                                <span class="material-icons">shopping_cart</span>
+                                오더 현황
                             </h2>
                         </div>
                         <div id="callTableContainer">
@@ -846,6 +846,7 @@
                                 로딩 중...
                             </div>
                         </div>
+                        <div id="callPagination" class="pagination"></div>
                     </div>
                 </div>
 
@@ -906,11 +907,11 @@
         </div>
     </div>
 
-    <!-- Call Detail Modal -->
+    <!-- Order Detail Modal -->
     <div id="callModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Call 공사 상세</h3>
+                <h3 class="modal-title">오더 상세</h3>
                 <button class="modal-close" onclick="closeCallModal()">
                     <span class="material-icons">close</span>
                 </button>
@@ -985,7 +986,7 @@
                 dashboard: '대시보드',
                 users: '사용자 관리',
                 estimates: '견적 관리',
-                calls: 'Call 현황',
+                calls: '오더 현황',
                 ads: '광고 관리'
             };
             document.getElementById('page-title').textContent = titles[sectionName];
