@@ -77,12 +77,44 @@ class _TransferJobScreenState extends State<TransferJobScreen> {
                           setState(() => _submitting = true);
                           try {
                             final me = context.read<AuthService>().currentUser;
-                            if (me == null) return;
+                            if (me == null || me.id.isEmpty) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('로그인이 필요합니다.')),);
+                              }
+                              return;
+                            }
+
+                            // 로딩 다이얼로그 표시
+                            if (mounted) {
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const AlertDialog(
+                                  content: SizedBox(
+                                    width: 180,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircularProgressIndicator(),
+                                        SizedBox(height: 16),
+                                        Text('공사를 이관하고 있습니다...'),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
                             await context.read<JobService>().requestTransfer(
                                   jobId: widget.jobId,
                                   transferToBusinessId: _selectedBusinessId!,
                                 );
+
                             if (!mounted) return;
+
+                            Navigator.pop(context); // close loading dialog
+
                             showGeneralDialog(
                               context: context,
                               barrierDismissible: false,
@@ -96,7 +128,18 @@ class _TransferJobScreenState extends State<TransferJobScreen> {
                             );
                             await Future.delayed(const Duration(milliseconds: 900));
                             if (mounted) Navigator.pop(context); // close lottie
-                            if (mounted) Navigator.pop(context); // close screen
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('이관 요청을 보냈습니다.')),);
+                              Navigator.pop(context); // close screen
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              Navigator.of(context, rootNavigator: true).maybePop(); // close loading dialog if open
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('이관 요청에 실패했습니다: $e')),
+                              );
+                            }
                           } finally {
                             if (mounted) setState(() => _submitting = false);
                           }

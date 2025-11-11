@@ -92,6 +92,10 @@ class JobService extends ChangeNotifier {
     required String transferToBusinessId,
   }) async {
     try {
+      if (kDebugMode) {
+        print('🔄 [JobService] 공사 이관 요청 시작: jobId=$jobId -> $transferToBusinessId');
+      }
+
       final row = await _supabase
           .from('jobs')
           .update({
@@ -100,7 +104,18 @@ class JobService extends ChangeNotifier {
           })
           .eq('id', jobId)
           .select('owner_business_id')
-          .single();
+          .maybeSingle();
+
+      if (row == null) {
+        if (kDebugMode) {
+          print('⚠️ [JobService] 업데이트 결과가 없습니다 (jobId=$jobId).');
+        }
+        throw StateError('공사를 찾을 수 없습니다. 이미 처리되었을 수 있습니다.');
+      }
+
+      if (kDebugMode) {
+        print('✅ [JobService] 공사 이관 상태 갱신 완료: $row');
+      }
 
       // Notifications
       final ownerId = row['owner_business_id'] as String?;
@@ -119,7 +134,7 @@ class JobService extends ChangeNotifier {
       );
     } catch (e) {
       if (kDebugMode) {
-        print('Error requesting transfer: $e');
+        print('❌ [JobService] 공사 이관 요청 실패: $e');
       }
       rethrow;
     }
