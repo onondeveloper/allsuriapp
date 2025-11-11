@@ -51,10 +51,37 @@ export const handler: Handler = async (event) => {
       const inProgressEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'in_progress').length : 0
       const awardedEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'awarded').length : 0
       const transferredEstimates = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'transferred').length : 0
-      // 총 견적 금액 계산 (모든 견적의 합)
-      const totalEstimateAmount = Array.isArray(estimates) ? estimates.reduce((sum: number, e: any) => sum + (e.amount || 0), 0) : 0
-      // 총 수익: 모든 견적 금액의 30% 계산
-      const totalRevenue = totalEstimateAmount * 0.3
+      
+      // 완료된 견적의 총 금액 (status === 'completed'인 것만)
+      const completed = Array.isArray(estimates) ? estimates.filter((e: any) => e.status === 'completed') : []
+      const totalEstimateAmount = completed.reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+      // 총 수익: 완료된 견적 금액의 5% 계산
+      const totalRevenue = totalEstimateAmount * 0.05
+      
+      // Fetch marketplace_listings (오더 현황)
+      const listingsRes = await fetch(`${SUPABASE_URL}/rest/v1/marketplace_listings?select=id,status,claimed_by`, { headers })
+      const listings = await listingsRes.json()
+      console.log('[ADMIN DASHBOARD] Listings count:', Array.isArray(listings) ? listings.length : 0)
+      console.log('[ADMIN DASHBOARD] Listings sample:', Array.isArray(listings) ? listings.slice(0, 3) : [])
+      
+      const totalOrders = Array.isArray(listings) ? listings.length : 0
+      // 입찰 중: status가 'created' 또는 'open'이고 아직 claimed_by가 없는 경우
+      const pendingOrders = Array.isArray(listings) 
+        ? listings.filter((l: any) => (l.status === 'created' || l.status === 'open') && !l.claimed_by).length 
+        : 0
+      // 완료: status가 'assigned'이거나 claimed_by가 있는 경우
+      const completedOrders = Array.isArray(listings) 
+        ? listings.filter((l: any) => l.status === 'assigned' || l.claimed_by).length 
+        : 0
+      
+      console.log('[ADMIN DASHBOARD] Orders - Total:', totalOrders, 'Pending:', pendingOrders, 'Completed:', completedOrders)
+      
+      // Fetch jobs (기존 jobs 테이블)
+      const jobsRes = await fetch(`${SUPABASE_URL}/rest/v1/jobs?select=id,status`, { headers })
+      const jobs = await jobsRes.json()
+      const totalJobs = Array.isArray(jobs) ? jobs.length : 0
+      const pendingJobs = Array.isArray(jobs) ? jobs.filter((j: any) => j.status === 'pending').length : 0
+      const completedJobs = Array.isArray(jobs) ? jobs.filter((j: any) => j.status === 'completed').length : 0
       
       return ok({
         totalUsers,
@@ -68,8 +95,14 @@ export const handler: Handler = async (event) => {
         inProgressEstimates,
         awardedEstimates,
         transferredEstimates,
-        totalEstimateAmount,
-        totalRevenue
+        totalEstimateAmount: Math.round(totalEstimateAmount),
+        totalRevenue: Math.round(totalRevenue),
+        totalOrders,
+        pendingOrders,
+        completedOrders,
+        totalJobs,
+        pendingJobs,
+        completedJobs
       })
     }
 
