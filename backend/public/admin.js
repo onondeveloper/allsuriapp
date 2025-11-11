@@ -143,8 +143,12 @@ async function apiCall(endpoint, options = {}) {
                 console.log('[DASHBOARD] 견적 - 전체:', totalEstimates, '대기:', pendingEstimates, '완료:', completedEstimates, '진행중:', inProgressEstimates);
                 
                 // 금액 통계
+                const totalOrderAmount = data.totalOrderAmount || 0;
                 const totalEstimateAmount = data.totalEstimateAmount || 0;
                 const totalRevenue = data.totalRevenue || 0;
+                
+                const totalOrderAmountEl = document.getElementById('totalOrderAmount');
+                if (totalOrderAmountEl) totalOrderAmountEl.textContent = '₩' + totalOrderAmount.toLocaleString('ko-KR');
                 
                 const totalEstimateAmountEl = document.getElementById('totalEstimateAmount');
                 if (totalEstimateAmountEl) totalEstimateAmountEl.textContent = '₩' + totalEstimateAmount.toLocaleString('ko-KR');
@@ -152,7 +156,7 @@ async function apiCall(endpoint, options = {}) {
                 const totalRevenueEl = document.getElementById('totalRevenue');
                 if (totalRevenueEl) totalRevenueEl.textContent = '₩' + totalRevenue.toLocaleString('ko-KR');
                 
-                console.log('[DASHBOARD] 금액 - 총 견적:', totalEstimateAmount, '수익:', totalRevenue);
+                console.log('[DASHBOARD] 금액 - 오더:', totalOrderAmount, '견적:', totalEstimateAmount, '수익:', totalRevenue);
             } catch (error) {
                 console.error('대시보드 로드 오류:', error);
                 alert('대시보드 데이터를 불러오는데 실패했습니다: ' + error.message);

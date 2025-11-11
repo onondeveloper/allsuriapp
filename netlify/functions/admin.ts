@@ -76,7 +76,7 @@ export const handler: Handler = async (event) => {
       const totalRevenue = totalEstimateAmount * 0.05
       
       // Fetch marketplace_listings (오더 현황)
-      const listingsRes = await fetch(`${SUPABASE_URL}/rest/v1/marketplace_listings?select=id,status,claimed_by`, { headers })
+      const listingsRes = await fetch(`${SUPABASE_URL}/rest/v1/marketplace_listings?select=id,status,claimed_by,budget_amount`, { headers })
       const listings = await listingsRes.json()
       console.log('[ADMIN DASHBOARD] Listings count:', Array.isArray(listings) ? listings.length : 0)
       console.log('[ADMIN DASHBOARD] Listings sample:', Array.isArray(listings) ? listings.slice(0, 3) : [])
@@ -87,11 +87,20 @@ export const handler: Handler = async (event) => {
         ? listings.filter((l: any) => (l.status === 'created' || l.status === 'open') && !l.claimed_by).length 
         : 0
       // 완료: status가 'assigned'이거나 claimed_by가 있는 경우
-      const completedOrders = Array.isArray(listings) 
-        ? listings.filter((l: any) => l.status === 'assigned' || l.claimed_by).length 
-        : 0
+      const completedOrdersList = Array.isArray(listings) 
+        ? listings.filter((l: any) => l.status === 'assigned' || l.claimed_by)
+        : []
+      const completedOrders = completedOrdersList.length
+      
+      // 완료된 오더의 총 예산 금액
+      const totalOrderAmount = completedOrdersList.reduce((sum: number, l: any) => {
+        const budget = l.budget_amount || 0
+        console.log(`[ADMIN DASHBOARD] Order budget: ${budget}, status: ${l.status}`)
+        return sum + budget
+      }, 0)
       
       console.log('[ADMIN DASHBOARD] Orders - Total:', totalOrders, 'Pending:', pendingOrders, 'Completed:', completedOrders)
+      console.log('[ADMIN DASHBOARD] Total order amount:', totalOrderAmount)
       
       // Fetch jobs (기존 jobs 테이블)
       const jobsRes = await fetch(`${SUPABASE_URL}/rest/v1/jobs?select=id,status`, { headers })
@@ -117,6 +126,7 @@ export const handler: Handler = async (event) => {
         totalOrders,
         pendingOrders,
         completedOrders,
+        totalOrderAmount: Math.round(totalOrderAmount),
         totalJobs,
         pendingJobs,
         completedJobs

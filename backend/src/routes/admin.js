@@ -205,7 +205,7 @@ router.get('/dashboard', async (req, res) => {
     let listings;
     const listingsResult = await supabase
       .from('marketplace_listings')
-      .select('id, status, claimed_by, createdat');
+      .select('id, status, claimed_by, budget_amount, createdat');
     
     listings = listingsResult.data;
     
@@ -230,11 +230,20 @@ router.get('/dashboard', async (req, res) => {
       (l.status === 'created' || l.status === 'open') && !l.claimed_by
     ).length;
     // 완료: status가 'assigned'이거나 claimed_by가 있는 경우
-    const completedOrders = (listings || []).filter(l => 
+    const completedOrdersList = (listings || []).filter(l => 
       l.status === 'assigned' || l.claimed_by
-    ).length;
+    );
+    const completedOrders = completedOrdersList.length;
+    
+    // 완료된 오더의 총 예산 금액
+    const totalOrderAmount = completedOrdersList.reduce((sum, l) => {
+      const budget = l.budget_amount || 0;
+      console.log(`[ADMIN DASHBOARD] Order budget: ${budget}, status: ${l.status}`);
+      return sum + budget;
+    }, 0);
     
     console.log('[ADMIN DASHBOARD] Orders breakdown - Total:', totalOrders, 'Pending:', pendingOrders, 'Completed:', completedOrders);
+    console.log('[ADMIN DASHBOARD] Total order amount:', totalOrderAmount);
 
     // Jobs 테이블 통계 (기존 jobs 테이블)
     let jobs;
@@ -268,6 +277,7 @@ router.get('/dashboard', async (req, res) => {
       totalOrders,
       pendingOrders,
       completedOrders,
+      totalOrderAmount: Math.round(totalOrderAmount),
       totalJobs,
       pendingJobs,
       completedJobs,
