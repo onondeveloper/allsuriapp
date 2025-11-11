@@ -17,8 +17,8 @@ ORDER BY createdat DESC;
 -- 2. 모든 견적 확인 (estimates)
 SELECT 
   id,
-  orderId,
-  businessName,
+  "orderId",
+  "businessName",
   amount,
   status,
   createdat
@@ -37,7 +37,7 @@ SELECT
   e.status as estimate_status
 FROM marketplace_listings ml
 LEFT JOIN jobs j ON ml.jobid = j.id
-LEFT JOIN estimates e ON j.id = e.orderId
+LEFT JOIN estimates e ON j.id = e."orderId"
 WHERE ml.status = 'assigned' OR ml.claimed_by IS NOT NULL
 ORDER BY ml.createdat DESC;
 
