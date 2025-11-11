@@ -8,15 +8,9 @@ ADD COLUMN IF NOT EXISTS postid UUID REFERENCES public.community_posts(id) ON DE
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_notifications_postid ON notifications(postid);
 
--- Update existing comment notifications if any (optional, for data consistency)
--- This is safe to run even if there are no existing notifications
-UPDATE notifications
-SET postid = (
-  SELECT postid 
-  FROM community_comments 
-  WHERE community_comments.id = notifications.jobid
-)
-WHERE type = 'comment' AND postid IS NULL AND jobid IS NOT NULL;
+-- Note: The UPDATE statement for existing notifications is removed
+-- because the 'type' column might not exist yet in the notifications table.
+-- New notifications will be created with the correct postid automatically.
 
 COMMIT;
 
