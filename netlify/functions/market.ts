@@ -489,6 +489,78 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
             }
           }
         }
+        
+        // 채팅방 생성 (오더 소유자와 선택된 입찰자 간)
+        try {
+          const ownerResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/marketplace_listings?id=eq.${id}&select=posted_by`,
+            {
+              headers: {
+                apikey: SUPABASE_SERVICE_ROLE_KEY,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              }
+            }
+          )
+          const ownerData = await ownerResponse.json()
+          const owner = Array.isArray(ownerData) && ownerData.length > 0 ? ownerData[0] : null
+          
+          if (owner && owner.posted_by) {
+            const roomId = `order_${id}`
+            console.log('[market] 채팅방 생성 중:', { roomId, owner: owner.posted_by, bidder: bidderId })
+            
+            // 채팅방 생성 (upsert)
+            const chatRoomResponse = await fetch(`${SUPABASE_URL}/rest/v1/chat_rooms`, {
+              method: 'POST',
+              headers: {
+                apikey: SUPABASE_SERVICE_ROLE_KEY,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates',
+              },
+              body: JSON.stringify({
+                id: roomId,
+                listingid: id,
+                jobid: listing.jobid,
+                participant_a: owner.posted_by,
+                participant_b: bidderId,
+                createdat: nowIso,
+                updatedat: nowIso,
+                active: true,
+              })
+            })
+            
+            if (!chatRoomResponse.ok) {
+              console.warn('[market] 채팅방 생성 실패:', await chatRoomResponse.text())
+            } else {
+              console.log('[market] 채팅방 생성 완료:', roomId)
+              
+              // 시스템 메시지 추가
+              const messageResponse = await fetch(`${SUPABASE_URL}/rest/v1/chat_messages`, {
+                method: 'POST',
+                headers: {
+                  apikey: SUPABASE_SERVICE_ROLE_KEY,
+                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  room_id: roomId,
+                  sender_id: owner.posted_by,
+                  content: '안녕하세요, 오더 관련 채팅방입니다',
+                  type: 'system',
+                  createdat: nowIso,
+                })
+              })
+              
+              if (!messageResponse.ok) {
+                console.warn('[market] 시스템 메시지 생성 실패:', await messageResponse.text())
+              } else {
+                console.log('[market] 시스템 메시지 생성 완료')
+              }
+            }
+          }
+        } catch (chatErr: any) {
+          console.warn('[market] 채팅방 생성 실패 (무시):', chatErr.message)
+        }
       }
     } catch (e: any) {
       console.warn('[market] notification/push failed:', e.message)
