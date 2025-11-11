@@ -14,16 +14,11 @@ FROM marketplace_listings
 WHERE status = 'assigned' OR claimed_by IS NOT NULL
 ORDER BY createdat DESC;
 
--- 2. 모든 견적 확인 (estimates)
-SELECT 
-  id,
-  "orderId",
-  "businessName",
-  amount,
-  status,
-  createdat
+-- 2. 모든 견적 확인 (estimates) - 모든 컬럼 조회
+SELECT *
 FROM estimates
-ORDER BY createdat DESC;
+ORDER BY createdat DESC
+LIMIT 10;
 
 -- 3. 오더별 견적 존재 여부 확인
 SELECT 
@@ -37,7 +32,11 @@ SELECT
   e.status as estimate_status
 FROM marketplace_listings ml
 LEFT JOIN jobs j ON ml.jobid = j.id
-LEFT JOIN estimates e ON j.id::text = e."orderId"
+LEFT JOIN estimates e ON (
+  j.id::text = e."orderId" OR 
+  j.id = e."orderId"::uuid OR
+  j.id::text = COALESCE(e."orderId", '')
+)
 WHERE ml.status = 'assigned' OR ml.claimed_by IS NOT NULL
 ORDER BY ml.createdat DESC;
 
@@ -57,3 +56,11 @@ SELECT
 FROM marketplace_listings
 GROUP BY status;
 
+-- 6. estimates 테이블 스키마 확인
+SELECT 
+  column_name, 
+  data_type,
+  is_nullable
+FROM information_schema.columns 
+WHERE table_name = 'estimates'
+ORDER BY ordinal_position;
