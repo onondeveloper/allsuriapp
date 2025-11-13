@@ -255,8 +255,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     }).toList();
   }
 
-  void _openBidderList(String listingId, String orderTitle) {
-    Navigator.push(
+  void _openBidderList(String listingId, String orderTitle) async {
+    final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => OrderBiddersScreen(
@@ -265,6 +265,12 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         ),
       ),
     );
+    
+    // 입찰자가 선택되었으면 목록 새로고침
+    if (result == true) {
+      print('🔄 [JobManagement] 입찰자 선택 완료, 목록 새로고침');
+      await _loadJobs();
+    }
   }
 }
 

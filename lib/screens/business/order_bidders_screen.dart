@@ -77,9 +77,11 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.blue,
+              side: const BorderSide(color: Colors.blue, width: 2),
             ),
-            child: const Text('선택하기'),
+            child: const Text('선택하기', style: TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -115,14 +117,42 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
       if (!mounted) return;
 
       if (response['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$bidderName 님이 선택되었습니다!'),
-            backgroundColor: Colors.green,
+        print('✅ [OrderBiddersScreen] 입찰자 선택 성공');
+        
+        if (!mounted) return;
+        
+        // 성공 다이얼로그 표시
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 28),
+                SizedBox(width: 12),
+                Text('선택 완료'),
+              ],
+            ),
+            content: Text(
+              '$bidderName 사업자가 선택되었습니다!\n\n채팅방이 자동으로 생성되었으며,\n알림이 전송되었습니다.',
+              style: const TextStyle(fontSize: 15),
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('확인'),
+              ),
+            ],
           ),
         );
         
-        // 화면 닫기
+        if (!mounted) return;
+        
+        // 화면 닫고 내 공사 목록으로 돌아가기
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

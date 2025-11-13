@@ -48,8 +48,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       print('⚠️ [OrderMarketplaceScreen] 사용자가 로그인되어 있지 않습니다!');
     }
     
-    _loadMyBids(); // 내가 입찰한 오더 목록 로드
-    _future = _market.listListings(status: _status, throwOnError: true, postedBy: widget.createdByUserId);
+    // 내가 입찰한 오더 목록과 전체 목록을 동시에 로드
+    _future = _loadInitialData();
     print('OrderMarketplaceScreen: _future 설정됨');
     
     _channel = Supabase.instance.client
@@ -133,6 +133,41 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     });
   }
 
+  Future<List<Map<String, dynamic>>> _loadInitialData() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      
+      // 1. 내가 입찰한 오더 목록 먼저 로드
+      if (currentUserId != null) {
+        print('🔍 [_loadInitialData] 내 입찰 목록 로드 중...');
+        
+        final response = await Supabase.instance.client
+            .from('order_bids')
+            .select('listing_id')
+            .eq('bidder_id', currentUserId)
+            .eq('status', 'pending');
+        
+        _myBidListingIds = response.map((e) => e['listing_id'].toString()).toSet();
+        print('✅ [_loadInitialData] ${_myBidListingIds.length}개 입찰 확인: $_myBidListingIds');
+      }
+      
+      // 2. 전체 오더 목록 로드
+      print('🔍 [_loadInitialData] 오더 목록 로드 중...');
+      final listings = await _market.listListings(
+        status: _status, 
+        throwOnError: true, 
+        postedBy: widget.createdByUserId
+      );
+      print('✅ [_loadInitialData] ${listings.length}개 오더 로드 완료');
+      
+      return listings;
+    } catch (e) {
+      print('❌ [_loadInitialData] 실패: $e');
+      rethrow;
+    }
+  }
+
   Future<void> _loadMyBids() async {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
@@ -142,18 +177,17 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       print('🔍 [_loadMyBids] 내 입찰 목록 로드 중...');
       
-      // 내가 입찰한 오더 목록 조회
       final response = await Supabase.instance.client
           .from('order_bids')
           .select('listing_id')
           .eq('bidder_id', currentUserId)
-          .eq('status', 'pending'); // pending 상태인 입찰만
+          .eq('status', 'pending');
       
       setState(() {
         _myBidListingIds = response.map((e) => e['listing_id'].toString()).toSet();
       });
       
-      print('✅ [_loadMyBids] ${_myBidListingIds.length}개 입찰 확인');
+      print('✅ [_loadMyBids] ${_myBidListingIds.length}개 입찰 확인: $_myBidListingIds');
     } catch (e) {
       print('⚠️ [_loadMyBids] 실패 (무시): $e');
     }
@@ -161,9 +195,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
 
   Future<void> _reload() async {
     print('OrderMarketplaceScreen _reload 시작: status=$_status');
-    await _loadMyBids(); // 입찰 목록도 새로고침
     setState(() {
-      _future = _market.listListings(status: _status, postedBy: widget.createdByUserId);
+      _future = _loadInitialData();
     });
     print('OrderMarketplaceScreen _reload 완료');
   }
