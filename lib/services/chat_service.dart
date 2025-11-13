@@ -227,29 +227,49 @@ class ChatService extends ChangeNotifier {
     return;
   }
 
-  // 채팅방 목록 가져오기 (임시 구현)
+  // 채팅방 목록 가져오기
   Future<List<Map<String, dynamic>>> getChatRooms(String userId) async {
     try {
+      debugPrint('🔍 [ChatService] 채팅방 목록 로드: userId=$userId');
+      
+      // participant_a, participant_b 또는 customerid, businessid 모두 지원
       final rows = await _sb
           .from('chat_rooms')
-          .select('id, title, createdat, customerid, businessid, estimateid, active')
-          .or('customerid.eq.$userId,businessid.eq.$userId')
+          .select('id, title, createdat, customerid, businessid, participant_a, participant_b, estimateid, listingid, active')
+          .or('customerid.eq.$userId,businessid.eq.$userId,participant_a.eq.$userId,participant_b.eq.$userId')
           .eq('active', true)
           .order('createdat', ascending: false);
+      
+      debugPrint('✅ [ChatService] ${rows.length}개 채팅방 조회 완료');
+      
       final list = <Map<String, dynamic>>[];
       for (final r in rows) {
         final room = Map<String, dynamic>.from(r);
-        final otherId = (room['customerid'] == userId) ? (room['businessid']?.toString() ?? '') : (room['customerid']?.toString() ?? '');
+        
+        // 상대방 ID 찾기 (participant 우선, 없으면 customer/business)
+        String otherId = '';
+        if (room['participant_a']?.toString() == userId) {
+          otherId = room['participant_b']?.toString() ?? '';
+        } else if (room['participant_b']?.toString() == userId) {
+          otherId = room['participant_a']?.toString() ?? '';
+        } else if (room['customerid']?.toString() == userId) {
+          otherId = room['businessid']?.toString() ?? '';
+        } else if (room['businessid']?.toString() == userId) {
+          otherId = room['customerid']?.toString() ?? '';
+        }
+        
+        debugPrint('   채팅방 ${room['id']}: 상대방=$otherId');
+        
         if (otherId.isNotEmpty) {
           try {
-            final u = await _sb.from('users').select('businessName, name').eq('id', otherId).maybeSingle();
-            final displayName = (u != null && (u['businessName']?.toString().isNotEmpty == true))
-                ? u['businessName'].toString()
-                : (u != null ? (u['name']?.toString() ?? '상대방') : '상대방');
+            final u = await _sb.from('users').select('businessname, name').eq('id', otherId).maybeSingle();
+            final displayName = u?['businessname']?.toString() ?? u?['name']?.toString() ?? '상대방';
             room['displayName'] = displayName;
           } catch (_) {
             room['displayName'] = '상대방';
           }
+        } else {
+          room['displayName'] = room['title']?.toString() ?? '채팅';
         }
         // 최근 메시지
         try {

@@ -293,7 +293,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     }
                   } else if (type == 'new_bid') {
                     // 새로운 입찰 → 입찰자 목록 화면
-                    final listingId = notification['jobId']?.toString() ?? '';
+                    final listingId = notification['jobid']?.toString() ?? notification['jobId']?.toString() ?? '';
                     final orderTitle = notification['title']?.toString() ?? '오더';
                     if (listingId.isNotEmpty) {
                       Navigator.push(
