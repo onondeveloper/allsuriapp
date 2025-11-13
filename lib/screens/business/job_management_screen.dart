@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lottie/lottie.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../widgets/shimmer_widgets.dart';
 import '../../services/auth_service.dart';
 import '../../services/job_service.dart';
-import '../../services/marketplace_service.dart';
 import '../../models/job.dart';
 import '../../widgets/interactive_card.dart';
-import 'transfer_job_screen.dart';
+import 'order_bidders_screen.dart';
 
 class JobManagementScreen extends StatefulWidget {
   const JobManagementScreen({super.key});
@@ -19,7 +20,8 @@ class JobManagementScreen extends StatefulWidget {
 class _JobManagementScreenState extends State<JobManagementScreen> {
   List<Job> _combinedJobs = [];
   bool _isLoading = true;
-  String _filter = 'all'; // all | mine | transfer | call
+  String _filter = 'all'; // all | mine | call
+  Map<String, Map<String, dynamic>> _listingByJobId = {};
 
   @override
   void initState() {
@@ -40,7 +42,6 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       final allJobs = await jobService.getJobs();
       final related = allJobs.where((job) =>
           job.ownerBusinessId == currentUserId ||
-          job.transferToBusinessId == currentUserId ||
           job.assignedBusinessId == currentUserId).toList();
       final Map<String, Job> byId = {};
       for (final j in related) {
@@ -48,16 +49,28 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         byId[id] = j;
       }
       _combinedJobs = byId.values.toList();
-      _combinedJobs.sort((a, b) {
-        final me = currentUserId;
-        int score(Job j) {
-          final transferCompleted = (j.ownerBusinessId == me && j.status == 'assigned' && j.assignedBusinessId != me) ? 1 : 0;
-          return transferCompleted; // 0 먼저, 1(이관 완료) 나중
-        }
-        final s = score(a).compareTo(score(b));
-        if (s != 0) return s;
-        return 0;
-      });
+
+      // fetch marketplace listings for jobs I own
+      final jobIds = _combinedJobs
+          .where((job) => job.ownerBusinessId == currentUserId)
+          .map((job) => job.id)
+          .whereType<String>()
+          .toList();
+
+      if (jobIds.isNotEmpty) {
+        final listings = await Supabase.instance.client
+            .from('marketplace_listings')
+            .select('id, jobid, title, bid_count, status')
+            .inFilter('jobid', jobIds);
+
+        _listingByJobId = {
+          for (final row in listings)
+            if (row['jobid'] != null)
+              row['jobid'].toString(): Map<String, dynamic>.from(row),
+        };
+      } else {
+        _listingByJobId = {};
+      }
       
     } catch (e) {
       if (mounted) {
@@ -102,8 +115,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                   child: _ModernJobsList(
                     jobs: _filteredByBadge(_combinedJobs, context.read<AuthService>().currentUser?.id ?? ''),
                     currentUserId: context.read<AuthService>().currentUser?.id ?? '',
-                    onTransfer: _showTransferDialog,
-                    onAcceptTransfer: _showAcceptTransferDialog,
+                    listingsByJobId: _listingByJobId,
+                    onViewBidders: _openBidderList,
                   ),
                 ),
               ],
@@ -156,9 +169,6 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                 const SizedBox(width: 10),
                 _buildModernChip('내 공사', 'mine', Icons.person_outline, 
                     _combinedJobs.where((j) => j.ownerBusinessId == me).length),
-                const SizedBox(width: 10),
-                _buildModernChip('이관 요청', 'transfer', Icons.swap_horiz_rounded, 
-                    _combinedJobs.where((j) => j.transferToBusinessId == me && j.status == 'pending_transfer').length),
                 const SizedBox(width: 10),
                 _buildModernChip('콜 공사', 'call', Icons.campaign_outlined, 
                     _combinedJobs.where((j) => j.assignedBusinessId == me).length),
@@ -240,76 +250,19 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     if (_filter == 'all') return jobs;
     return jobs.where((j) {
       if (_filter == 'mine') return j.ownerBusinessId == me;
-      if (_filter == 'transfer') return j.transferToBusinessId == me && j.status == 'pending_transfer';
       if (_filter == 'call') return j.assignedBusinessId == me;
       return true;
     }).toList();
   }
 
-  void _showTransferDialog(Job job) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('공사 이관'),
-        content: const Text('이 공사를 다른 사업자에게 이관하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TransferJobScreen(jobId: job.id ?? ''),
-                ),
-              );
-            },
-            child: const Text('이관'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAcceptTransferDialog(Job job) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('공사 수락'),
-        content: const Text('이 공사를 담당하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await context.read<JobService>().acceptTransfer(
-                  jobId: job.id ?? '',
-                  assigneeBusinessId: context.read<AuthService>().currentUser!.id,
-                  awardedAmount: job.awardedAmount ?? 0,
-                );
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('공사를 받았습니다.')),
-                );
-                _showCheck();
-                _loadJobs();
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('수락 실패: $e')),
-                );
-              }
-            },
-            child: const Text('수락'),
-          ),
-        ],
+  void _openBidderList(String listingId, String orderTitle) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrderBiddersScreen(
+          listingId: listingId,
+          orderTitle: orderTitle,
+        ),
       ),
     );
   }
@@ -318,14 +271,14 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
 class _ModernJobsList extends StatelessWidget {
   final List<Job> jobs;
   final String currentUserId;
-  final void Function(Job) onTransfer;
-  final void Function(Job) onAcceptTransfer;
+  final Map<String, Map<String, dynamic>> listingsByJobId;
+  final void Function(String listingId, String orderTitle) onViewBidders;
 
   const _ModernJobsList({
     required this.jobs,
     required this.currentUserId,
-    required this.onTransfer,
-    required this.onAcceptTransfer,
+    required this.listingsByJobId,
+    required this.onViewBidders,
   });
 
   @override
@@ -377,6 +330,15 @@ class _ModernJobsList extends StatelessWidget {
       itemBuilder: (context, index) {
         final job = jobs[index];
         final badge = _badgeFor(job, currentUserId);
+        final listing = job.id != null ? listingsByJobId[job.id] : null;
+        final listingId = listing != null ? listing['id']?.toString() : null;
+        final listingTitle = listing != null ? (listing['title']?.toString() ?? job.title) : job.title;
+        final bidCount = listing != null
+            ? (listing['bid_count'] is int
+                ? listing['bid_count'] as int
+                : int.tryParse(listing['bid_count']?.toString() ?? '0') ?? 0)
+            : 0;
+        final canViewBidders = job.ownerBusinessId == currentUserId && listingId != null;
         return Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -470,31 +432,20 @@ class _ModernJobsList extends StatelessWidget {
                   ],
                 ),
                 // Action buttons
-                if (badge.actionLabel.isNotEmpty) ...[
+                if (canViewBidders) ...[
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (badge.actionLabel == '이관하기') {
-                          onTransfer(job);
-                        } else if (badge.actionLabel == '수락하기') {
-                          onAcceptTransfer(job);
-                        }
-                      },
-                      icon: Icon(
-                        badge.actionLabel == '이관하기' ? Icons.swap_horiz_rounded : Icons.check_circle_outline,
-                        size: 18,
-                      ),
-                      label: Text(badge.actionLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      onPressed: () => onViewBidders(listingId!, listingTitle),
+                      icon: const Icon(Icons.people_outline, size: 18),
+                      label: Text('입찰자 보기 (${bidCount}명)', style: const TextStyle(fontWeight: FontWeight.w600)),
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        backgroundColor: badge.color,
+                        backgroundColor: const Color(0xFF1976D2),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 0,
                       ),
                     ),
                   ),
@@ -523,15 +474,12 @@ class _ModernJobsList extends StatelessWidget {
 
   static _Badge _badgeFor(Job job, String me) {
     if (job.assignedBusinessId == me) {
-      return _Badge('콜 공사', Colors.green, Icons.campaign_outlined, '');
-    }
-    if (job.transferToBusinessId == me && job.status == 'pending_transfer') {
-      return _Badge('이관 요청', Colors.orange, Icons.swap_horiz_rounded, '수락하기');
+      return _Badge('콜 공사', Colors.green, Icons.campaign_outlined);
     }
     if (job.ownerBusinessId == me) {
-      return _Badge('내 공사', const Color(0xFF1976D2), Icons.person_outline, '이관하기');
+      return _Badge('내 공사', const Color(0xFF1976D2), Icons.person_outline);
     }
-    return _Badge('공사', Colors.grey, Icons.work_outline, '');
+    return _Badge('공사', Colors.grey, Icons.work_outline);
   }
 }
 
@@ -539,9 +487,8 @@ class _Badge {
   final String label;
   final Color color;
   final IconData icon;
-  final String actionLabel;
   
-  const _Badge(this.label, this.color, this.icon, this.actionLabel);
+  const _Badge(this.label, this.color, this.icon);
 }
 
 
