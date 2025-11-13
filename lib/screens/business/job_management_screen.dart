@@ -57,11 +57,18 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
           .whereType<String>()
           .toList();
 
+      print('🔍 [JobManagement] jobIds: $jobIds');
+
       if (jobIds.isNotEmpty) {
         final listings = await Supabase.instance.client
             .from('marketplace_listings')
             .select('id, jobid, title, bid_count, status, claimed_by')
             .inFilter('jobid', jobIds);
+
+        print('🔍 [JobManagement] 조회된 listings: ${listings.length}개');
+        if (listings.isNotEmpty) {
+          print('   첫 번째 listing: ${listings.first}');
+        }
 
         _listingByJobId = {
           for (final row in listings)
@@ -69,9 +76,11 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
               row['jobid'].toString(): Map<String, dynamic>.from(row),
         };
         
-        print('🔍 [JobManagement] ${_listingByJobId.length}개 listing 매핑 완료');
+        print('✅ [JobManagement] ${_listingByJobId.length}개 listing 매핑 완료');
+        print('   매핑된 jobIds: ${_listingByJobId.keys.toList()}');
       } else {
         _listingByJobId = {};
+        print('⚠️ [JobManagement] jobIds가 비어있음');
       }
       
     } catch (e) {
