@@ -43,15 +43,23 @@ class NotificationService {
   /// 알림 목록 가져오기
   Future<List<Map<String, dynamic>>> getNotifications(String userId) async {
     try {
+      debugPrint('🔍 [NotificationService] 알림 조회: userId=$userId');
+      
       final response = await _sb
           .from('notifications')
           .select()
           .eq('userid', userId)
           .order('createdat', ascending: false);
       
+      debugPrint('✅ [NotificationService] ${response.length}개 알림 조회 완료');
+      
+      if (response.isNotEmpty) {
+        debugPrint('   첫 번째 알림: ${response.first}');
+      }
+      
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      print('알림 목록 가져오기 실패: $e');
+      debugPrint('❌ [NotificationService] 알림 목록 가져오기 실패: $e');
       return [];
     }
   }

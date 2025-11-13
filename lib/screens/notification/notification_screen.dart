@@ -38,19 +38,31 @@ class _NotificationScreenState extends State<NotificationScreen> {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final user = userProvider.currentUser;
       
+      print('🔍 [NotificationScreen] 알림 로드 시작');
+      print('   UserProvider currentUser: ${user?.id ?? "null"}');
+      
       if (user != null) {
+        print('   사용자 ID로 알림 조회: ${user.id}');
         final notifications = await _notificationService.getNotifications(user.id);
+        print('✅ [NotificationScreen] ${notifications.length}개 알림 조회 완료');
+        
+        if (notifications.isNotEmpty) {
+          print('   첫 번째 알림: ${notifications.first}');
+        }
+        
         setState(() {
           _notifications = notifications;
           _isLoading = false;
         });
       } else {
+        print('❌ [NotificationScreen] UserProvider에 사용자 없음');
         setState(() {
           _error = '사용자 정보를 찾을 수 없습니다.';
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('❌ [NotificationScreen] 알림 로드 실패: $e');
       setState(() {
         _error = '알림을 불러오는 중 오류가 발생했습니다: $e';
         _isLoading = false;
