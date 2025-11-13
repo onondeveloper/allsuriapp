@@ -90,28 +90,32 @@ class JobService extends ChangeNotifier {
   Future<void> requestTransfer({
     required String jobId,
     required String transferToBusinessId,
+    required String requesterBusinessId,
   }) async {
     try {
       if (kDebugMode) {
-        print('🔄 [JobService] 공사 이관 요청 시작: jobId=$jobId -> $transferToBusinessId');
+        print('🔄 [JobService] 공사 이관 요청 시작: jobId=$jobId -> $transferToBusinessId (요청자: $requesterBusinessId)');
       }
 
-      final row = await _supabase
+      final rows = await _supabase
           .from('jobs')
           .update({
             'transfer_to_business_id': transferToBusinessId,
             'status': 'pending_transfer',
           })
           .eq('id', jobId)
+          .eq('owner_business_id', requesterBusinessId)
           .select('owner_business_id')
-          .maybeSingle();
+          .limit(1);
 
-      if (row == null) {
+      if (rows.isEmpty) {
         if (kDebugMode) {
-          print('⚠️ [JobService] 업데이트 결과가 없습니다 (jobId=$jobId).');
+          print('⚠️ [JobService] 업데이트된 행이 없습니다 (jobId=$jobId, requester=$requesterBusinessId).');
         }
-        throw StateError('공사를 찾을 수 없습니다. 이미 처리되었을 수 있습니다.');
+        throw StateError('공사를 찾을 수 없거나 이관 권한이 없습니다.');
       }
+
+      final row = rows.first;
 
       if (kDebugMode) {
         print('✅ [JobService] 공사 이관 상태 갱신 완료: $row');

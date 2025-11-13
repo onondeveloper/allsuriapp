@@ -80,19 +80,20 @@ class _TransferJobScreenState extends State<TransferJobScreen> {
                             if (me == null || me.id.isEmpty) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('로그인이 필요합니다.')),);
+                                  const SnackBar(content: Text('로그인이 필요합니다.')),
+                                );
                               }
                               return;
                             }
 
-                            // 로딩 다이얼로그 표시
+                            // 로딩 다이얼로그 표시 (rootNavigator 사용)
                             if (mounted) {
                               showDialog(
                                 context: context,
                                 barrierDismissible: false,
                                 builder: (_) => const AlertDialog(
                                   content: SizedBox(
-                                    width: 180,
+                                    width: 200,
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -109,11 +110,12 @@ class _TransferJobScreenState extends State<TransferJobScreen> {
                             await context.read<JobService>().requestTransfer(
                                   jobId: widget.jobId,
                                   transferToBusinessId: _selectedBusinessId!,
+                                  requesterBusinessId: me.id,
                                 );
 
                             if (!mounted) return;
 
-                            Navigator.pop(context); // close loading dialog
+                            Navigator.of(context, rootNavigator: true).pop(); // close loading dialog
 
                             showGeneralDialog(
                               context: context,
@@ -127,17 +129,21 @@ class _TransferJobScreenState extends State<TransferJobScreen> {
                               },
                             );
                             await Future.delayed(const Duration(milliseconds: 900));
-                            if (mounted) Navigator.pop(context); // close lottie
+                            if (mounted) Navigator.of(context, rootNavigator: true).pop(); // close lottie
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('이관 요청을 보냈습니다.')),);
+                                const SnackBar(content: Text('이관 요청을 보냈습니다.')),
+                              );
                               Navigator.pop(context); // close screen
                             }
                           } catch (e) {
                             if (mounted) {
                               Navigator.of(context, rootNavigator: true).maybePop(); // close loading dialog if open
+                              final message = e is StateError
+                                  ? e.message
+                                  : '이관 요청에 실패했습니다: $e';
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('이관 요청에 실패했습니다: $e')),
+                                SnackBar(content: Text(message ?? '이관 요청에 실패했습니다.')),
                               );
                             }
                           } finally {
