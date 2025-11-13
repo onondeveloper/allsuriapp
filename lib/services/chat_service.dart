@@ -133,13 +133,13 @@ class ChatService extends ChangeNotifier {
       // 메시지 저장
       final nowIso = DateTime.now().toIso8601String();
       print('메시지 저장 시도...');
-      print('테이블: messages');
-      print('데이터: {roomid: $resolvedId, senderid: $senderId, text: $message, createdat: $nowIso}');
+      print('테이블: chat_messages');
+      print('데이터: {room_id: $resolvedId, sender_id: $senderId, content: $message, createdat: $nowIso}');
       
-      final insertResult = await _sb.from('messages').insert({
-        'roomid': resolvedId,
-        'senderid': senderId,
-        'text': message,
+      final insertResult = await _sb.from('chat_messages').insert({
+        'room_id': resolvedId,
+        'sender_id': senderId,
+        'content': message,
         'createdat': nowIso,
       }).select();
       
@@ -205,15 +205,15 @@ class ChatService extends ChangeNotifier {
     try {
       final me = _sb.auth.currentUser?.id ?? '';
       final rows = await _sb
-          .from('messages')
+          .from('chat_messages')
           .select()
-          .eq('roomid', chatRoomId)
+          .eq('room_id', chatRoomId)
           .order('createdat', ascending: true);
       return rows.map((r) {
         final m = Map<String, dynamic>.from(r);
         final created = m['createdat'] ?? m['createdAt'] ?? m['created_at'];
         m['timestamp'] = DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now();
-        m['isFromMe'] = (m['senderid']?.toString() ?? m['senderId']?.toString() ?? m['sender_id']?.toString() ?? '') == me;
+        m['isFromMe'] = (m['sender_id']?.toString() ?? m['senderid']?.toString() ?? m['senderId']?.toString() ?? '') == me;
         m['text'] = (m['content'] ?? m['text'] ?? '').toString();
         return m;
       }).toList();
@@ -274,9 +274,9 @@ class ChatService extends ChangeNotifier {
         // 최근 메시지
         try {
           final last = await _sb
-              .from('messages')
+              .from('chat_messages')
               .select('content, text, createdat')
-              .eq('roomid', room['id'])
+              .eq('room_id', room['id'])
               .order('createdat', ascending: false)
               .limit(1)
               .maybeSingle();
@@ -314,7 +314,7 @@ class ChatService extends ChangeNotifier {
 
   // 메시지 전체 삭제
   Future<void> deleteMessages(String chatRoomId) async {
-    await _sb.from('messages').delete().eq('roomid', chatRoomId);
+    await _sb.from('chat_messages').delete().eq('room_id', chatRoomId);
   }
 
   // 채팅방 삭제 (소프트 삭제: active=false)

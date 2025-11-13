@@ -51,9 +51,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       }
       _combinedJobs = byId.values.toList();
 
-      // fetch marketplace listings for jobs I own
+      // fetch marketplace listings for all related jobs (내가 올린 것 + 받은 것)
       final jobIds = _combinedJobs
-          .where((job) => job.ownerBusinessId == currentUserId)
           .map((job) => job.id)
           .whereType<String>()
           .toList();
@@ -61,7 +60,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       if (jobIds.isNotEmpty) {
         final listings = await Supabase.instance.client
             .from('marketplace_listings')
-            .select('id, jobid, title, bid_count, status')
+            .select('id, jobid, title, bid_count, status, claimed_by')
             .inFilter('jobid', jobIds);
 
         _listingByJobId = {
@@ -69,6 +68,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
             if (row['jobid'] != null)
               row['jobid'].toString(): Map<String, dynamic>.from(row),
         };
+        
+        print('🔍 [JobManagement] ${_listingByJobId.length}개 listing 매핑 완료');
       } else {
         _listingByJobId = {};
       }
@@ -321,10 +322,29 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
 
       if (currentUserId == null) throw Exception('로그인이 필요합니다');
 
-      // marketplace_listings 업데이트
-      final listingId = _listingByJobId[job.id]?['id']?.toString();
+      print('🔄 [JobManagement] 공사 완료 처리 시작: jobId=${job.id}');
+      print('   listingByJobId: ${_listingByJobId.keys.toList()}');
+      
+      // marketplace_listings 찾기 (job.id로 직접 조회)
+      String? listingId = _listingByJobId[job.id]?['id']?.toString();
+      
+      if (listingId == null && job.id != null) {
+        // 직접 조회
+        print('   listingId 없음, 직접 조회 시도');
+        final listings = await Supabase.instance.client
+            .from('marketplace_listings')
+            .select('id')
+            .eq('jobid', job.id!)
+            .limit(1);
+        
+        if (listings.isNotEmpty) {
+          listingId = listings.first['id']?.toString();
+          print('   직접 조회로 listingId 찾음: $listingId');
+        }
+      }
       
       if (listingId != null) {
+        print('   marketplace_listings 업데이트 중: $listingId');
         await Supabase.instance.client
             .from('marketplace_listings')
             .update({
@@ -337,6 +357,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
 
         // 오더 소유자에게 알림
         final ownerId = job.ownerBusinessId;
+        print('   알림 전송 중: $ownerId');
         await Supabase.instance.client.from('notifications').insert({
           'userid': ownerId,
           'title': '공사 완료',
@@ -348,10 +369,13 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         });
 
         print('✅ [JobManagement] 공사 완료 처리 완료');
+      } else {
+        print('⚠️ [JobManagement] listingId를 찾을 수 없음');
       }
 
       // jobs 테이블도 업데이트
       if (job.id != null) {
+        print('   jobs 테이블 업데이트 중');
         await Supabase.instance.client
             .from('jobs')
             .update({
