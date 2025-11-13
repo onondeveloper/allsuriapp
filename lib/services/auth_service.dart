@@ -200,16 +200,25 @@ class AuthService extends ChangeNotifier {
               
               // Supabase JWT 토큰 설정 (백엔드에서 발급한 토큰)
               final supabaseAccessToken = actualData['supabase_access_token'] as String?;
+              final supabaseRefreshToken = actualData['supabase_refresh_token'] as String?;
+              
               if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
                 print('🔍 [signInWithKakao] Supabase JWT 토큰 설정 중...');
+                print('   - Access Token: ${supabaseAccessToken.substring(0, 20)}...');
+                print('   - Refresh Token: ${supabaseRefreshToken?.substring(0, 20) ?? "null"}...');
+                
                 try {
-                  // Supabase 세션 설정
-                  await _sb.auth.setSession(supabaseAccessToken);
+                  // Supabase 세션 설정 (recoverSession 사용)
+                  await _sb.auth.recoverSession(supabaseAccessToken);
                   print('✅ [signInWithKakao] Supabase 세션 설정 완료');
                   print('   - Current User: ${_sb.auth.currentUser?.id}');
+                  print('   - Session: ${_sb.auth.currentSession != null ? "있음" : "없음"}');
                 } catch (e) {
                   print('❌ [signInWithKakao] Supabase 세션 설정 실패: $e');
+                  print('   - 에러 타입: ${e.runtimeType}');
                 }
+              } else {
+                print('⚠️ [signInWithKakao] Supabase JWT 토큰 없음');
               }
               
               // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)
