@@ -725,6 +725,9 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     final currentUserId = authService.currentUser?.id;
     final isOwner = currentUserId == postedBy;
     final hasBid = alreadyBid || _myBidListingIds.contains(data['id']?.toString() ?? '');
+    final int bidCount = data['bid_count'] is int
+        ? data['bid_count'] as int
+        : int.tryParse(data['bid_count']?.toString() ?? '0') ?? 0;
 
     Navigator.push(
       context,
