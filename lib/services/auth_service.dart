@@ -198,27 +198,41 @@ class AuthService extends ChangeNotifier {
             if (user != null) {
               final uid = user['id'] as String;
               
-              // Supabase JWT 토큰 설정 (백엔드에서 발급한 토큰)
+              // Supabase 세션 설정 (백엔드에서 발급한 실제 Supabase Auth 토큰)
               final supabaseAccessToken = actualData['supabase_access_token'] as String?;
               final supabaseRefreshToken = actualData['supabase_refresh_token'] as String?;
               
               if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
-                print('🔍 [signInWithKakao] Supabase JWT 토큰 설정 중...');
-                print('   - Access Token: ${supabaseAccessToken.substring(0, 20)}...');
-                print('   - Refresh Token: ${supabaseRefreshToken?.substring(0, 20) ?? "null"}...');
+                print('🔍 [signInWithKakao] Supabase 세션 설정 중...');
+                print('   - Access Token: ${supabaseAccessToken.substring(0, min(20, supabaseAccessToken.length))}...');
+                print('   - Refresh Token: ${supabaseRefreshToken != null ? supabaseRefreshToken.substring(0, min(20, supabaseRefreshToken.length)) : "없음"}...');
                 
                 try {
-                  // Supabase 세션 설정 (recoverSession 사용)
-                  await _sb.auth.recoverSession(supabaseAccessToken);
-                  print('✅ [signInWithKakao] Supabase 세션 설정 완료');
-                  print('   - Current User: ${_sb.auth.currentUser?.id}');
-                  print('   - Session: ${_sb.auth.currentSession != null ? "있음" : "없음"}');
-                } catch (e) {
-                  print('❌ [signInWithKakao] Supabase 세션 설정 실패: $e');
+                  // Supabase Auth 세션 설정 (실제 access_token과 refresh_token 사용)
+                  final response = await _sb.auth.setSession(supabaseAccessToken);
+                  
+                  print('✅ [signInWithKakao] Supabase 세션 설정 완료!');
+                  print('   - Response User ID: ${response.user?.id}');
+                  print('   - Response User Email: ${response.user?.email}');
+                  print('   - Current User ID: ${_sb.auth.currentUser?.id}');
+                  print('   - Current User Email: ${_sb.auth.currentUser?.email}');
+                  print('   - Session 존재: ${_sb.auth.currentSession != null}');
+                  print('   - Access Token 존재: ${_sb.auth.currentSession?.accessToken != null}');
+                  
+                  if (_sb.auth.currentSession == null) {
+                    print('⚠️ [signInWithKakao] 세션 설정 후에도 currentSession이 null!');
+                  }
+                } catch (e, stackTrace) {
+                  print('❌ [signInWithKakao] Supabase 세션 설정 실패!');
+                  print('   - 에러: $e');
                   print('   - 에러 타입: ${e.runtimeType}');
+                  print('   - 스택 (처음 5줄):');
+                  stackTrace.toString().split('\n').take(5).forEach((line) => print('     $line'));
                 }
               } else {
-                print('⚠️ [signInWithKakao] Supabase JWT 토큰 없음');
+                print('⚠️ [signInWithKakao] Supabase 토큰이 백엔드 응답에 없음!');
+                print('   - actualData keys: ${actualData.keys.toList()}');
+                print('   - supabase_access_token 값: $supabaseAccessToken');
               }
               
               // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)

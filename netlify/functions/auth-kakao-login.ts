@@ -212,29 +212,84 @@ export const handler: Handler = async (event) => {
     
     const token = await issueJwt(userId)
     
-    // Supabase JWT 토큰 발급
-    const supabaseSecret = process.env.SUPABASE_JWT_SECRET
+    // Supabase Auth Admin API를 사용하여 실제 세션 생성
     let supabaseAccessToken: string | null = null
-    if (supabaseSecret) {
-      try {
-        const enc = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url')
-        const supabaseHeader = enc({ alg: 'HS256', typ: 'JWT' })
-        const supabasePayload = enc({
-          aud: 'authenticated',
-          sub: userId,
-          email: userEmail,
-          phone: '',
-          iss: 'https://your-project.supabase.co/auth/v1',
-          iat: Math.floor(Date.now() / 1000),
-          exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 30,
-        })
-        const supabaseData = `${supabaseHeader}.${supabasePayload}`
-        const supabaseSig = require('crypto').createHmac('sha256', supabaseSecret).update(supabaseData).digest('base64url')
-        supabaseAccessToken = `${supabaseData}.${supabaseSig}`
-        console.log('[Kakao Login] Supabase JWT 생성 완료')
-      } catch (err: any) {
-        console.warn('[Kakao Login] Supabase JWT 생성 실패:', err.message)
+    let supabaseRefreshToken: string | null = null
+    
+    try {
+      // Supabase Admin API로 사용자 생성/업데이트 및 세션 발급
+      const authAdminUrl = `${SUPABASE_URL}/auth/v1/admin/users`
+      
+      // 1. 사용자가 존재하는지 확인
+      const getUserRes = await fetch(`${authAdminUrl}?filter=id.eq.${userId}`, {
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      })
+      
+      if (getUserRes.ok) {
+        const users = await getUserRes.json()
+        if (users && users.users && users.users.length > 0) {
+          console.log('[Kakao Login] Supabase Auth 사용자 존재:', userId)
+        } else {
+          // 2. 사용자 생성 (Supabase Auth)
+          console.log('[Kakao Login] Supabase Auth 사용자 생성 시도:', userId)
+          const createUserRes = await fetch(authAdminUrl, {
+            method: 'POST',
+            headers: {
+              apikey: SUPABASE_SERVICE_ROLE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              id: userId,
+              email: userEmail,
+              email_confirm: true, // 이메일 확인 스킵
+              user_metadata: {
+                name: row?.name || name,
+                provider: 'kakao',
+                kakao_id: kakaoId,
+              },
+            }),
+          })
+          
+          if (createUserRes.ok) {
+            console.log('[Kakao Login] Supabase Auth 사용자 생성 성공')
+          } else {
+            const errText = await createUserRes.text()
+            console.warn('[Kakao Login] Supabase Auth 사용자 생성 실패:', errText)
+          }
+        }
       }
+      
+      // 3. 토큰 생성 (Generate Link)
+      const generateLinkRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'magiclink',
+          email: userEmail,
+        }),
+      })
+      
+      if (generateLinkRes.ok) {
+        const linkData = await generateLinkRes.json()
+        supabaseAccessToken = linkData.properties?.access_token || null
+        supabaseRefreshToken = linkData.properties?.refresh_token || null
+        console.log('[Kakao Login] Supabase 세션 토큰 생성 성공')
+        console.log('   - Access Token:', supabaseAccessToken ? '있음' : '없음')
+        console.log('   - Refresh Token:', supabaseRefreshToken ? '있음' : '없음')
+      } else {
+        const errText = await generateLinkRes.text()
+        console.warn('[Kakao Login] Supabase 토큰 생성 실패:', errText)
+      }
+    } catch (authErr: any) {
+      console.error('[Kakao Login] Supabase Auth 처리 오류:', authErr.message)
     }
     
     console.log('[Kakao Login] 로그인 성공, userId:', userId)
@@ -254,6 +309,7 @@ export const handler: Handler = async (event) => {
           external_id: row?.external_id || externalId,
         },
         supabase_access_token: supabaseAccessToken,
+        supabase_refresh_token: supabaseRefreshToken,
       }
     })
   } catch (e: any) {
