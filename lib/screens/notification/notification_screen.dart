@@ -128,6 +128,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Icons.emoji_events;
       case 'estimate_transferred':
         return Icons.swap_horiz;
+      case 'order_completed':
+        return Icons.done_all;
+      case 'review_received':
+        return Icons.star;
       case 'order_status':
         return Icons.update;
       default:
@@ -151,6 +155,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Colors.green;
       case 'estimate_transferred':
         return Colors.teal;
+      case 'order_completed':
+        return Colors.green;
+      case 'review_received':
+        return Colors.amber;
       case 'order_status':
         return Colors.orange;
       default:
@@ -317,6 +325,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const OrderMarketplaceScreen()),
+                    );
+                  } else if (type == 'order_completed' || type == 'review_received') {
+                    // 공사 완료 / 리뷰 받음 → 내 공사
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const JobManagementScreen()),
                     );
                   } else if ((type == 'call_assigned' || type == 'call_update') && (jobId?.isNotEmpty ?? false)) {
                     Navigator.push(

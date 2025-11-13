@@ -9,6 +9,7 @@ import '../../services/job_service.dart';
 import '../../models/job.dart';
 import '../../widgets/interactive_card.dart';
 import 'order_bidders_screen.dart';
+import 'order_review_screen.dart';
 
 class JobManagementScreen extends StatefulWidget {
   const JobManagementScreen({super.key});
@@ -20,7 +21,7 @@ class JobManagementScreen extends StatefulWidget {
 class _JobManagementScreenState extends State<JobManagementScreen> {
   List<Job> _combinedJobs = [];
   bool _isLoading = true;
-  String _filter = 'all'; // all | mine | call
+  String _filter = 'all'; // all | mine | in_progress | call
   Map<String, Map<String, dynamic>> _listingByJobId = {};
 
   @override
@@ -117,6 +118,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                     currentUserId: context.read<AuthService>().currentUser?.id ?? '',
                     listingsByJobId: _listingByJobId,
                     onViewBidders: _openBidderList,
+                    onCompleteJob: _completeJob,
+                    onReview: _openReviewScreen,
                   ),
                 ),
               ],
@@ -168,9 +171,12 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                 _buildModernChip('전체', 'all', Icons.dashboard_outlined, _combinedJobs.length),
                 const SizedBox(width: 10),
                 _buildModernChip('내 공사', 'mine', Icons.person_outline, 
-                    _combinedJobs.where((j) => j.ownerBusinessId == me).length),
+                    _combinedJobs.where((j) => j.ownerBusinessId == me && j.status != 'assigned').length),
                 const SizedBox(width: 10),
-                _buildModernChip('콜 공사', 'call', Icons.campaign_outlined, 
+                _buildModernChip('진행 중', 'in_progress', Icons.construction_outlined, 
+                    _combinedJobs.where((j) => j.ownerBusinessId == me && j.status == 'assigned').length),
+                const SizedBox(width: 10),
+                _buildModernChip('받은 공사', 'call', Icons.campaign_outlined, 
                     _combinedJobs.where((j) => j.assignedBusinessId == me).length),
               ],
             ),
@@ -249,7 +255,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   List<Job> _filteredByBadge(List<Job> jobs, String me) {
     if (_filter == 'all') return jobs;
     return jobs.where((j) {
-      if (_filter == 'mine') return j.ownerBusinessId == me;
+      if (_filter == 'mine') return j.ownerBusinessId == me && j.status != 'assigned';
+      if (_filter == 'in_progress') return j.ownerBusinessId == me && j.status == 'assigned';
       if (_filter == 'call') return j.assignedBusinessId == me;
       return true;
     }).toList();
@@ -272,6 +279,165 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       await _loadJobs();
     }
   }
+
+  Future<void> _completeJob(Job job) async {
+    // 완료 확인 다이얼로그
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('공사 완료'),
+        content: const Text('이 공사를 완료하시겠습니까?\n완료 후 오더 소유자가 확인하고 리뷰를 남길 수 있습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('완료하기'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      // 로딩 표시
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      final authService = context.read<AuthService>();
+      final currentUserId = authService.currentUser?.id;
+
+      if (currentUserId == null) throw Exception('로그인이 필요합니다');
+
+      // marketplace_listings 업데이트
+      final listingId = _listingByJobId[job.id]?['id']?.toString();
+      
+      if (listingId != null) {
+        await Supabase.instance.client
+            .from('marketplace_listings')
+            .update({
+              'status': 'completed',
+              'completed_at': DateTime.now().toIso8601String(),
+              'completed_by': currentUserId,
+              'updatedat': DateTime.now().toIso8601String(),
+            })
+            .eq('id', listingId);
+
+        // 오더 소유자에게 알림
+        final ownerId = job.ownerBusinessId;
+        await Supabase.instance.client.from('notifications').insert({
+          'userid': ownerId,
+          'title': '공사 완료',
+          'body': '${job.title} 공사가 완료되었습니다. 리뷰를 남겨주세요!',
+          'type': 'order_completed',
+          'jobid': listingId,
+          'isread': false,
+          'createdat': DateTime.now().toIso8601String(),
+        });
+
+        print('✅ [JobManagement] 공사 완료 처리 완료');
+      }
+
+      // jobs 테이블도 업데이트
+      if (job.id != null) {
+        await Supabase.instance.client
+            .from('jobs')
+            .update({
+              'status': 'completed',
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', job.id!);
+      }
+
+      if (mounted) {
+        Navigator.pop(context); // 로딩 닫기
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('공사가 완료되었습니다!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        await _loadJobs(); // 목록 새로고침
+      }
+    } catch (e) {
+      print('❌ [JobManagement] 공사 완료 실패: $e');
+      
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).maybePop(); // 로딩 닫기
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('공사 완료 처리 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openReviewScreen(Job job) async {
+    final listing = _listingByJobId[job.id];
+    if (listing == null) return;
+    
+    final listingId = listing['id']?.toString() ?? '';
+    final revieweeId = job.assignedBusinessId ?? '';
+    
+    if (listingId.isEmpty || revieweeId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('리뷰를 작성할 수 없습니다')),
+      );
+      return;
+    }
+
+    // 리뷰 대상 사업자 이름 가져오기
+    try {
+      final user = await Supabase.instance.client
+          .from('users')
+          .select('businessname, name')
+          .eq('id', revieweeId)
+          .maybeSingle();
+      
+      final revieweeName = user?['businessname'] ?? user?['name'] ?? '사업자';
+
+      if (!mounted) return;
+
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OrderReviewScreen(
+            listingId: listingId,
+            jobId: job.id ?? '',
+            revieweeId: revieweeId,
+            revieweeName: revieweeName,
+            orderTitle: job.title,
+          ),
+        ),
+      );
+
+      if (result == true) {
+        await _loadJobs();
+      }
+    } catch (e) {
+      print('❌ [JobManagement] 리뷰 화면 열기 실패: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('리뷰 화면을 열 수 없습니다')),
+      );
+    }
+  }
 }
 
 class _ModernJobsList extends StatelessWidget {
@@ -279,12 +445,16 @@ class _ModernJobsList extends StatelessWidget {
   final String currentUserId;
   final Map<String, Map<String, dynamic>> listingsByJobId;
   final void Function(String listingId, String orderTitle) onViewBidders;
+  final Future<void> Function(Job job) onCompleteJob;
+  final Future<void> Function(Job job) onReview;
 
   const _ModernJobsList({
     required this.jobs,
     required this.currentUserId,
     required this.listingsByJobId,
     required this.onViewBidders,
+    required this.onCompleteJob,
+    required this.onReview,
   });
 
   @override
@@ -448,6 +618,47 @@ class _ModernJobsList extends StatelessWidget {
                       label: Text('입찰자 보기 (${bidCount}명)', style: const TextStyle(fontWeight: FontWeight.w600)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1976D2),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                // 받은 공사 완료 버튼 (assignedBusinessId == currentUserId)
+                if (job.assignedBusinessId == currentUserId && job.status == 'assigned') ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => onCompleteJob(job),
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: const Text('공사 완료', style: TextStyle(fontWeight: FontWeight.w600)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                // 진행 중(assigned) 오더 리뷰 버튼 (ownerBusinessId == currentUserId && status == 'completed')
+                if (job.ownerBusinessId == currentUserId && 
+                    job.status == 'completed' && 
+                    listing != null && 
+                    listing['status'] == 'completed') ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => onReview(job),
+                      icon: const Icon(Icons.star_outline, size: 18),
+                      label: const Text('리뷰 작성', style: TextStyle(fontWeight: FontWeight.w600)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
