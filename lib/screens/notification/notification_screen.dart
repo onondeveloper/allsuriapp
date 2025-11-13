@@ -71,6 +71,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Future<void> _markAsRead(Map<String, dynamic> notification) async {
+    // 1. 읽음 처리
     if (notification['isread'] != true) {
       await _notificationService.markAsRead(notification['id']);
       setState(() {
@@ -80,6 +81,30 @@ class _NotificationScreenState extends State<NotificationScreen> {
         }
       });
     }
+    
+    // 2. 알림 타입에 따라 페이지 이동
+    final type = notification['type'] as String?;
+    
+    if (type == 'bid_pending') {
+      // 입찰 확인 - 오더 마켓플레이스로 이동
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const OrderMarketplaceScreen(),
+        ),
+      );
+    } else if (type == 'new_bid') {
+      // 새로운 입찰 - 입찰자 목록으로 이동
+      final listingId = (notification['jobid'] ?? notification['jobId'])?.toString();
+      if (listingId != null && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OrderBiddersScreen(listingId: listingId),
+          ),
+        );
+      }
+    }
+    // 다른 타입들도 필요시 추가
   }
 
   Future<void> _markAllAsRead() async {
@@ -130,6 +155,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Icons.comment;
       case 'new_bid':
         return Icons.gavel;
+      case 'bid_pending':
+        return Icons.schedule;
       case 'bid_selected':
         return Icons.check_circle;
       case 'bid_rejected':
@@ -157,6 +184,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Colors.purple;
       case 'new_bid':
         return Colors.orange;
+      case 'bid_pending':
+        return Colors.blue;
       case 'bid_selected':
         return Colors.green;
       case 'bid_rejected':

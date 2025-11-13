@@ -221,13 +221,19 @@ async function handleBidListing(event: HandlerEvent, path: string) {
       )
       const listings = await listingResponse.json()
       const listing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null
+      
+      console.log(`[market] 📧 알림 전송 시작:`)
+      console.log(`   - Listing: ${listing?.title}`)
+      console.log(`   - 오더 소유자: ${listing?.posted_by}`)
+      console.log(`   - 입찰자: ${businessId}`)
 
       if (listing) {
-        const notificationTitle = '새로운 입찰'
-        const notificationBody = `${listing.title || '오더'}에 새로운 입찰이 들어왔습니다.`
+        // 1. 오더 소유자에게 알림 (새로운 입찰)
+        const ownerNotificationTitle = '새로운 입찰'
+        const ownerNotificationBody = `${listing.title || '오더'}에 새로운 입찰이 들어왔습니다.`
         
-        // DB 알림 생성
-        const notifResponse = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+        console.log(`[market] 📧 오더 소유자에게 알림 생성 중...`)
+        const ownerNotifResponse = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
           method: 'POST',
           headers: {
             apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -237,8 +243,8 @@ async function handleBidListing(event: HandlerEvent, path: string) {
           },
           body: JSON.stringify({
             userid: listing.posted_by,
-            title: notificationTitle,
-            body: notificationBody,
+            title: ownerNotificationTitle,
+            body: ownerNotificationBody,
             type: 'new_bid',
             jobid: id, // listing ID를 jobid로 저장
             isread: false,
@@ -246,10 +252,44 @@ async function handleBidListing(event: HandlerEvent, path: string) {
           })
         })
         
-        if (!notifResponse.ok) {
-          console.warn('[market] 알림 생성 실패:', await notifResponse.text())
+        if (!ownerNotifResponse.ok) {
+          const errText = await ownerNotifResponse.text()
+          console.warn(`[market] ❌ 오더 소유자 알림 생성 실패: ${errText}`)
         } else {
-          console.log('[market] 알림 생성 완료')
+          const ownerNotifData = await ownerNotifResponse.json()
+          console.log(`[market] ✅ 오더 소유자 알림 생성 완료:`, ownerNotifData)
+        }
+        
+        // 2. 입찰자에게 알림 (입찰 확인)
+        const bidderNotificationTitle = '입찰 완료'
+        const bidderNotificationBody = `${listing.title || '오더'}에 입찰이 완료되었습니다. 오더 소유자의 승인을 기다리고 있어요~`
+        
+        console.log(`[market] 📧 입찰자에게 알림 생성 중...`)
+        const bidderNotifResponse = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify({
+            userid: businessId,
+            title: bidderNotificationTitle,
+            body: bidderNotificationBody,
+            type: 'bid_pending',
+            jobid: id,
+            isread: false,
+            createdat: new Date().toISOString(),
+          })
+        })
+        
+        if (!bidderNotifResponse.ok) {
+          const errText = await bidderNotifResponse.text()
+          console.warn(`[market] ❌ 입찰자 알림 생성 실패: ${errText}`)
+        } else {
+          const bidderNotifData = await bidderNotifResponse.json()
+          console.log(`[market] ✅ 입찰자 알림 생성 완료:`, bidderNotifData)
         }
 
         // 푸시 알림 전송 (Supabase Edge Function)

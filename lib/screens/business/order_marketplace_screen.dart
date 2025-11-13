@@ -445,6 +445,33 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                       ),
                                     ),
                                   ],
+                                  // 입찰 상태 배지 (내가 입찰한 오더)
+                                  if (hasBid) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.orange, width: 1.5),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.schedule, size: 12, color: Colors.orange[700]),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '낙찰 대기중',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.orange[700],
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                               const SizedBox(height: 12),
@@ -662,35 +689,37 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         return;
       }
       
+      // 낙관적 UI 업데이트: 즉시 입찰 상태 반영
+      setState(() {
+        _myBidListingIds.add(id);
+      });
+      
+      // 즉시 성공 메시지 표시
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('입찰이 완료되었습니다! 오더를 만든 사업자의 승인을 기다리고 있어요~'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      
+      // 백그라운드에서 실제 API 호출
       print('   → marketplace_service에서 오더 잡기 요청 중...');
       final ok = await _market.claimListing(id, businessId: currentUserId);
       
       if (!mounted) return;
       
-      if (ok) {
-        print('   ✅ 입찰 성공!');
-        
-        // 입찰한 오더 목록에 추가
+      if (!ok) {
+        // 실패 시 롤백
+        print('   ❌ 오더 잡기 실패 - 롤백');
         setState(() {
-          _myBidListingIds.add(id);
+          _myBidListingIds.remove(id);
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('입찰이 완료되었습니다! 오더를 만든 사업자의 승인을 기다리고 있어요~'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 4),
-          ),
-        );
-        
-        // 목록 새로고침
-        await _reload();
-      } else {
-        print('   ❌ 오더 잡기 실패 (이미 다른 사업자가 잡았거나 오류)');
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('이미 다른 사업자가 가져갔거나 오류가 발생했습니다'),
+            content: Text('입찰에 실패했습니다. 이미 다른 사업자가 입찰했거나 오류가 발생했습니다'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),
