@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 // Supabase Auth 전환: Firebase/GoogleSignIn 제거
 import 'package:supabase_flutter/supabase_flutter.dart';
