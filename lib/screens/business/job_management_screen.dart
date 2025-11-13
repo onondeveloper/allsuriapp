@@ -330,16 +330,19 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       
       if (listingId == null && job.id != null) {
         // 직접 조회
-        print('   listingId 없음, 직접 조회 시도');
+        print('   listingId 없음, 직접 조회 시도 (jobid=${job.id})');
         final listings = await Supabase.instance.client
             .from('marketplace_listings')
-            .select('id')
+            .select('id, jobid, claimed_by')
             .eq('jobid', job.id!)
-            .limit(1);
+            .eq('claimed_by', currentUserId); // 내가 가져간 것만
         
+        print('   직접 조회 결과: ${listings.length}개');
         if (listings.isNotEmpty) {
           listingId = listings.first['id']?.toString();
           print('   직접 조회로 listingId 찾음: $listingId');
+        } else {
+          print('   ❌ 직접 조회 실패 - claimed_by로 조회해도 없음');
         }
       }
       
