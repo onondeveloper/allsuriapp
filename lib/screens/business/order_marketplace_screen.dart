@@ -241,15 +241,9 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                     // 내가 올린 오더는 제외
                     if (postedBy == currentUserId) return false;
                     
-                    // 이미 입찰한 오더는 제외
-                    if (_myBidListingIds.contains(listingId)) {
-                      print('   [필터] 이미 입찰한 오더 제외: $listingId');
-                      return false;
-                    }
-                    
                     return true;
                   }).toList();
-                  print('OrderMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회/생성됨, 미입찰만)');
+                  print('OrderMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회/생성됨)');
                   if (visibleItems.isEmpty) {
                     print('OrderMarketplaceScreen: 빈 목록 표시');
                     return ListView(
@@ -325,11 +319,13 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                       final authService = Provider.of<AuthService>(context, listen: false);
                       final currentUserId = authService.currentUser?.id;
                       final isOwner = currentUserId == postedBy;
+                      final hasBid = _myBidListingIds.contains(id);
+                      final bool canBid = (status == 'open' || status == 'withdrawn' || status == 'created') && !hasBid;
 
                       // 상태 라벨은 이 화면에서 불필요 (항상 오픈/철회만 표시)
 
                       return GestureDetector(
-                        onTap: () => _showCallDetail(e),
+                        onTap: () => _showCallDetail(e, alreadyBid: hasBid),
                         child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
@@ -556,93 +552,26 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                     width: 100,
                                     child: ElevatedButton.icon(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFF57C00),
-                                        foregroundColor: Colors.white,
+                                        backgroundColor: canBid ? const Color(0xFFF57C00) : Colors.grey[300],
+                                        foregroundColor: canBid ? Colors.white : Colors.grey[600],
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                         elevation: 0,
                                       ),
-                                    onPressed: (status == 'open' || status == 'withdrawn')
+                                    onPressed: canBid
                                         ? () async {
-                                            // AuthService에서 사용자 ID 가져오기
-                                            final authService = Provider.of<AuthService>(context, listen: false);
-                                            final userId = authService.currentUser?.id;
-                                            
-                                            if (userId == null) {
-                                              if (!mounted) return;
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(content: Text('로그인이 필요합니다')),
-                                              );
-                                              return;
+                                              await _claimListing(id);
                                             }
-                                            
-                                            final ok = await _market.claimListing(id, businessId: userId);
-                                            if (!mounted) return;
-                                            if (ok) {
-                                              final me = userId;
-                                                if (postedBy != null && postedBy.isNotEmpty && me != null && me.isNotEmpty) {
-                                                  try {
-                                                    await ChatService().createChatRoom('call_$id', postedBy, me);
-                                                  } catch (_) {}
-                                                }
-                                                String estimateId = '';
-                                                if (me != null && me.isNotEmpty && jobId.isNotEmpty) {
-                                                  try {
-                                                    final estimateSvc = context.read<EstimateService>();
-                                                    estimateId = await estimateSvc.createEstimate(
-                                                      Estimate(
-                                                        id: '',
-                                                        orderId: jobId,
-                                                        customerId: '',
-                                                        customerName: '고객',
-                                                        businessId: me,
-                                                        businessName: '사업자',
-                                                        businessPhone: '',
-                                                        equipmentType: '기타',
-                                                        amount: (budget is num) ? budget.toDouble() : 0.0,
-                                                        description: (e['description']?.toString() ?? title),
-                                                        estimatedDays: 0,
-                                                        createdAt: DateTime.now(),
-                                                        visitDate: DateTime.now(),
-                                                        status: Estimate.STATUS_COMPLETED,
-                                                      ),
-                                                    );
-                                                  } catch (_) {}
-                                                }
-                                                // 채팅방 UUID 확보 후 채팅으로 이동
-                                                String chatRoomId = '';
-                                                if (postedBy != null && postedBy.isNotEmpty && me != null && me.isNotEmpty) {
-                                                  try {
-                                                    chatRoomId = await ChatService().createChatRoom('call_$id', postedBy, me, estimateId: estimateId);
-                                                  } catch (_) {}
-                                                }
-                                                if (chatRoomId.isNotEmpty) {
-                                                  // 채팅으로 먼저 이동
-                                                  if (!mounted) return;
-                                                  Navigator.pushReplacement(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (_) => ChatScreen(chatRoomId: chatRoomId, chatRoomTitle: '원 사업자와 채팅'),
-                                                    ),
-                                                  );
-                                                } else {
-                                                  // 기존 흐름 유지
-                                                  Navigator.pushReplacement(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (_) => const EstimateManagementScreen(initialStatus: Estimate.STATUS_COMPLETED),
-                                                  ),
-                                                  );
-                                                }
-                                              } else {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(content: Text('이미 다른 사업자가 가져갔습니다')),
-                                                );
-                                              }
-                                            }
-                                          : null,
-                                      icon: const Icon(Icons.touch_app_rounded, size: 16),
-                                      label: const Text('잡기', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                                        : null,
+                                    icon: Icon(Icons.touch_app_rounded, size: 16, color: canBid ? Colors.white : Colors.grey[600]),
+                                    label: Text(
+                                      hasBid ? '입찰 완료' : '잡기',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                        color: canBid ? Colors.white : Colors.grey[600],
+                                      ),
+                                    ),
                                     ),
                                   ),
                                 ],
@@ -781,7 +710,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     }
   }
 
-  void _showCallDetail(Map<String, dynamic> data) {
+  void _showCallDetail(Map<String, dynamic> data, {bool alreadyBid = false}) {
     final String title = (data['title'] ?? data['description'] ?? '-') as String;
     final String description = (data['description'] ?? '-') as String;
     final String region = (data['region'] ?? '-') as String;
@@ -795,7 +724,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     final authService = Provider.of<AuthService>(context, listen: false);
     final currentUserId = authService.currentUser?.id;
     final isOwner = currentUserId == postedBy;
-    final bidCount = data['bid_count'] ?? 0;
+    final hasBid = alreadyBid || _myBidListingIds.contains(data['id']?.toString() ?? '');
 
     Navigator.push(
       context,
@@ -1106,18 +1035,20 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                               ),
                             )
                           : ElevatedButton.icon(
-                              onPressed: () async {
-                                Navigator.pop(context);
-                                await _claimListing(data['id'].toString());
-                              },
-                              icon: const Icon(Icons.touch_app_rounded, size: 20),
-                              label: const Text(
-                                '오더 잡기',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              onPressed: hasBid
+                                  ? null
+                                  : () async {
+                                      Navigator.pop(context);
+                                      await _claimListing(data['id'].toString());
+                                    },
+                              icon: Icon(Icons.touch_app_rounded, size: 20, color: hasBid ? Colors.grey[600] : Colors.white),
+                              label: Text(
+                                hasBid ? '입찰 완료' : '오더 잡기',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: hasBid ? Colors.grey[600] : Colors.white),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFF57C00),
-                                foregroundColor: Colors.white,
+                                backgroundColor: hasBid ? Colors.grey[300] : const Color(0xFFF57C00),
+                                foregroundColor: hasBid ? Colors.grey[600] : Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
