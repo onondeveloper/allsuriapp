@@ -41,15 +41,25 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       if (currentUserId == null) return;
 
       final allJobs = await jobService.getJobs();
-      final related = allJobs.where((job) =>
-          job.ownerBusinessId == currentUserId ||
-          job.assignedBusinessId == currentUserId).toList();
+      final related = allJobs.where((job) {
+        // 내가 관련된 공사만 (소유자 또는 할당받은 사업자)
+        final isRelated = job.ownerBusinessId == currentUserId ||
+            job.assignedBusinessId == currentUserId;
+        
+        // completed 상태는 제외 (완료된 공사는 리스트에서 제거)
+        final isNotCompleted = job.status != 'completed';
+        
+        return isRelated && isNotCompleted;
+      }).toList();
+      
       final Map<String, Job> byId = {};
       for (final j in related) {
         final id = j.id ?? UniqueKey().toString();
         byId[id] = j;
       }
       _combinedJobs = byId.values.toList();
+      
+      print('🔍 [JobManagement] 로드된 공사: ${_combinedJobs.length}개 (completed 제외)');
 
       // fetch marketplace listings for all related jobs (내가 올린 것 + 받은 것)
       final jobIds = _combinedJobs
