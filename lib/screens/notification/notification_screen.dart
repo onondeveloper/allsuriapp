@@ -96,10 +96,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
     } else if (type == 'new_bid') {
       // 새로운 입찰 - 입찰자 목록으로 이동
       final listingId = (notification['jobid'] ?? notification['jobId'])?.toString();
+      final orderTitle = notification['title']?.toString() ?? '오더';
       if (listingId != null && mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => OrderBiddersScreen(listingId: listingId),
+            builder: (_) => OrderBiddersScreen(
+              listingId: listingId,
+              orderTitle: orderTitle,
+            ),
           ),
         );
       }
