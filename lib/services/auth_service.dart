@@ -164,18 +164,61 @@ class AuthService extends ChangeNotifier {
         token = await kakao.UserApi.instance.loginWithKakaoAccount();
       }
 
-      // 백엔드로 토큰 교환 (타임아웃 설정)
+      // 백엔드로 토큰 교환 (타임아웃 설정 + 재시도)
       final api = ApiService();
       print('🔍 [signInWithKakao] 백엔드로 카카오 토큰 전송 중...');
-      final resp = await api.post('/auth/kakao/login', {
-        'access_token': token.accessToken,
-      }).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => {'success': false, 'error': 'timeout'},
-      );
       
-      print('🔍 [signInWithKakao] 백엔드 응답: $resp');
-      print('🔍 [signInWithKakao] resp[\'success\']: ${resp['success']}');
+      Map<String, dynamic>? resp;
+      int retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          resp = await api.post('/auth/kakao/login', {
+            'access_token': token.accessToken,
+          }).timeout(
+            const Duration(seconds: 15), // 5초 → 15초로 증가
+            onTimeout: () {
+              print('⚠️ [signInWithKakao] 타임아웃 발생 (시도 ${retryCount + 1}/${maxRetries + 1})');
+              return {'success': false, 'error': 'timeout'};
+            },
+          );
+          
+          print('🔍 [signInWithKakao] 백엔드 응답 (시도 ${retryCount + 1}): $resp');
+          
+          // 성공하면 루프 탈출
+          if (resp['success'] == true) {
+            print('✅ [signInWithKakao] 백엔드 응답 성공!');
+            break;
+          }
+          
+          // 타임아웃이면 재시도
+          if (resp['error'] == 'timeout' && retryCount < maxRetries) {
+            retryCount++;
+            print('🔄 [signInWithKakao] 재시도 중... (${retryCount}/${maxRetries})');
+            await Future.delayed(const Duration(milliseconds: 500));
+            continue;
+          }
+          
+          // 다른 에러면 중단
+          break;
+        } catch (e) {
+          print('❌ [signInWithKakao] API 호출 에러: $e');
+          if (retryCount < maxRetries) {
+            retryCount++;
+            print('🔄 [signInWithKakao] 재시도 중... (${retryCount}/${maxRetries})');
+            await Future.delayed(const Duration(milliseconds: 500));
+            continue;
+          }
+          rethrow;
+        }
+      }
+      
+      if (resp == null) {
+        throw Exception('백엔드 응답 없음');
+      }
+      
+      print('🔍 [signInWithKakao] 최종 resp[\'success\']: ${resp['success']}');
       
       if (resp['success'] == true) {
         // ApiService.post()가 응답을 한 번 감싸므로, resp['data']가 실제 백엔드 응답
