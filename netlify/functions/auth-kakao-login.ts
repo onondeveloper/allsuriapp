@@ -25,7 +25,7 @@ export const handler: Handler = async (event) => {
         token,
         data: {
           token,
-          user: { id: userId, name: '카카오 테스트 사용자', email: 'kakao_test@example.local' },
+          user: { id: userId, name: '카카오 테스트 사용자', email: 'kakao-test@allsuri.app' },
           supabase_access_token: null,
           supabase_refresh_token: null,
         }
@@ -74,7 +74,7 @@ export const handler: Handler = async (event) => {
         token,
         data: {
           token,
-          user: { id: localId, name, email: email || `${localId}@example.local`, role: 'customer' },
+          user: { id: localId, name, email: email || `kakao-${kakaoId}@allsuri.app`, role: 'customer' },
           supabase_access_token: null,
           supabase_refresh_token: null,
         }
@@ -106,7 +106,7 @@ export const handler: Handler = async (event) => {
     // 2) If not found, insert minimal row (let Supabase generate UUID id). Include columns if they exist.
     if (!row) {
       const payload: Record<string, any> = {
-        email: email || `${externalId}@example.local`,
+        email: email || `kakao-${kakaoId}@allsuri.app`,
         name,
         role: 'customer',
         createdat: nowIso, // 소문자로 통일 (Supabase 테이블 스키마에 맞춤)
@@ -152,7 +152,7 @@ export const handler: Handler = async (event) => {
             user: { 
               id: uuid, 
               name, 
-              email: email || `${externalId}@example.local`, 
+              email: email || `kakao-${kakaoId}@allsuri.app`, 
               role: 'customer',
               external_id: externalId,
               kakao_id: kakaoId,
@@ -208,7 +208,7 @@ export const handler: Handler = async (event) => {
     const userId = row?.id || externalId
     const userRole = row?.role || 'customer'
     const businessStatus = row?.businessStatus || row?.businessstatus
-    const userEmail = row?.email || email || `${externalId}@example.local`
+    const userEmail = row?.email || email || `kakao-${kakaoId}@allsuri.app`
     
     const token = await issueJwt(userId)
     

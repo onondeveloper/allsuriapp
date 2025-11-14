@@ -68,7 +68,7 @@ class HomeScreen extends StatelessWidget {
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
-            title: const Text('AllSuri'),
+            title: const Text('올수리'),
             actions: authService.isAuthenticated
                 ? [
                     IconButton(
