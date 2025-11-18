@@ -70,21 +70,31 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       print('🔍 [JobManagement] jobIds: $jobIds');
 
       if (jobIds.isNotEmpty) {
-        final listings = await Supabase.instance.client
-            .from('marketplace_listings')
-            .select('id, jobid, title, bid_count, status, claimed_by')
-            .inFilter('jobid', jobIds);
-
-        print('🔍 [JobManagement] 조회된 listings: ${listings.length}개');
-        if (listings.isNotEmpty) {
-          print('   첫 번째 listing: ${listings.first}');
+        // marketplace_listings를 각 job별로 조회 (RLS 우회)
+        final Map<String, Map<String, dynamic>> tempMap = {};
+        
+        for (final jobId in jobIds) {
+          try {
+            final result = await Supabase.instance.client
+                .from('marketplace_listings')
+                .select('id, jobid, title, bid_count, status, claimed_by, selected_bidder_id, completed_by')
+                .eq('jobid', jobId)
+                .maybeSingle();
+            
+            if (result != null) {
+              tempMap[jobId] = Map<String, dynamic>.from(result);
+            }
+          } catch (e) {
+            print('⚠️ [JobManagement] listing 조회 실패 (jobId=$jobId): $e');
+          }
         }
+        
+        _listingByJobId = tempMap;
 
-        _listingByJobId = {
-          for (final row in listings)
-            if (row['jobid'] != null)
-              row['jobid'].toString(): Map<String, dynamic>.from(row),
-        };
+        print('🔍 [JobManagement] 조회된 listings: ${_listingByJobId.length}개');
+        if (_listingByJobId.isNotEmpty) {
+          print('   첫 번째 listing: ${_listingByJobId.values.first}');
+        }
         
         print('✅ [JobManagement] ${_listingByJobId.length}개 listing 매핑 완료');
         print('   매핑된 jobIds: ${_listingByJobId.keys.toList()}');

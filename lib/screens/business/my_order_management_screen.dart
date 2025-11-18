@@ -57,20 +57,40 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
         print('   posted_by: ${listings[0]['posted_by']}');
       }
 
-      // 추가: jobs 테이블에서도 확인 (marketplace_listings에 없을 경우)
+      // 추가: jobs 테이블에서 내 공사 확인
       final jobs = await Supabase.instance.client
           .from('jobs')
-          .select('*, marketplace_listings(*)')
+          .select('id, title, status, owner_business_id')
           .eq('owner_business_id', currentUserId)
           .order('created_at', ascending: false);
 
       print('🔍 [MyOrderManagement] jobs 테이블 조회 결과: ${jobs.length}개');
       
-      // marketplace_listings가 있는 jobs만 필터링
-      final jobsWithListings = jobs.where((job) {
-        final listing = job['marketplace_listings'];
-        return listing != null && listing is Map && listing.isNotEmpty;
-      }).toList();
+      // 각 job에 대해 marketplace_listings를 개별 조회
+      final List<Map<String, dynamic>> jobsWithListings = [];
+      
+      for (final job in jobs) {
+        final jobId = job['id']?.toString();
+        if (jobId != null) {
+          try {
+            final listing = await Supabase.instance.client
+                .from('marketplace_listings')
+                .select('*')
+                .eq('jobid', jobId)
+                .maybeSingle();
+            
+            if (listing != null) {
+              jobsWithListings.add({
+                ...Map<String, dynamic>.from(listing),
+                'jobs': job,
+              });
+              print('   ✓ job $jobId → listing ${listing['id']}');
+            }
+          } catch (e) {
+            print('   ✗ job $jobId listing 조회 실패: $e');
+          }
+        }
+      }
       
       print('🔍 [MyOrderManagement] marketplace_listings가 있는 jobs: ${jobsWithListings.length}개');
 
@@ -86,18 +106,11 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
         }
       }
       
-      for (final job in jobsWithListings) {
-        final listing = job['marketplace_listings'];
-        if (listing is Map) {
-          final id = listing['id']?.toString();
-          if (id != null && !seenIds.contains(id)) {
-            seenIds.add(id);
-            // marketplace_listings를 최상위로 올리고 jobs는 내부에 포함
-            combinedOrders.add({
-              ...Map<String, dynamic>.from(listing),
-              'jobs': job,
-            });
-          }
+      for (final jobWithListing in jobsWithListings) {
+        final id = jobWithListing['id']?.toString();
+        if (id != null && !seenIds.contains(id)) {
+          seenIds.add(id);
+          combinedOrders.add(jobWithListing);
         }
       }
 
