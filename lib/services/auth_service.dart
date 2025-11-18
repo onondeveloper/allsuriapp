@@ -253,18 +253,26 @@ class AuthService extends ChangeNotifier {
                 
                 try {
                   // Supabase Auth 세션 설정 (실제 access_token과 refresh_token 사용)
-                  final response = await _sb.auth.setSession(supabaseAccessToken);
-                  
+                  Session? setSessionResponse;
+                  if (supabaseRefreshToken != null && supabaseRefreshToken.isNotEmpty) {
+                    setSessionResponse = await _sb.auth.setSession(supabaseAccessToken, refreshToken: supabaseRefreshToken);
+                  } else {
+                    setSessionResponse = await _sb.auth.setSession(supabaseAccessToken);
+                  }
+
                   print('✅ [signInWithKakao] Supabase 세션 설정 완료!');
-                  print('   - Response User ID: ${response.user?.id}');
-                  print('   - Response User Email: ${response.user?.email}');
+                  print('   - Response User ID: ${setSessionResponse?.user?.id}');
+                  print('   - Response User Email: ${setSessionResponse?.user?.email}');
                   print('   - Current User ID: ${_sb.auth.currentUser?.id}');
                   print('   - Current User Email: ${_sb.auth.currentUser?.email}');
                   print('   - Session 존재: ${_sb.auth.currentSession != null}');
                   print('   - Access Token 존재: ${_sb.auth.currentSession?.accessToken != null}');
+                  print('   - Refresh Token 존재: ${_sb.auth.currentSession?.refreshToken != null}');
                   
                   if (_sb.auth.currentSession == null) {
                     print('⚠️ [signInWithKakao] 세션 설정 후에도 currentSession이 null!');
+                  } else if (_sb.auth.currentSession?.refreshToken == null) {
+                    print('⚠️ [signInWithKakao] 세션 설정 후에도 refreshToken이 null!');
                   }
                 } catch (e, stackTrace) {
                   print('❌ [signInWithKakao] Supabase 세션 설정 실패!');
