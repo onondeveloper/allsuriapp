@@ -21,8 +21,9 @@ class JobManagementScreen extends StatefulWidget {
 
 class _JobManagementScreenState extends State<JobManagementScreen> {
   List<Job> _combinedJobs = [];
+  List<Job> _completedJobs = []; // 완료된 공사 (awaiting_confirmation + completed)
   bool _isLoading = true;
-  String _filter = 'all'; // all | mine | in_progress | call
+  String _filter = 'all'; // all | mine | in_progress | call | completed
   Map<String, Map<String, dynamic>> _listingByJobId = {};
   bool _isCompleting = false; // 공사 완료 중 플래그
 
@@ -45,19 +46,26 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       final allJobs = await jobService.getJobs();
       print('🔍 [JobManagement] 전체 공사: ${allJobs.length}개');
       
-      final related = allJobs.where((job) {
-        // 내가 관련된 공사만 (소유자 또는 할당받은 사업자)
-        final isRelated = job.ownerBusinessId == currentUserId ||
+      // 내가 관련된 공사 필터링
+      final myJobs = allJobs.where((job) {
+        return job.ownerBusinessId == currentUserId ||
             job.assignedBusinessId == currentUserId;
-        
-        // completed와 awaiting_confirmation 상태는 제외
+      }).toList();
+      
+      // 완료된 공사 (awaiting_confirmation + completed)
+      _completedJobs = myJobs.where((job) {
+        return job.status == 'completed' || job.status == 'awaiting_confirmation';
+      }).toList();
+      
+      // 진행 중인 공사 (완료 제외)
+      final related = myJobs.where((job) {
         final isNotCompleted = job.status != 'completed' && job.status != 'awaiting_confirmation';
         
-        if (isRelated && !isNotCompleted) {
-          print('   제외: ${job.title} (status: ${job.status})');
+        if (!isNotCompleted) {
+          print('   완료됨 필터로 이동: ${job.title} (status: ${job.status})');
         }
         
-        return isRelated && isNotCompleted;
+        return isNotCompleted;
       }).toList();
       
       final Map<String, Job> byId = {};
@@ -67,7 +75,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       }
       _combinedJobs = byId.values.toList();
       
-      print('🔍 [JobManagement] 로드된 공사: ${_combinedJobs.length}개 (completed, awaiting_confirmation 제외)');
+      print('🔍 [JobManagement] 진행중 공사: ${_combinedJobs.length}개, 완료된 공사: ${_completedJobs.length}개');
 
       // fetch marketplace listings for all related jobs (내가 올린 것 + 받은 것)
       final jobIds = _combinedJobs
@@ -231,6 +239,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                 const SizedBox(width: 10),
                 _buildModernChip('받은 공사', 'call', Icons.campaign_outlined, 
                     _combinedJobs.where((j) => j.assignedBusinessId == me).length),
+                const SizedBox(width: 10),
+                _buildModernChip('완료됨', 'completed', Icons.check_circle_outline, _completedJobs.length),
               ],
             ),
           ),
@@ -306,6 +316,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   }
 
   List<Job> _filteredByBadge(List<Job> jobs, String me) {
+    if (_filter == 'completed') return _completedJobs; // 완료된 공사 별도 처리
     if (_filter == 'all') return jobs;
     return jobs.where((j) {
       if (_filter == 'mine') return j.ownerBusinessId == me && j.status != 'assigned';
