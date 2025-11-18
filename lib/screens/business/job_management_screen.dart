@@ -675,17 +675,26 @@ class _ModernJobsList extends StatelessWidget {
                   ),
                 ],
                 // 받은 공사 완료 버튼 (assignedBusinessId == currentUserId)
-                if (job.assignedBusinessId == currentUserId && job.status == 'assigned') ...[
+                if (job.assignedBusinessId == currentUserId && 
+                    (job.status == 'assigned' || job.status == 'awaiting_confirmation')) ...[
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () => onCompleteJob(job),
-                      icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: const Text('공사 완료', style: TextStyle(fontWeight: FontWeight.w600)),
+                      onPressed: job.status == 'assigned' ? () => onCompleteJob(job) : null,
+                      icon: Icon(
+                        job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline,
+                        size: 18,
+                      ),
+                      label: Text(
+                        job.status == 'awaiting_confirmation' ? '완료된 공사' : '공사 완료',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: job.status == 'awaiting_confirmation' ? Colors.grey : Colors.green,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[400],
+                        disabledForegroundColor: Colors.white70,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),

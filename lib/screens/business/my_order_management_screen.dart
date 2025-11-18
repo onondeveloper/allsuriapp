@@ -35,7 +35,10 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
       final authService = context.read<AuthService>();
       final currentUserId = authService.currentUser?.id;
 
-      if (currentUserId == null) return;
+      if (currentUserId == null) {
+        print('❌ [MyOrderManagement] 현재 사용자 ID가 없음');
+        return;
+      }
 
       print('🔍 [MyOrderManagement] 내가 생성한 오더 로드 시작');
       print('   현재 사용자 ID: $currentUserId');
@@ -48,12 +51,64 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
           .order('createdat', ascending: false);
 
       print('🔍 [MyOrderManagement] 조회된 오더: ${listings.length}개');
+      
+      if (listings.isNotEmpty) {
+        print('   첫 번째 오더: ${listings[0]['id']} - ${listings[0]['title']}');
+        print('   posted_by: ${listings[0]['posted_by']}');
+      }
+
+      // 추가: jobs 테이블에서도 확인 (marketplace_listings에 없을 경우)
+      final jobs = await Supabase.instance.client
+          .from('jobs')
+          .select('*, marketplace_listings(*)')
+          .eq('owner_business_id', currentUserId)
+          .order('created_at', ascending: false);
+
+      print('🔍 [MyOrderManagement] jobs 테이블 조회 결과: ${jobs.length}개');
+      
+      // marketplace_listings가 있는 jobs만 필터링
+      final jobsWithListings = jobs.where((job) {
+        final listing = job['marketplace_listings'];
+        return listing != null && listing is Map && listing.isNotEmpty;
+      }).toList();
+      
+      print('🔍 [MyOrderManagement] marketplace_listings가 있는 jobs: ${jobsWithListings.length}개');
+
+      // 두 결과를 합치기 (중복 제거)
+      final Set<String> seenIds = {};
+      final List<Map<String, dynamic>> combinedOrders = [];
+      
+      for (final listing in listings) {
+        final id = listing['id']?.toString();
+        if (id != null && !seenIds.contains(id)) {
+          seenIds.add(id);
+          combinedOrders.add(listing);
+        }
+      }
+      
+      for (final job in jobsWithListings) {
+        final listing = job['marketplace_listings'];
+        if (listing is Map) {
+          final id = listing['id']?.toString();
+          if (id != null && !seenIds.contains(id)) {
+            seenIds.add(id);
+            // marketplace_listings를 최상위로 올리고 jobs는 내부에 포함
+            combinedOrders.add({
+              ...Map<String, dynamic>.from(listing),
+              'jobs': job,
+            });
+          }
+        }
+      }
+
+      print('🔍 [MyOrderManagement] 최종 오더 수: ${combinedOrders.length}개');
 
       setState(() {
-        _myOrders = List<Map<String, dynamic>>.from(listings);
+        _myOrders = combinedOrders;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ [MyOrderManagement] 오더 로드 실패: $e');
+      print('   StackTrace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('오더 로드 실패: $e'), backgroundColor: Colors.red),
