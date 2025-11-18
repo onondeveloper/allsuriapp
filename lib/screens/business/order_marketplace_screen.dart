@@ -35,7 +35,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
   late Future<List<Map<String, dynamic>>> _future;
   String _status = 'all';
   RealtimeChannel? _channel;
-  Set<String> _myBidListingIds = {}; // 내가 이미 입찰한 오더 ID 목록
+  Set<String> _myActiveBidListingIds = {}; // 'pending' 상태 입찰
+  Map<String, String> _myBidStatusByListing = {}; // listingId -> status
 
   @override
   void initState() {
@@ -149,17 +150,25 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           );
           if (response['success'] == true) {
             final bids = List<Map<String, dynamic>>.from(response['data'] ?? []);
-            _myBidListingIds = bids
-                .map((e) => e['listing_id']?.toString() ?? '')
-                .where((id) => id.isNotEmpty)
+            _myBidStatusByListing = {
+              for (final bid in bids)
+                if ((bid['listing_id']?.toString() ?? '').isNotEmpty)
+                  bid['listing_id'].toString(): (bid['status'] ?? 'pending').toString(),
+            };
+            _myActiveBidListingIds = _myBidStatusByListing.entries
+                .where((entry) => entry.value == 'pending')
+                .map((entry) => entry.key)
                 .toSet();
-            print('✅ [_loadInitialData] ${_myBidListingIds.length}개 입찰 확인: $_myBidListingIds');
+            print('✅ [_loadInitialData] ${_myActiveBidListingIds.length}개 진행중 입찰: $_myActiveBidListingIds');
           } else {
             print('⚠️ [_loadInitialData] 입찰 목록 API 실패: ${response['error']}');
           }
         } catch (e) {
           print('⚠️ [_loadInitialData] 입찰 목록 로드 실패: $e');
         }
+      } else {
+        _myBidStatusByListing = {};
+        _myActiveBidListingIds = {};
       }
       
       // 2. 전체 오더 목록 로드
@@ -187,17 +196,27 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       print('🔍 [_loadMyBids] 내 입찰 목록 로드 중...');
       
-      final response = await Supabase.instance.client
-          .from('order_bids')
-          .select('listing_id')
-          .eq('bidder_id', currentUserId)
-          .eq('status', 'pending');
+      final response = await _api.get(
+        '/market/bids?bidderId=$currentUserId&statuses=pending,selected,awaiting_confirmation',
+      );
       
-      setState(() {
-        _myBidListingIds = response.map((e) => e['listing_id'].toString()).toSet();
-      });
-      
-      print('✅ [_loadMyBids] ${_myBidListingIds.length}개 입찰 확인: $_myBidListingIds');
+      if (response['success'] == true) {
+        final bids = List<Map<String, dynamic>>.from(response['data'] ?? []);
+        setState(() {
+          _myBidStatusByListing = {
+            for (final bid in bids)
+              if ((bid['listing_id']?.toString() ?? '').isNotEmpty)
+                bid['listing_id'].toString(): (bid['status'] ?? 'pending').toString(),
+          };
+          _myActiveBidListingIds = _myBidStatusByListing.entries
+              .where((entry) => entry.value == 'pending')
+              .map((entry) => entry.key)
+              .toSet();
+        });
+        print('✅ [_loadMyBids] ${_myActiveBidListingIds.length}개 진행중 입찰: $_myActiveBidListingIds');
+      } else {
+        print('⚠️ [_loadMyBids] 입찰 API 실패: ${response['error']}');
+      }
     } catch (e) {
       print('⚠️ [_loadMyBids] 실패 (무시): $e');
     }
@@ -364,13 +383,15 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                       final authService = Provider.of<AuthService>(context, listen: false);
                       final currentUserId = authService.currentUser?.id;
                       final isOwner = currentUserId == postedBy;
-                      final hasBid = _myBidListingIds.contains(id);
-                      final bool canBid = (status == 'open' || status == 'withdrawn' || status == 'created') && !hasBid;
+                      final String? myBidStatus = _myBidStatusByListing[id];
+                      final bool hasPendingBid = _myActiveBidListingIds.contains(id);
+                      final bool hasAnyBid = myBidStatus != null;
+                      final bool canBid = (status == 'open' || status == 'withdrawn' || status == 'created') && !hasPendingBid;
 
                       // 상태 라벨은 이 화면에서 불필요 (항상 오픈/철회만 표시)
 
                       return GestureDetector(
-                        onTap: () => _showCallDetail(e, alreadyBid: hasBid),
+                        onTap: () => _showCallDetail(e, alreadyBid: hasAnyBid),
                         child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
@@ -458,31 +479,9 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                     ),
                                   ],
                                   // 입찰 상태 배지 (내가 입찰한 오더)
-                                  if (hasBid) ...[
+                                  if (hasAnyBid && myBidStatus != null) ...[
                                     const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange[50],
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.orange, width: 1.5),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.schedule, size: 12, color: Colors.orange[700]),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '낙찰 대기중',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.orange[700],
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                    _buildMyBidBadge(myBidStatus),
                                   ],
                                 ],
                               ),
@@ -641,14 +640,14 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                     width: 100,
                                     child: ElevatedButton.icon(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: hasBid ? Colors.red : (canBid ? const Color(0xFFF57C00) : Colors.grey[300]),
-                                        foregroundColor: hasBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600]),
+                                        backgroundColor: hasPendingBid ? Colors.red : (canBid ? const Color(0xFFF57C00) : Colors.grey[300]),
+                                        foregroundColor: hasPendingBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600]),
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                         elevation: 0,
                                       ),
                                     onPressed: () async {
-                                      if (hasBid) {
+                                      if (hasPendingBid) {
                                         // 입찰 취소
                                         await _cancelBid(id);
                                       } else if (canBid) {
@@ -657,16 +656,16 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                       }
                                     },
                                     icon: Icon(
-                                      hasBid ? Icons.cancel_outlined : Icons.touch_app_rounded, 
+                                      hasPendingBid ? Icons.cancel_outlined : Icons.touch_app_rounded, 
                                       size: 16, 
-                                      color: hasBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600])
+                                      color: hasPendingBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600])
                                     ),
                                     label: Text(
-                                      hasBid ? '취소' : '잡기',
+                                      hasPendingBid ? '취소' : '잡기',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 12,
-                                        color: hasBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600]),
+                                        color: hasPendingBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600]),
                                       ),
                                     ),
                                     ),
@@ -750,7 +749,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       // 낙관적 UI 업데이트
       setState(() {
-        _myBidListingIds.remove(listingId);
+        _myActiveBidListingIds.remove(listingId);
+        _myBidStatusByListing.remove(listingId);
       });
       
       if (!mounted) return;
@@ -783,7 +783,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       // 실패 시 롤백
       setState(() {
-        _myBidListingIds.add(listingId);
+        _myBidStatusByListing[listingId] = 'pending';
+        _myActiveBidListingIds.add(listingId);
       });
       
       if (!mounted) return;
@@ -820,7 +821,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       }
       
       // ✅ 이미 1개 이상 입찰했는지 확인
-      if (_myBidListingIds.isNotEmpty) {
+      if (_myActiveBidListingIds.isNotEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -834,7 +835,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       // 낙관적 UI 업데이트: 즉시 입찰 상태 반영
       setState(() {
-        _myBidListingIds.add(id);
+        _myActiveBidListingIds.add(id);
+        _myBidStatusByListing[id] = 'pending';
       });
       
       // 즉시 성공 메시지 표시
@@ -857,7 +859,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         // 실패 시 롤백
         print('   ❌ 오더 잡기 실패 - 롤백');
         setState(() {
-          _myBidListingIds.remove(id);
+          _myActiveBidListingIds.remove(id);
+          _myBidStatusByListing.remove(id);
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
@@ -929,7 +932,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     final authService = Provider.of<AuthService>(context, listen: false);
     final currentUserId = authService.currentUser?.id;
     final isOwner = currentUserId == postedBy;
-    final hasBid = alreadyBid || _myBidListingIds.contains(data['id']?.toString() ?? '');
+    final listingId = data['id']?.toString() ?? '';
+    final myBidStatus = _myBidStatusByListing[listingId];
+    final bool hasAnyBid = alreadyBid || myBidStatus != null;
+    final bool hasPendingBid = (myBidStatus ?? '') == 'pending';
     final int bidCount = data['bid_count'] is int
         ? data['bid_count'] as int
         : int.tryParse(data['bid_count']?.toString() ?? '0') ?? 0;
@@ -1245,7 +1251,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                           : ElevatedButton.icon(
                               onPressed: () async {
                                 Navigator.pop(context);
-                                if (hasBid) {
+                                if (hasPendingBid) {
                                   // 입찰 취소
                                   await _cancelBid(data['id'].toString());
                                 } else {
@@ -1254,16 +1260,16 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                 }
                               },
                               icon: Icon(
-                                hasBid ? Icons.cancel_outlined : Icons.touch_app_rounded, 
+                                hasPendingBid ? Icons.cancel_outlined : Icons.touch_app_rounded, 
                                 size: 20, 
                                 color: Colors.white
                               ),
                               label: Text(
-                                hasBid ? '입찰 취소' : '오더 잡기',
+                                hasPendingBid ? '입찰 취소' : '오더 잡기',
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: hasBid ? Colors.red : const Color(0xFFF57C00),
+                                backgroundColor: hasPendingBid ? Colors.red : const Color(0xFFF57C00),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
@@ -1280,6 +1286,81 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildMyBidBadge(String status) {
+    final config = _BidBadgeConfig.fromStatus(status);
+    if (config == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: config.fillColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: config.borderColor, width: 1.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(config.icon, size: 12, color: config.textColor),
+          const SizedBox(width: 4),
+          Text(
+            config.label,
+            style: TextStyle(
+              fontSize: 12,
+              color: config.textColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BidBadgeConfig {
+  final Color fillColor;
+  final Color borderColor;
+  final Color textColor;
+  final String label;
+  final IconData icon;
+
+  const _BidBadgeConfig({
+    required this.fillColor,
+    required this.borderColor,
+    required this.textColor,
+    required this.label,
+    required this.icon,
+  });
+
+  static _BidBadgeConfig? fromStatus(String status) {
+    switch (status) {
+      case 'pending':
+        return _BidBadgeConfig(
+          fillColor: Colors.orange[50]!,
+          borderColor: Colors.orange,
+          textColor: Colors.orange[700]!,
+          label: '낙찰 대기중',
+          icon: Icons.schedule,
+        );
+      case 'selected':
+        return _BidBadgeConfig(
+          fillColor: Colors.green[50]!,
+          borderColor: Colors.green,
+          textColor: Colors.green[800]!,
+          label: '내 입찰 선택됨',
+          icon: Icons.check_circle,
+        );
+      case 'awaiting_confirmation':
+        return _BidBadgeConfig(
+          fillColor: Colors.purple[50]!,
+          borderColor: Colors.purple,
+          textColor: Colors.purple[700]!,
+          label: '원사업자 확인 대기',
+          icon: Icons.hourglass_bottom,
+        );
+      default:
+        return null;
+    }
   }
 }
 

@@ -44,14 +44,33 @@ class NotificationService {
   Future<List<Map<String, dynamic>>> getNotifications(String userId) async {
     try {
       debugPrint('🔍 [NotificationService] 알림 조회: userId=$userId');
+
+      // 1차: 백엔드 API (service role)로 조회
+      try {
+        final api = ApiService();
+        final apiResponse = await api.get('/notifications?userId=$userId');
+        if (apiResponse['success'] == true) {
+          final data = List<Map<String, dynamic>>.from(apiResponse['data'] ?? []);
+          debugPrint('✅ [NotificationService] API에서 ${data.length}개 알림 조회');
+          if (data.isNotEmpty) {
+            debugPrint('   첫 번째 알림(API): ${data.first}');
+          }
+          return data;
+        } else {
+          debugPrint('⚠️ [NotificationService] API 조회 실패: ${apiResponse['error']}');
+        }
+      } catch (apiError) {
+        debugPrint('⚠️ [NotificationService] API 조회 예외: $apiError');
+      }
       
+      // 2차: Supabase 직접 조회 (세션이 유효한 경우)
       final response = await _sb
           .from('notifications')
           .select()
           .eq('userid', userId)
           .order('createdat', ascending: false);
       
-      debugPrint('✅ [NotificationService] ${response.length}개 알림 조회 완료');
+      debugPrint('✅ [NotificationService] ${response.length}개 알림 조회 완료 (Supabase)');
       
       if (response.isNotEmpty) {
         debugPrint('   첫 번째 알림: ${response.first}');

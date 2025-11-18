@@ -47,8 +47,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         final isRelated = job.ownerBusinessId == currentUserId ||
             job.assignedBusinessId == currentUserId;
         
-        // completed와 awaiting_confirmation 상태는 제외
-        final isNotCompleted = job.status != 'completed' && job.status != 'awaiting_confirmation';
+        // completed 상태는 제외 (awaiting_confirmation은 표시)
+        final isNotCompleted = job.status != 'completed';
         
         return isRelated && isNotCompleted;
       }).toList();
@@ -74,26 +74,34 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         final api = ApiService();
         final Map<String, Map<String, dynamic>> tempMap = {};
 
-        const chunkSize = 20;
-        for (var i = 0; i < jobIds.length; i += chunkSize) {
-          final chunk = jobIds.sublist(i, i + chunkSize > jobIds.length ? jobIds.length : i + chunkSize);
+        const chunkSize = 25;
+        final List<List<String>> chunks = [
+          for (var i = 0; i < jobIds.length; i += chunkSize)
+            jobIds.sublist(i, i + chunkSize > jobIds.length ? jobIds.length : i + chunkSize),
+        ];
+
+        final responses = await Future.wait(chunks.map((chunk) async {
           final jobIdsParam = chunk.join(',');
           try {
             final response = await api.get('/market/listings?jobIds=$jobIdsParam&limit=${chunk.length}');
             if (response['success'] == true) {
-              final List<dynamic> data = response['data'] ?? [];
-              for (final raw in data) {
-                final listing = Map<String, dynamic>.from(raw);
-                final jobId = listing['jobid']?.toString();
-                if (jobId != null) {
-                  tempMap[jobId] = listing;
-                }
-              }
+              return List<Map<String, dynamic>>.from(response['data'] ?? []);
             } else {
               print('⚠️ [JobManagement] listing API 실패 (chunk=$chunk): ${response['error']}');
+              return <Map<String, dynamic>>[];
             }
           } catch (e) {
             print('⚠️ [JobManagement] listing 조회 실패 (chunk=$chunk): $e');
+            return <Map<String, dynamic>>[];
+          }
+        }));
+
+        for (final list in responses) {
+          for (final listing in list) {
+            final jobId = listing['jobid']?.toString();
+            if (jobId != null) {
+              tempMap[jobId] = Map<String, dynamic>.from(listing);
+            }
           }
         }
 
@@ -414,6 +422,17 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         }
 
         print('✅ [JobManagement] 공사 완료 처리 완료 (awaiting_confirmation)');
+        if (mounted && job.id != null) {
+          setState(() {
+            final idx = _combinedJobs.indexWhere((j) => j.id == job.id);
+            if (idx != -1) {
+              _combinedJobs[idx] = _combinedJobs[idx].copyWith(status: 'awaiting_confirmation');
+            }
+            if (_listingByJobId.containsKey(job.id)) {
+              _listingByJobId[job.id]!['status'] = 'awaiting_confirmation';
+            }
+          });
+        }
       } else {
         print('⚠️ [JobManagement] listingId를 찾을 수 없음');
       }
