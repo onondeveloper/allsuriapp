@@ -6,6 +6,7 @@ import '../screens/business/transfer_estimate_screen.dart';
 import '../screens/notification/notification_screen.dart';
 import '../screens/business/job_management_screen.dart';
 import '../screens/business/order_marketplace_screen.dart';
+import '../screens/business/my_order_management_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
@@ -345,7 +346,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const CommunityBoardScreen()));
                       },
                     ),
-                    // 4) 내 오더 관리 (변경: 낙찰받은 오더 관리)
+                    // 4) 내 오더 관리 (내가 생성한 오더만 표시)
                     _buildCleanMenuCard(
                       context,
                       '내 오더 관리',
@@ -353,10 +354,10 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       const Color(0xFFFCE4EC), // Light pink
                       const Color(0xFFC2185B), // Pink for icon
                       () {
-                        // TODO: Navigate to order management screen showing '진행 중' jobs
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const MyOrderManagementScreen()));
                       },
                     ),
+                    /*
                     // 5) 고객 견적 (Disabled)
                     _buildCleanMenuCard(
                       context,
@@ -378,6 +379,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       null, // Disabled
                       isDisabled: true,
                     ),
+                    */
                       ],
                     );
                   },

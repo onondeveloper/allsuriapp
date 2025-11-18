@@ -741,7 +741,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           .from('order_bids')
           .delete()
           .eq('listing_id', listingId)
-          .eq('business_id', currentUserId);
+          .eq('bidder_id', currentUserId);
       
       print('✅ [_cancelBid] 입찰 취소 완료');
       
