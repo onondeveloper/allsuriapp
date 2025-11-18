@@ -771,35 +771,35 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         ),
       );
       
-      // 백그라운드에서 API 호출
-      print('   → 백엔드에 입찰 취소 요청 중...');
+      // 백엔드 API로 입찰 취소 (RLS 우회)
+      print('   → 백엔드 API로 입찰 취소 요청 중...');
       print('   listingId: $listingId');
       print('   currentUserId: $currentUserId');
       
-      // order_bids 테이블에서 삭제
-      final deleteResult = await Supabase.instance.client
-          .from('order_bids')
-          .delete()
-          .eq('listing_id', listingId)
-          .eq('bidder_id', currentUserId)
-          .select();
+      final response = await _api.delete('/market/bids/$listingId?bidderId=$currentUserId');
       
-      print('   삭제 결과: $deleteResult');
-      print('✅ [_cancelBid] 입찰 취소 완료 (삭제된 행: ${deleteResult.length}개)');
+      print('   삭제 응답: ${response['success']}');
+      final deleteSuccess = response['success'] == true;
+      print('✅ [_cancelBid] 입찰 취소 완료 (성공: $deleteSuccess)');
       
       // 삭제가 성공한 경우에만 리스트 새로고침
-      if (deleteResult.isNotEmpty) {
+      if (deleteSuccess) {
         print('   ✅ DELETE 성공, 리스트 새로고침');
         await _reload();
       } else {
-        print('   ⚠️ DELETE 실패 (0개 삭제됨), RLS 정책 확인 필요');
-        // RLS 문제 알림
+        print('   ⚠️ DELETE 실패, 에러: ${response['error']}');
+        // 실패 시 롤백
+        setState(() {
+          _myBidStatusByListing[listingId] = 'pending';
+          _myActiveBidListingIds.add(listingId);
+        });
+        
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('입찰 취소 실패: 권한이 없습니다.\n관리자에게 문의하세요.'),
+          SnackBar(
+            content: Text('입찰 취소 실패: ${response['error'] ?? '알 수 없는 오류'}'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
+            duration: const Duration(seconds: 3),
           ),
         );
       }

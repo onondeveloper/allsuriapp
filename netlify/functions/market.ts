@@ -50,6 +50,11 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       return await handleSelectBidder(event, path)
     }
 
+    // DELETE /bids/:listingId
+    if (method === 'DELETE' && path.match(/^\/bids\/[^/]+$/)) {
+      return await handleDeleteBid(event, path)
+    }
+
     return {
       statusCode: 404,
       body: JSON.stringify({ message: 'Not found' })
@@ -674,6 +679,69 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
         message: error.message || '입찰자 선택 실패',
         error: error.message 
       })
+    }
+  }
+}
+
+async function handleDeleteBid(event: HandlerEvent, path: string) {
+  const listingId = path.split('/')[2]
+  const params = event.queryStringParameters || {}
+  const { bidderId } = params
+
+  console.log(`[handleDeleteBid] listingId=${listingId}, bidderId=${bidderId}`)
+
+  if (!bidderId) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ success: false, message: 'bidderId는 필수입니다' })
+    }
+  }
+
+  try {
+    // Service Role로 RLS 우회하여 삭제
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&bidder_id=eq.${bidderId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Prefer': 'return=representation',
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[handleDeleteBid] DELETE 실패:', errorText)
+      return {
+        statusCode: response.status,
+        body: JSON.stringify({ success: false, message: '입찰 삭제 실패' })
+      }
+    }
+
+    const data = await response.json()
+    const deletedCount = Array.isArray(data) ? data.length : 0
+    
+    console.log(`[handleDeleteBid] ${deletedCount}개 행 삭제 완료`)
+
+    if (deletedCount === 0) {
+      return {
+        statusCode: 404,
+        body: JSON.stringify({ success: false, message: '삭제할 입찰을 찾을 수 없습니다' })
+      }
+    }
+
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ success: true, deleted: deletedCount })
+    }
+  } catch (error: any) {
+    console.error('[handleDeleteBid] error:', error)
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ success: false, message: '입찰 삭제 실패', error: error.message })
     }
   }
 }

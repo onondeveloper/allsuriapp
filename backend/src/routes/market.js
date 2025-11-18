@@ -347,6 +347,43 @@ router.post('/bids/:id/withdraw', async (req, res) => {
   }
 });
 
+// DELETE /api/market/bids/:listingId
+// Query: bidderId
+// 입찰 삭제 (Service Role로 RLS 우회)
+router.delete('/bids/:listingId', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const { bidderId } = req.query;
+    
+    if (!bidderId) {
+      return res.status(400).json({ success: false, message: 'bidderId는 필수입니다' });
+    }
+
+    console.log(`[market] DELETE bid: listingId=${listingId}, bidderId=${bidderId}`);
+
+    // Service Role로 RLS 우회하여 삭제
+    const { data, error } = await supabase
+      .from('order_bids')
+      .delete()
+      .eq('listing_id', listingId)
+      .eq('bidder_id', bidderId)
+      .select();
+
+    if (error) throw error;
+
+    console.log(`[market] DELETE result: ${data?.length || 0}개 행 삭제`);
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, message: '삭제할 입찰을 찾을 수 없습니다' });
+    }
+
+    return res.json({ success: true, deleted: data.length });
+  } catch (error) {
+    console.error('[market] delete bid error:', error);
+    res.status(500).json({ success: false, message: '입찰 삭제 실패', error: error.message });
+  }
+});
+
 // POST /api/market/listings/:id/claim
 // Body: { businessId }
 // [DEPRECATED] 기존 호환성 유지, 새로운 시스템에서는 /bid 사용
