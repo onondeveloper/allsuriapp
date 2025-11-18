@@ -37,6 +37,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
   RealtimeChannel? _channel;
   Set<String> _myActiveBidListingIds = {}; // 'pending' 상태 입찰
   Map<String, String> _myBidStatusByListing = {}; // listingId -> status
+  bool _isCancelling = false; // 입찰 취소 중 플래그
+  bool _isClaiming = false; // 입찰 중 플래그
 
   @override
   void initState() {
@@ -704,7 +706,14 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
   }
 
   Future<void> _cancelBid(String listingId) async {
+    // 중복 실행 방지
+    if (_isCancelling) {
+      print('⚠️ [_cancelBid] 이미 취소 작업 진행 중, 무시');
+      return;
+    }
+    
     try {
+      setState(() => _isCancelling = true);
       print('🔍 [_cancelBid] 입찰 취소 시작: $listingId');
       
       final authService = Provider.of<AuthService>(context, listen: false);
@@ -764,15 +773,19 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       // 백그라운드에서 API 호출
       print('   → 백엔드에 입찰 취소 요청 중...');
+      print('   listingId: $listingId');
+      print('   currentUserId: $currentUserId');
       
       // order_bids 테이블에서 삭제
-      await Supabase.instance.client
+      final deleteResult = await Supabase.instance.client
           .from('order_bids')
           .delete()
           .eq('listing_id', listingId)
-          .eq('bidder_id', currentUserId);
+          .eq('bidder_id', currentUserId)
+          .select();
       
-      print('✅ [_cancelBid] 입찰 취소 완료');
+      print('   삭제 결과: $deleteResult');
+      print('✅ [_cancelBid] 입찰 취소 완료 (삭제된 행: ${deleteResult.length}개)');
       
       // 리스트 새로고침
       await _reload();
@@ -795,11 +808,22 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           duration: const Duration(seconds: 3),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isCancelling = false);
+      }
     }
   }
 
   Future<void> _claimListing(String id) async {
+    // 중복 실행 방지
+    if (_isClaiming) {
+      print('⚠️ [_claimListing] 이미 잡기 작업 진행 중, 무시');
+      return;
+    }
+    
     try {
+      setState(() => _isClaiming = true);
       print('🔍 [_claimListing] 오더 잡기 시작: $id');
       
       // 사용자 로그인 확인 (AuthService 사용)
@@ -883,6 +907,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           duration: const Duration(seconds: 3),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isClaiming = false);
+      }
     }
   }
 

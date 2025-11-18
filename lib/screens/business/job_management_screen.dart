@@ -24,6 +24,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   bool _isLoading = true;
   String _filter = 'all'; // all | mine | in_progress | call
   Map<String, Map<String, dynamic>> _listingByJobId = {};
+  bool _isCompleting = false; // 공사 완료 중 플래그
 
   @override
   void initState() {
@@ -42,13 +43,19 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       if (currentUserId == null) return;
 
       final allJobs = await jobService.getJobs();
+      print('🔍 [JobManagement] 전체 공사: ${allJobs.length}개');
+      
       final related = allJobs.where((job) {
         // 내가 관련된 공사만 (소유자 또는 할당받은 사업자)
         final isRelated = job.ownerBusinessId == currentUserId ||
             job.assignedBusinessId == currentUserId;
         
-        // completed 상태는 제외 (awaiting_confirmation은 표시)
-        final isNotCompleted = job.status != 'completed';
+        // completed와 awaiting_confirmation 상태는 제외
+        final isNotCompleted = job.status != 'completed' && job.status != 'awaiting_confirmation';
+        
+        if (isRelated && !isNotCompleted) {
+          print('   제외: ${job.title} (status: ${job.status})');
+        }
         
         return isRelated && isNotCompleted;
       }).toList();
@@ -327,6 +334,12 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   }
 
   Future<void> _completeJob(Job job) async {
+    // 중복 실행 방지
+    if (_isCompleting) {
+      print('⚠️ [_completeJob] 이미 완료 작업 진행 중, 무시');
+      return;
+    }
+    
     // 완료 확인 다이얼로그
     final confirmed = await showDialog<bool>(
       context: context,
@@ -351,6 +364,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     );
 
     if (confirmed != true) return;
+    
+    setState(() => _isCompleting = true);
 
     try {
       // 로딩 표시
@@ -474,6 +489,10 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
             backgroundColor: Colors.red,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCompleting = false);
       }
     }
   }
