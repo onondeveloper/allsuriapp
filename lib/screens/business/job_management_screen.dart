@@ -71,25 +71,29 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       print('🔍 [JobManagement] jobIds: $jobIds');
 
       if (jobIds.isNotEmpty) {
-        final Map<String, Map<String, dynamic>> tempMap = {};
         final api = ApiService();
+        final Map<String, Map<String, dynamic>> tempMap = {};
 
-        for (final jobId in jobIds) {
+        const chunkSize = 20;
+        for (var i = 0; i < jobIds.length; i += chunkSize) {
+          final chunk = jobIds.sublist(i, i + chunkSize > jobIds.length ? jobIds.length : i + chunkSize);
+          final jobIdsParam = chunk.join(',');
           try {
-            final response = await api.get('/market/listings?jobId=$jobId&limit=1');
+            final response = await api.get('/market/listings?jobIds=$jobIdsParam&limit=${chunk.length}');
             if (response['success'] == true) {
               final List<dynamic> data = response['data'] ?? [];
-              if (data.isNotEmpty) {
-                final listing = Map<String, dynamic>.from(data.first);
-                tempMap[jobId] = listing;
-              } else {
-                print('⚠️ [JobManagement] jobId=$jobId 에 대한 listing 없음');
+              for (final raw in data) {
+                final listing = Map<String, dynamic>.from(raw);
+                final jobId = listing['jobid']?.toString();
+                if (jobId != null) {
+                  tempMap[jobId] = listing;
+                }
               }
             } else {
-              print('⚠️ [JobManagement] jobId=$jobId listing API 실패: ${response['error']}');
+              print('⚠️ [JobManagement] listing API 실패 (chunk=$chunk): ${response['error']}');
             }
           } catch (e) {
-            print('⚠️ [JobManagement] listing 조회 실패 (jobId=$jobId): $e');
+            print('⚠️ [JobManagement] listing 조회 실패 (chunk=$chunk): $e');
           }
         }
 
@@ -395,15 +399,19 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         // 오더 소유자에게 알림
         final ownerId = job.ownerBusinessId;
         print('   알림 전송 중: $ownerId');
-        await Supabase.instance.client.from('notifications').insert({
-          'userid': ownerId,
-          'title': '공사 완료 확인 요청',
-          'body': '${job.title} 공사가 완료되었습니다. 확인 후 리뷰를 남겨주세요!',
-          'type': 'order_completed',
-          'jobid': listingId,
-          'isread': false,
-          'createdat': DateTime.now().toIso8601String(),
-        });
+        if (job.id != null) {
+          await Supabase.instance.client.from('notifications').insert({
+            'userid': ownerId,
+            'title': '공사 완료 확인 요청',
+            'body': '${job.title} 공사가 완료되었습니다. 확인 후 리뷰를 남겨주세요!',
+            'type': 'order_completed',
+            'jobid': job.id,
+            'isread': false,
+            'createdat': DateTime.now().toIso8601String(),
+          });
+        } else {
+          print('⚠️ [JobManagement] jobId가 없어 알림을 건너뜀');
+        }
 
         print('✅ [JobManagement] 공사 완료 처리 완료 (awaiting_confirmation)');
       } else {

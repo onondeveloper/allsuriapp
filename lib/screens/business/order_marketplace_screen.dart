@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:allsuriapp/services/marketplace_service.dart';
+import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/screens/business/estimate_management_screen.dart';
 import 'package:allsuriapp/widgets/interactive_card.dart';
 import 'package:allsuriapp/widgets/shimmer_widgets.dart';
@@ -30,6 +31,7 @@ class OrderMarketplaceScreen extends StatefulWidget {
 
 class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
   final MarketplaceService _market = MarketplaceService();
+  final ApiService _api = ApiService();
   late Future<List<Map<String, dynamic>>> _future;
   String _status = 'all';
   RealtimeChannel? _channel;
@@ -141,15 +143,23 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       // 1. 내가 입찰한 오더 목록 먼저 로드
       if (currentUserId != null) {
         print('🔍 [_loadInitialData] 내 입찰 목록 로드 중...');
-        
-        final response = await Supabase.instance.client
-            .from('order_bids')
-            .select('listing_id')
-            .eq('bidder_id', currentUserId)
-            .eq('status', 'pending');
-        
-        _myBidListingIds = response.map((e) => e['listing_id'].toString()).toSet();
-        print('✅ [_loadInitialData] ${_myBidListingIds.length}개 입찰 확인: $_myBidListingIds');
+        try {
+          final response = await _api.get(
+            '/market/bids?bidderId=$currentUserId&statuses=pending,selected,awaiting_confirmation',
+          );
+          if (response['success'] == true) {
+            final bids = List<Map<String, dynamic>>.from(response['data'] ?? []);
+            _myBidListingIds = bids
+                .map((e) => e['listing_id']?.toString() ?? '')
+                .where((id) => id.isNotEmpty)
+                .toSet();
+            print('✅ [_loadInitialData] ${_myBidListingIds.length}개 입찰 확인: $_myBidListingIds');
+          } else {
+            print('⚠️ [_loadInitialData] 입찰 목록 API 실패: ${response['error']}');
+          }
+        } catch (e) {
+          print('⚠️ [_loadInitialData] 입찰 목록 로드 실패: $e');
+        }
       }
       
       // 2. 전체 오더 목록 로드
@@ -346,7 +356,9 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                           : '-';
                       final estimateAmount = e['estimate_amount'] ?? e['estimateAmount'];
                       final mediaUrls = e['media_urls'] is List ? List<String>.from(e['media_urls']) : <String>[];
-                      final bidCount = e['bid_count'] ?? 0;
+                      final int bidCount = e['bid_count'] is int
+                          ? e['bid_count']
+                          : int.tryParse(e['bid_count']?.toString() ?? '0') ?? 0;
                       
                       // 현재 사용자가 오더 소유자인지 확인
                       final authService = Provider.of<AuthService>(context, listen: false);
@@ -475,6 +487,23 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                 ],
                               ),
                               const SizedBox(height: 12),
+                              if (bidCount > 0) ...[
+                                Row(
+                                  children: [
+                                    Icon(Icons.people_outline, size: 16, color: Colors.grey[600]),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '현재 $bidCount명 입찰',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                               // Title
                               Text(
                                 title,

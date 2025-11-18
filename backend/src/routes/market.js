@@ -7,7 +7,7 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 // Query params: status, region, category, limit, offset
 router.get('/listings', async (req, res) => {
   try {
-    const { status, region, category, limit, offset, postedBy, claimedBy, jobId } = req.query;
+    const { status, region, category, limit, offset, postedBy, claimedBy, jobId, jobIds } = req.query;
     let qb = supabase.from('marketplace_listings').select('*, jobs(*)');
 
     if (status && status !== 'all') qb = qb.eq('status', status);
@@ -16,6 +16,15 @@ router.get('/listings', async (req, res) => {
     if (postedBy) qb = qb.eq('posted_by', postedBy);
     if (claimedBy) qb = qb.eq('claimed_by', claimedBy);
     if (jobId) qb = qb.eq('jobid', jobId);
+    if (jobIds) {
+      const jobIdList = jobIds
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (jobIdList.length > 0) {
+        qb = qb.in('jobid', jobIdList);
+      }
+    }
 
     let rangeStart = 0;
     let rangeEnd = 49;
@@ -33,6 +42,35 @@ router.get('/listings', async (req, res) => {
     // eslint-disable-next-line no-console
     console.error('[market] list error:', error);
     res.status(500).json({ message: 'CAll 목록 조회 실패' });
+  }
+});
+
+// GET /api/market/bids
+router.get('/bids', async (req, res) => {
+  try {
+    const { bidderId, status, statuses } = req.query;
+    let qb = supabase.from('order_bids').select('*');
+
+    if (bidderId) qb = qb.eq('bidder_id', bidderId);
+    if (statuses) {
+      const statusList = statuses
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (statusList.length > 0) {
+        qb = qb.in('status', statusList);
+      }
+    } else if (status) {
+      qb = qb.eq('status', status);
+    }
+
+    const { data, error } = await qb.order('created_at', { ascending: false });
+    if (error) throw error;
+
+    res.json(data || []);
+  } catch (error) {
+    console.error('[market] bids list error:', error);
+    res.status(500).json({ message: '입찰 목록 조회 실패' });
   }
 });
 

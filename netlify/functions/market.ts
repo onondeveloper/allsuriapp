@@ -25,6 +25,11 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       return await handleGetListings(event)
     }
 
+    // GET /bids
+    if (method === 'GET' && path === '/bids') {
+      return await handleListBids(event)
+    }
+
     // POST /listings/:id/claim
     if (method === 'POST' && path.match(/^\/listings\/[^/]+\/claim$/)) {
       return await handleClaimListing(event, path)
@@ -60,7 +65,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
 async function handleGetListings(event: HandlerEvent) {
   const params = event.queryStringParameters || {}
-  const { status, region, category, limit, offset, postedBy, claimedBy, jobId } = params
+  const { status, region, category, limit, offset, postedBy, claimedBy, jobId, jobIds } = params
 
   let url = `${SUPABASE_URL}/rest/v1/marketplace_listings?select=*,jobs(*)`
   
@@ -81,6 +86,12 @@ async function handleGetListings(event: HandlerEvent) {
   }
   if (jobId) {
     url += `&jobid=eq.${encodeURIComponent(jobId)}`
+  }
+  if (jobIds) {
+    const ids = jobIds.split(',').map((id) => id.trim()).filter(Boolean)
+    if (ids.length > 0) {
+      url += `&jobid=in.(${ids.map((id) => encodeURIComponent(id)).join(',')})`
+    }
   }
 
   url += '&order=createdat.desc'
@@ -369,6 +380,40 @@ async function handleGetBids(event: HandlerEvent, path: string) {
       statusCode: 500,
       body: JSON.stringify({ message: '입찰 목록 조회 실패', error: error.message })
     }
+  }
+}
+
+async function handleListBids(event: HandlerEvent) {
+  const params = event.queryStringParameters || {}
+  const { bidderId, status, statuses } = params
+
+  let url = `${SUPABASE_URL}/rest/v1/order_bids?select=*`
+
+  if (bidderId) {
+    url += `&bidder_id=eq.${encodeURIComponent(bidderId)}`
+  }
+  if (statuses) {
+    const statusList = statuses.split(',').map((s) => s.trim()).filter(Boolean)
+    if (statusList.length > 0) {
+      url += `&status=in.(${statusList.map((s) => encodeURIComponent(s)).join(',')})`
+    }
+  } else if (status) {
+    url += `&status=eq.${encodeURIComponent(status)}`
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    }
+  })
+
+  const data = await response.json()
+
+  return {
+    statusCode: 200,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data || [])
   }
 }
 
