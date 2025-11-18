@@ -66,19 +66,9 @@ export const handler: Handler = async (event) => {
 
     // Persist/find user in Supabase (service role), prefer returning UUID id
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      const localId = `kakao:${kakaoId}`
-      const token = await issueJwt(localId)
-      return ok({ 
-        ok: true,
-        success: true,
-        token,
-        data: {
-          token,
-          user: { id: localId, name, email: email || `kakao-${kakaoId}@allsuri.app`, role: 'customer' },
-          supabase_access_token: null,
-          supabase_refresh_token: null,
-        }
-      })
+      const localId = `kakao:${kakaoId}`;
+      // issueJwt 제거 및 에러 반환
+      return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase 환경 변수 누락', error: 'SUPABASE_ENV_MISSING' }) };
     }
 
     const externalId = `kakao:${kakaoId}`
@@ -139,29 +129,11 @@ export const handler: Handler = async (event) => {
         const errText = await ins.text()
         console.error('❌ Supabase 사용자 생성 실패:', ins.status, errText)
         
-        // Fallback: UUID 생성하여 반환 (UUID 형식을 유지하여 이후 업데이트가 가능하도록)
-        const crypto = require('crypto')
-        const uuid = crypto.randomUUID()
-        const token = await issueJwt(uuid)
-        return ok({ 
-          ok: true,
-          success: true,
-          token, 
-          data: {
-            token,
-            user: { 
-              id: uuid, 
-              name, 
-              email: email || `kakao-${kakaoId}@allsuri.app`, 
-              role: 'customer',
-              external_id: externalId,
-              kakao_id: kakaoId,
-            },
-            supabase_access_token: null,
-            supabase_refresh_token: null,
-          },
-          warning: 'supabase_insert_failed_using_temp_uuid' 
-        })
+        // Fallback: UUID 생성하여 반환 (이 부분을 제거)
+        // const crypto = require('crypto')
+        // const uuid = crypto.randomUUID()
+        // const token = await issueJwt(uuid)
+        return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase 사용자 생성 실패', error: errText }) };
       }
     } else {
       // 기존 사용자 정보 업데이트 (카카오 정보가 변경되었을 수 있음)
@@ -278,10 +250,10 @@ export const handler: Handler = async (event) => {
       }
       
         // 3. 토큰 생성 (Generate Link)
-        console.log('[Kakao Login] 3️⃣ 토큰 생성 중...')
-        const generateLinkUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`
-        console.log(`   - Generate Link URL: ${generateLinkUrl}`)
-        console.log(`   - Email: ${userEmail}`)
+        console.log('[Kakao Login] 3️⃣ 토큰 생성 중...');
+        const generateLinkUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`;
+        console.log(`   - Generate Link URL: ${generateLinkUrl}`);
+        console.log(`   - User ID: ${userId}`); // Changed from Email to User ID
         
         const generateLinkRes = await fetch(generateLinkUrl, {
           method: 'POST',
@@ -291,20 +263,22 @@ export const handler: Handler = async (event) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            type: 'magiclink',
-            email: userEmail,
+            type: 'token', // Changed from 'magiclink' to 'token'
+            user_id: userId, // Changed from 'email' to 'user_id'
+            // refresh_token: 'true' // 필요 시 refresh token도 함께 요청 (Supabase 버전 따라 다름)
           }),
-        })
+        });
         
-        console.log(`   - 응답 상태: ${generateLinkRes.status} ${generateLinkRes.statusText}`)
+        console.log(`   - 응답 상태: ${generateLinkRes.status} ${generateLinkRes.statusText}`);
         
         if (generateLinkRes.ok) {
-          const linkData = await generateLinkRes.json()
-          console.log(`   - 응답 데이터 구조:`, Object.keys(linkData))
-          console.log(`   - properties 존재:`, linkData.properties ? 'O' : 'X')
+          const linkData = await generateLinkRes.json();
+          console.log(`   - 응답 데이터 구조:`, Object.keys(linkData));
+          console.log(`   - access_token 존재:`, linkData.access_token ? 'O' : 'X');
+          console.log(`   - refresh_token 존재:`, linkData.refresh_token ? 'O' : 'X');
           
-          supabaseAccessToken = linkData.properties?.access_token || null
-          supabaseRefreshToken = linkData.properties?.refresh_token || null
+          supabaseAccessToken = linkData.access_token || null;
+          supabaseRefreshToken = linkData.refresh_token || null;
           
           console.log('[Kakao Login] ✅ Supabase 세션 토큰 생성 성공')
           console.log(`   - Access Token: ${supabaseAccessToken ? `있음 (${supabaseAccessToken.substring(0, 20)}...)` : '❌ 없음'}`)
