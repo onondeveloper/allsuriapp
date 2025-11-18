@@ -46,8 +46,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         final isRelated = job.ownerBusinessId == currentUserId ||
             job.assignedBusinessId == currentUserId;
         
-        // completed 상태는 제외 (완료된 공사는 리스트에서 제거)
-        final isNotCompleted = job.status != 'completed';
+        // completed와 awaiting_confirmation 상태는 제외
+        final isNotCompleted = job.status != 'completed' && job.status != 'awaiting_confirmation';
         
         return isRelated && isNotCompleted;
       }).toList();
@@ -59,7 +59,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       }
       _combinedJobs = byId.values.toList();
       
-      print('🔍 [JobManagement] 로드된 공사: ${_combinedJobs.length}개 (completed 제외)');
+      print('🔍 [JobManagement] 로드된 공사: ${_combinedJobs.length}개 (completed, awaiting_confirmation 제외)');
 
       // fetch marketplace listings for all related jobs (내가 올린 것 + 받은 것)
       final jobIds = _combinedJobs

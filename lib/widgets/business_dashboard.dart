@@ -306,19 +306,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       crossAxisSpacing: 16,
                       childAspectRatio: 0.95,
                       children: [
-                    _buildCleanMenuCard(
-                      context,
-                      '고객 견적',
-                      Icons.description_outlined,
-                      const Color(0xFFE3F2FD), // Light blue
-                      const Color(0xFF1976D2), // Blue for icon
-                      () async {
-                        await Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateRequestsScreen()));
-                        if (!mounted) return;
-                        _refreshCounts();
-                      },
-                      badgeFuture: _estimateRequestsCountFuture,
-                    ),
+                    // 1) 오더
                    _buildCleanMenuCard(
                       context,
                       '오더',
@@ -335,16 +323,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       },
                       badgeFuture: _callOpenCountFuture,
                     ),
-                    _buildCleanMenuCard(
-                      context,
-                      '견적 관리',
-                      Icons.folder_open_outlined,
-                      const Color(0xFFFCE4EC), // Light pink
-                      const Color(0xFFC2185B), // Pink for icon
-                      () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const EstimateManagementScreen()));
-                      },
-                    ),
+                    // 2) 내 공사
                     _buildCleanMenuCard(
                       context,
                       '내 공사',
@@ -355,6 +334,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
                       },
                     ),
+                    // 3) 커뮤니티
                     _buildCleanMenuCard(
                       context,
                       '커뮤니티',
@@ -365,21 +345,48 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const CommunityBoardScreen()));
                       },
                     ),
+                    // 4) 내 오더 관리 (변경: 낙찰받은 오더 관리)
+                    _buildCleanMenuCard(
+                      context,
+                      '내 오더 관리',
+                      Icons.folder_open_outlined,
+                      const Color(0xFFFCE4EC), // Light pink
+                      const Color(0xFFC2185B), // Pink for icon
+                      () {
+                        // TODO: Navigate to order management screen showing '진행 중' jobs
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
+                      },
+                    ),
+                    // 5) 고객 견적 (Disabled)
+                    _buildCleanMenuCard(
+                      context,
+                      '고객 견적',
+                      Icons.description_outlined,
+                      const Color(0xFFE3F2FD), // Light blue
+                      const Color(0xFF1976D2), // Blue for icon
+                      null, // Disabled
+                      badgeFuture: _estimateRequestsCountFuture,
+                      isDisabled: true,
+                    ),
+                    // 6) AI 도우미 (Disabled)
                     _buildCleanMenuCard(
                       context,
                       'AI 도우미',
                       Icons.lightbulb_outline_rounded,
                       const Color(0xFFE8F5E9), // Light green
                       const Color(0xFF388E3C), // Green for icon
-                      () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const AiAssistantScreen()));
-                      },
+                      null, // Disabled
+                      isDisabled: true,
                     ),
                       ],
                     );
                   },
                 ),
 
+                // 광고 공간
+                const SizedBox(height: 24),
+                _buildAdBanner(context),
+                
                 const SizedBox(height: 100),
               ],
             ),
@@ -403,8 +410,9 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     IconData icon,
     Color backgroundColor,
     Color iconColor,
-    VoidCallback onTap, {
+    VoidCallback? onTap, {
     Future<int>? badgeFuture,
+    bool isDisabled = false,
   }) {
     return CleanMenuCard(
       title: title,
@@ -413,6 +421,56 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       iconColor: iconColor,
       onTap: onTap,
       badgeFuture: badgeFuture,
+      isDisabled: isDisabled,
+    );
+  }
+
+  Widget _buildAdBanner(BuildContext context) {
+    return Container(
+      height: 120,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[300]!, width: 1),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // 광고 내용 (추후 WebView로 교체)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.campaign_outlined, size: 36, color: Colors.grey[400]),
+                  const SizedBox(height: 8),
+                  Text(
+                    '광고 공간',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // 터치 가능한 영역
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  // TODO: 광고 클릭 시 WebView로 이동
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('광고 준비 중입니다')),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -423,8 +481,9 @@ class CleanMenuCard extends StatefulWidget {
   final IconData icon;
   final Color backgroundColor;
   final Color iconColor;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Future<int>? badgeFuture;
+  final bool isDisabled;
 
   const CleanMenuCard({
     super.key,
@@ -432,8 +491,9 @@ class CleanMenuCard extends StatefulWidget {
     required this.icon,
     required this.backgroundColor,
     required this.iconColor,
-    required this.onTap,
+    this.onTap,
     this.badgeFuture,
+    this.isDisabled = false,
   });
 
   @override
@@ -476,26 +536,28 @@ class _CleanMenuCardState extends State<CleanMenuCard> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: (_) => _setPressed(true),
-      onTapCancel: () => _setPressed(false),
-      onTapUp: (_) {
+      onTapDown: widget.isDisabled ? null : (_) => _setPressed(true),
+      onTapCancel: widget.isDisabled ? null : () => _setPressed(false),
+      onTapUp: widget.isDisabled ? null : (_) {
         _setPressed(false);
-        widget.onTap();
+        widget.onTap?.call();
       },
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Container(
-          decoration: BoxDecoration(
-            color: widget.backgroundColor,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+      child: Opacity(
+        opacity: widget.isDisabled ? 0.5 : 1.0,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: Container(
+            decoration: BoxDecoration(
+              color: widget.backgroundColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
           child: Stack(
             children: [
               // Content
@@ -570,6 +632,7 @@ class _CleanMenuCardState extends State<CleanMenuCard> with SingleTickerProvider
                 ),
             ],
           ),
+        ),
         ),
       ),
     );

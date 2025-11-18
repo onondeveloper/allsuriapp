@@ -612,24 +612,32 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                     width: 100,
                                     child: ElevatedButton.icon(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: canBid ? const Color(0xFFF57C00) : Colors.grey[300],
-                                        foregroundColor: canBid ? Colors.white : Colors.grey[600],
+                                        backgroundColor: hasBid ? Colors.red : (canBid ? const Color(0xFFF57C00) : Colors.grey[300]),
+                                        foregroundColor: hasBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600]),
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                         elevation: 0,
                                       ),
-                                    onPressed: canBid
-                                        ? () async {
-                                              await _claimListing(id);
-                                            }
-                                        : null,
-                                    icon: Icon(Icons.touch_app_rounded, size: 16, color: canBid ? Colors.white : Colors.grey[600]),
+                                    onPressed: () async {
+                                      if (hasBid) {
+                                        // 입찰 취소
+                                        await _cancelBid(id);
+                                      } else if (canBid) {
+                                        // 오더 잡기
+                                        await _claimListing(id);
+                                      }
+                                    },
+                                    icon: Icon(
+                                      hasBid ? Icons.cancel_outlined : Icons.touch_app_rounded, 
+                                      size: 16, 
+                                      color: hasBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600])
+                                    ),
                                     label: Text(
-                                      hasBid ? '입찰 완료' : '잡기',
+                                      hasBid ? '취소' : '잡기',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 12,
-                                        color: canBid ? Colors.white : Colors.grey[600],
+                                        color: hasBid ? Colors.white : (canBid ? Colors.white : Colors.grey[600]),
                                       ),
                                     ),
                                     ),
@@ -665,6 +673,99 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _cancelBid(String listingId) async {
+    try {
+      print('🔍 [_cancelBid] 입찰 취소 시작: $listingId');
+      
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      
+      if (currentUserId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('로그인이 필요합니다'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+      
+      // 확인 다이얼로그
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('입찰 취소'),
+          content: const Text('정말 입찰을 취소하시겠습니까?\n다른 공사를 잡을 수 있게 됩니다.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('아니요'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('취소하기'),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirmed != true) return;
+      
+      // 낙관적 UI 업데이트
+      setState(() {
+        _myBidListingIds.remove(listingId);
+      });
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('입찰이 취소되었습니다'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      
+      // 백그라운드에서 API 호출
+      print('   → 백엔드에 입찰 취소 요청 중...');
+      
+      // order_bids 테이블에서 삭제
+      await Supabase.instance.client
+          .from('order_bids')
+          .delete()
+          .eq('listing_id', listingId)
+          .eq('business_id', currentUserId);
+      
+      print('✅ [_cancelBid] 입찰 취소 완료');
+      
+      // 리스트 새로고침
+      await _reload();
+      
+    } catch (e, stackTrace) {
+      print('❌ [_cancelBid] 에러 발생: $e');
+      print('   StackTrace: $stackTrace');
+      
+      // 실패 시 롤백
+      setState(() {
+        _myBidListingIds.add(listingId);
+      });
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('입찰 취소 실패: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Future<void> _claimListing(String id) async {
@@ -1113,20 +1214,28 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                               ),
                             )
                           : ElevatedButton.icon(
-                              onPressed: hasBid
-                                  ? null
-                                  : () async {
-                                      Navigator.pop(context);
-                                      await _claimListing(data['id'].toString());
-                                    },
-                              icon: Icon(Icons.touch_app_rounded, size: 20, color: hasBid ? Colors.grey[600] : Colors.white),
+                              onPressed: () async {
+                                Navigator.pop(context);
+                                if (hasBid) {
+                                  // 입찰 취소
+                                  await _cancelBid(data['id'].toString());
+                                } else {
+                                  // 오더 잡기
+                                  await _claimListing(data['id'].toString());
+                                }
+                              },
+                              icon: Icon(
+                                hasBid ? Icons.cancel_outlined : Icons.touch_app_rounded, 
+                                size: 20, 
+                                color: Colors.white
+                              ),
                               label: Text(
-                                hasBid ? '입찰 완료' : '오더 잡기',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: hasBid ? Colors.grey[600] : Colors.white),
+                                hasBid ? '입찰 취소' : '오더 잡기',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: hasBid ? Colors.grey[300] : const Color(0xFFF57C00),
-                                foregroundColor: hasBid ? Colors.grey[600] : Colors.white,
+                                backgroundColor: hasBid ? Colors.red : const Color(0xFFF57C00),
+                                foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
