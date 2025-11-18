@@ -251,46 +251,54 @@ class AuthService extends ChangeNotifier {
                 print('   - Access Token: ${supabaseAccessToken.substring(0, min(20, supabaseAccessToken.length))}...');
                 print('   - Refresh Token: ${supabaseRefreshToken != null ? supabaseRefreshToken.substring(0, min(20, supabaseRefreshToken.length)) : "없음"}...');
                 
-                try {
-                  // Supabase Auth 세션 설정 (백엔드에서 받은 실제 access_token과 refresh_token으로 세션 복구)
-                  AuthResponse? authResponse;
-                  if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty &&
-                      supabaseRefreshToken != null && supabaseRefreshToken.isNotEmpty) {
-                    print('🔍 [signInWithKakao] Supabase 세션 복구 시도 중 (access + refresh)...');
-                    authResponse = await _sb.auth.recoverSession(supabaseAccessToken, supabaseRefreshToken);
-                  } else if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
-                    print('🔍 [signInWithKakao] Supabase 세션 복구 시도 중 (access만)...');
-                    // SupabaseClient 내부적으로 refresh token을 찾으려 시도
-                    authResponse = await _sb.auth.recoverSession(supabaseAccessToken, null);
-                  } else {
-                    print('⚠️ [signInWithKakao] Supabase 액세스 토큰이 없어 세션 복구 건너뜀.');
-                  }
+                // Supabase Auth 세션 설정 (백엔드에서 받은 실제 access_token과 refresh_token으로 세션 복구)
+                Session? newSession;
+                if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty &&
+                    supabaseRefreshToken != null && supabaseRefreshToken.isNotEmpty) {
+                  print('🔍 [signInWithKakao] Supabase 세션 객체 생성 중 (access + refresh)...');
+                  newSession = Session(
+                    accessToken: supabaseAccessToken,
+                    refreshToken: supabaseRefreshToken,
+                    expiresIn: 3600, // 백엔드에서 받은 토큰의 유효기간에 따라 설정
+                    tokenType: 'bearer', // 일반적인 JWT 토큰 타입
+                    user: _sb.auth.currentUser, // 기존 Supabase user 객체 사용 (null일 경우 백엔드에서 받은 user 정보 사용 고려)
+                  );
+                } else if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
+                  print('🔍 [signInWithKakao] Supabase 세션 객체 생성 중 (access만)...');
+                  newSession = Session(
+                    accessToken: supabaseAccessToken,
+                    expiresIn: 3600,
+                    tokenType: 'bearer',
+                    user: _sb.auth.currentUser,
+                  );
+                }
 
-                  if (authResponse != null) {
-                    final session = authResponse.session;
-                    print('✅ [signInWithKakao] Supabase 세션 설정 완료!');
-                    print('   - Response User ID: ${session?.user.id}');
-                    print('   - Response User Email: ${session?.user.email}');
-                    print('   - Current User ID: ${_sb.auth.currentUser?.id}');
-                    print('   - Current User Email: ${_sb.auth.currentUser?.email}');
-                    print('   - Session 존재: ${_sb.auth.currentSession != null}');
-                    print('   - Access Token 존재: ${session?.accessToken != null}');
-                    print('   - Refresh Token 존재: ${session?.refreshToken != null}');
+                if (newSession != null) {
+                  try {
+                    print('🔍 [signInWithKakao] Supabase 세션 설정 중...');
+                    // _sb.auth.setSession은 Session 객체를 인자로 받습니다.
+                    await _sb.auth.setSession(newSession);
                     
-                    if (session == null) {
-                      print('⚠️ [signInWithKakao] 세션 설정 후에도 session이 null!');
-                    } else if (session.refreshToken == null) {
+                    print('✅ [signInWithKakao] Supabase 세션 설정 완료!');
+                    print('   - Set Session User ID: ${_sb.auth.currentUser?.id}');
+                    print('   - Set Session User Email: ${_sb.auth.currentUser?.email}');
+                    print('   - Current Session 존재: ${_sb.auth.currentSession != null}');
+                    print('   - Current Access Token 존재: ${_sb.auth.currentSession?.accessToken != null}');
+                    print('   - Current Refresh Token 존재: ${_sb.auth.currentSession?.refreshToken != null}');
+                    
+                    if (_sb.auth.currentSession == null) {
+                      print('⚠️ [signInWithKakao] 세션 설정 후에도 currentSession이 null!');
+                    } else if (_sb.auth.currentSession?.refreshToken == null) {
                       print('⚠️ [signInWithKakao] 세션 설정 후에도 refreshToken이 null!');
                     }
-                  } else {
-                    print('❌ [signInWithKakao] Supabase 세션 복구 실패: AuthResponse가 null.');
+                  } catch (e, stackTrace) {
+                    print('❌ [signInWithKakao] Supabase 세션 설정 실패!');
+                    print('   - 에러: $e');
+                    print('   - 스택 트레이스 (처음 5줄): ');
+                    stackTrace.toString().split('\n').take(5).forEach((line) => print('     $line'));
                   }
-                } catch (e, stackTrace) {
-                  print('❌ [signInWithKakao] Supabase 세션 설정 실패!');
-                  print('   - 에러: $e');
-                  print('   - 에러 타입: ${e.runtimeType}');
-                  print('   - 스택 (처음 5줄):');
-                  stackTrace.toString().split('\n').take(5).forEach((line) => print('     $line'));
+                } else {
+                  print('❌ [signInWithKakao] Supabase 세션 객체 생성 실패: 유효한 토큰 없음.');
                 }
               } else {
                 print('⚠️ [signInWithKakao] Supabase 토큰이 백엔드 응답에 없음!');
