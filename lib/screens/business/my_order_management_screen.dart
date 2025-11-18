@@ -465,12 +465,27 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     final listingId = order['id']?.toString();
     final completedBy = order['completed_by']?.toString();
     final title = order['title']?.toString() ?? '오더';
+    final jobId = order['jobid']?.toString();
     
-    if (listingId == null || completedBy == null) {
+    if (listingId == null || completedBy == null || jobId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('리뷰 작성 정보가 부족합니다'), backgroundColor: Colors.red),
       );
       return;
+    }
+    
+    // Get reviewee name from users table
+    String revieweeName = '사업자';
+    try {
+      final userResponse = await Supabase.instance.client
+          .from('users')
+          .select('businessname')
+          .eq('id', completedBy)
+          .single();
+      
+      revieweeName = userResponse['businessname']?.toString() ?? '사업자';
+    } catch (e) {
+      print('⚠️ [MyOrderManagement] 사업자 이름 조회 실패: $e');
     }
     
     await Navigator.push(
@@ -478,7 +493,9 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
       MaterialPageRoute(
         builder: (_) => OrderReviewScreen(
           listingId: listingId,
+          jobId: jobId,
           revieweeId: completedBy,
+          revieweeName: revieweeName,
           orderTitle: title,
         ),
       ),
@@ -486,51 +503,6 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     
     // 리뷰 작성 후 새로고침
     _loadMyOrders();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('내 오더 관리', style: TextStyle(fontWeight: FontWeight.w600)),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadMyOrders,
-            tooltip: '새로고침',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _buildFilterChips(),
-                Expanded(
-                  child: _filteredOrders.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          itemCount: _filteredOrders.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final order = _filteredOrders[index];
-                            final me = context.read<AuthService>().currentUser?.id ?? '';
-                            return _buildOrderCard(order, me);
-                          },
-                        ),
-                ),
-              ],
-            ),
-    );
   }
 }
 
