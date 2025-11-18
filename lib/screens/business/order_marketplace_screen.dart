@@ -787,8 +787,22 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       print('   삭제 결과: $deleteResult');
       print('✅ [_cancelBid] 입찰 취소 완료 (삭제된 행: ${deleteResult.length}개)');
       
-      // 리스트 새로고침
-      await _reload();
+      // 삭제가 성공한 경우에만 리스트 새로고침
+      if (deleteResult.isNotEmpty) {
+        print('   ✅ DELETE 성공, 리스트 새로고침');
+        await _reload();
+      } else {
+        print('   ⚠️ DELETE 실패 (0개 삭제됨), RLS 정책 확인 필요');
+        // RLS 문제 알림
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('입찰 취소 실패: 권한이 없습니다.\n관리자에게 문의하세요.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       
     } catch (e, stackTrace) {
       print('❌ [_cancelBid] 에러 발생: $e');

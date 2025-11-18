@@ -409,7 +409,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       if (listingId != null) {
         print('   marketplace_listings 업데이트 중: $listingId');
         // ✅ status를 'awaiting_confirmation'으로 변경 (원 사업자 확인 대기)
-        await Supabase.instance.client
+        final updateResult = await Supabase.instance.client
             .from('marketplace_listings')
             .update({
               'status': 'awaiting_confirmation',
@@ -417,7 +417,15 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
               'completed_by': currentUserId,
               'updatedat': DateTime.now().toIso8601String(),
             })
-            .eq('id', listingId);
+            .eq('id', listingId)
+            .select();
+        
+        print('   marketplace_listings 업데이트 결과: ${updateResult.length}개 행');
+        if (updateResult.isEmpty) {
+          print('   ⚠️ marketplace_listings UPDATE 실패 (RLS 차단?)');
+        } else {
+          print('   ✅ marketplace_listings 업데이트 성공: ${updateResult.first['status']}');
+        }
 
         // 오더 소유자에게 알림
         final ownerId = job.ownerBusinessId;
@@ -455,13 +463,21 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       // jobs 테이블도 업데이트
       if (job.id != null) {
         print('   jobs 테이블 업데이트 중');
-        await Supabase.instance.client
+        final jobUpdateResult = await Supabase.instance.client
             .from('jobs')
             .update({
               'status': 'awaiting_confirmation',
               'updated_at': DateTime.now().toIso8601String(),
             })
-            .eq('id', job.id!);
+            .eq('id', job.id!)
+            .select();
+        
+        print('   jobs 업데이트 결과: ${jobUpdateResult.length}개 행');
+        if (jobUpdateResult.isEmpty) {
+          print('   ⚠️ jobs UPDATE 실패 (RLS 차단?)');
+        } else {
+          print('   ✅ jobs 업데이트 성공: ${jobUpdateResult.first['status']}');
+        }
       }
 
       if (mounted) {
