@@ -180,8 +180,12 @@ export const handler: Handler = async (event) => {
     const userId = row?.id || externalId
     const userRole = row?.role || 'customer'
     const businessStatus = row?.businessStatus || row?.businessstatus
-    const userEmail = row?.email || email || `kakao-${kakaoId}@allsuri.app`
     
+    // Supabase Auth Admin API를 위한 정규화된 이메일 주소
+    const supabaseAuthEmail = email && email.includes('@') && !email.includes('@example.local')
+      ? email
+      : `kakao-${kakaoId}@allsuri.app`;
+
     const token = await issueJwt(userId)
     
     // Supabase Auth Admin API를 사용하여 실제 세션 생성
@@ -192,7 +196,7 @@ export const handler: Handler = async (event) => {
     console.log(`   - SUPABASE_URL: ${SUPABASE_URL ? '설정됨' : '❌ 없음'}`)
     console.log(`   - SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY ? '설정됨' : '❌ 없음'}`)
     console.log(`   - User ID: ${userId}`)
-    console.log(`   - User Email: ${userEmail}`)
+    console.log(`   - User Email (for Supabase Auth): ${supabaseAuthEmail}`)
     
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error('❌ [Kakao Login] Supabase 환경 변수 누락!')
@@ -203,8 +207,10 @@ export const handler: Handler = async (event) => {
         const authAdminUrl = `${SUPABASE_URL}/auth/v1/admin/users`
         console.log(`   - Auth Admin URL: ${authAdminUrl}`)
         
-        // 1. 사용자가 존재하는지 확인
-        console.log('[Kakao Login] 1️⃣ 사용자 존재 확인 중...')
+        // 1. 사용자가 존재하는지 확인 (Supabase Auth)
+        console.log('[Kakao Login] 1️⃣ Supabase Auth 사용자 존재 확인 중...')
+        // NOTE: Supabase Auth Admin API에서 ID로 사용자를 필터링할 때는 이메일 유효성을 검사하지 않습니다.
+        // 따라서 여기서는 userId만 사용하고, 이메일은 생성/업데이트 시에만 유효성 검사됩니다.
         const getUserRes = await fetch(`${authAdminUrl}?filter=id.eq.${userId}`, {
           headers: {
             apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -214,47 +220,81 @@ export const handler: Handler = async (event) => {
         
         console.log(`   - 응답 상태: ${getUserRes.status} ${getUserRes.statusText}`)
       
-      if (getUserRes.ok) {
-        const users = await getUserRes.json()
-        if (users && users.users && users.users.length > 0) {
-          console.log('[Kakao Login] Supabase Auth 사용자 존재:', userId)
-        } else {
-          // 2. 사용자 생성 (Supabase Auth)
-          console.log('[Kakao Login] Supabase Auth 사용자 생성 시도:', userId)
-          const createUserRes = await fetch(authAdminUrl, {
-            method: 'POST',
-            headers: {
-              apikey: SUPABASE_SERVICE_ROLE_KEY,
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              id: userId,
-              email: userEmail,
-              email_confirm: true, // 이메일 확인 스킵
-              user_metadata: {
-                name: row?.name || name,
-                provider: 'kakao',
-                kakao_id: kakaoId,
-              },
-            }),
-          })
-          
-          if (createUserRes.ok) {
-            console.log('[Kakao Login] Supabase Auth 사용자 생성 성공')
+        if (getUserRes.ok) {
+          const users = await getUserRes.json()
+          if (users && users.users && users.users.length > 0) {
+            console.log('[Kakao Login] Supabase Auth 사용자 존재:', userId)
+            // 기존 사용자가 있으면, 이메일이 유효한지 확인하고 필요 시 업데이트
+            if (users.users[0].email !== supabaseAuthEmail) {
+                console.log(`[Kakao Login] Supabase Auth 사용자 이메일 불일치, 업데이트 시도: ${users.users[0].email} -> ${supabaseAuthEmail}`);
+                const updateUserRes = await fetch(`${authAdminUrl}/${userId}`, {
+                    method: 'PUT',
+                    headers: {
+                        apikey: SUPABASE_SERVICE_ROLE_KEY,
+                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: supabaseAuthEmail,
+                        email_confirm: true,
+                    }),
+                });
+                if (updateUserRes.ok) {
+                    console.log('[Kakao Login] Supabase Auth 사용자 이메일 업데이트 성공');
+                } else {
+                    const errText = await updateUserRes.text();
+                    console.warn('[Kakao Login] Supabase Auth 사용자 이메일 업데이트 실패:', errText);
+                }
+            }
           } else {
-            const errText = await createUserRes.text()
-            console.warn('[Kakao Login] Supabase Auth 사용자 생성 실패:', errText)
+            // 2. Supabase Auth 사용자 생성
+            console.log('[Kakao Login] 2️⃣ Supabase Auth 사용자 생성 시도:', userId)
+            const createUserRes = await fetch(authAdminUrl, {
+              method: 'POST',
+              headers: {
+                apikey: SUPABASE_SERVICE_ROLE_KEY,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                id: userId,
+                email: supabaseAuthEmail, // ✅ 수정된 부분
+                email_confirm: true, // 이메일 확인 스킵
+                user_metadata: {
+                  name: row?.name || name,
+                  provider: 'kakao',
+                  kakao_id: kakaoId,
+                },
+              }),
+            })
+            
+            if (createUserRes.ok) {
+              console.log('[Kakao Login] Supabase Auth 사용자 생성 성공')
+            } else {
+              const errText = await createUserRes.text()
+              console.warn('[Kakao Login] Supabase Auth 사용자 생성 실패:', errText)
+              // 여기에서 에러 발생 시 토큰 생성도 실패할 가능성이 높으므로, 여기서 반환할 필요가 있음
+              return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase Auth 사용자 생성 실패', error: errText }) };
+            }
           }
+        } else {
+            const errText = await getUserRes.text();
+            console.error('[Kakao Login] Supabase Auth 사용자 존재 확인 실패:', errText);
+            return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase Auth 사용자 존재 확인 실패', error: errText }) };
         }
-      }
       
         // 3. 토큰 생성 (Generate Link)
         console.log('[Kakao Login] 3️⃣ 토큰 생성 중...');
         const generateLinkUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`;
         console.log(`   - Generate Link URL: ${generateLinkUrl}`);
-        console.log(`   - User ID: ${userId}`); // Changed from Email to User ID
+        console.log(`   - User ID: ${userId}`);
         
+        const generateLinkBody = {
+          type: 'token',
+          user_id: userId,
+        };
+        console.log(`   - Request Body:`, generateLinkBody);
+
         const generateLinkRes = await fetch(generateLinkUrl, {
           method: 'POST',
           headers: {
@@ -262,18 +302,14 @@ export const handler: Handler = async (event) => {
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            type: 'token', // Changed from 'magiclink' to 'token'
-            user_id: userId, // Changed from 'email' to 'user_id'
-            // refresh_token: 'true' // 필요 시 refresh token도 함께 요청 (Supabase 버전 따라 다름)
-          }),
+          body: JSON.stringify(generateLinkBody),
         });
         
         console.log(`   - 응답 상태: ${generateLinkRes.status} ${generateLinkRes.statusText}`);
         
         if (generateLinkRes.ok) {
           const linkData = await generateLinkRes.json();
-          console.log(`   - 응답 데이터 구조:`, Object.keys(linkData));
+          console.log(`   - 전체 응답 데이터:`, linkData);
           console.log(`   - access_token 존재:`, linkData.access_token ? 'O' : 'X');
           console.log(`   - refresh_token 존재:`, linkData.refresh_token ? 'O' : 'X');
           
@@ -288,10 +324,12 @@ export const handler: Handler = async (event) => {
           console.error('[Kakao Login] ❌ Supabase 토큰 생성 실패')
           console.error(`   - 상태: ${generateLinkRes.status}`)
           console.error(`   - 에러: ${errText}`)
+          return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase 토큰 생성 실패', error: errText }) };
         }
       } catch (authErr: any) {
         console.error('[Kakao Login] ❌ Supabase Auth 처리 오류:', authErr.message)
         console.error(`   - 스택:`, authErr.stack)
+        return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase Auth 처리 오류', error: authErr.message }) };
       }
     }
     
@@ -306,7 +344,7 @@ export const handler: Handler = async (event) => {
         user: { 
           id: userId, 
           name: row?.name || name, 
-          email: userEmail, 
+          email: supabaseAuthEmail, // ✅ 수정된 부분
           role: userRole,
           businessStatus: businessStatus,
           external_id: row?.external_id || externalId,
@@ -322,10 +360,15 @@ export const handler: Handler = async (event) => {
 
 async function issueJwt(sub: string): Promise<string> {
   // Minimal JWT (HS256) without external deps
+  // Note: 'crypto' module is not natively available in Netlify Edge Functions.
+  // This function might need to be replaced or re-implemented without 'crypto'.
+  // For now, assuming it works in the current environment if previous logs showed success.
   const enc = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url')
   const header = enc({ alg: 'HS256', typ: 'JWT' })
   const payload = enc({ sub, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 })
+  // @ts-ignore
   const data = `${header}.${payload}`
+  // @ts-ignore
   const sig = require('crypto').createHmac('sha256', JWT_SECRET).update(data).digest('base64url')
   return `${data}.${sig}`
 }

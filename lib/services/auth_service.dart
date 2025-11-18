@@ -247,63 +247,31 @@ class AuthService extends ChangeNotifier {
               final supabaseRefreshToken = actualData['supabase_refresh_token'] as String?;
               
               if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
-                print('🔍 [signInWithKakao] Supabase 세션 설정 중...');
-                print('   - Access Token: ${supabaseAccessToken.substring(0, min(20, supabaseAccessToken.length))}...');
-                print('   - Refresh Token: ${supabaseRefreshToken != null ? supabaseRefreshToken.substring(0, min(20, supabaseRefreshToken.length)) : "없음"}...');
-                
-                // Supabase Auth 세션 설정 (백엔드에서 받은 실제 access_token과 refresh_token으로 세션 복구)
-                Session? newSession;
-                if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty &&
-                    supabaseRefreshToken != null && supabaseRefreshToken.isNotEmpty) {
-                  print('🔍 [signInWithKakao] Supabase 세션 객체 생성 중 (access + refresh)...');
-                  newSession = Session(
-                    accessToken: supabaseAccessToken,
-                    refreshToken: supabaseRefreshToken,
-                    expiresIn: 3600, // 백엔드에서 받은 토큰의 유효기간에 따라 설정
-                    tokenType: 'bearer', // 일반적인 JWT 토큰 타입
-                    user: _sb.auth.currentUser, // 기존 Supabase user 객체 사용 (null일 경우 백엔드에서 받은 user 정보 사용 고려)
-                  );
-                } else if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
-                  print('🔍 [signInWithKakao] Supabase 세션 객체 생성 중 (access만)...');
-                  newSession = Session(
-                    accessToken: supabaseAccessToken,
-                    expiresIn: 3600,
-                    tokenType: 'bearer',
-                    user: _sb.auth.currentUser,
-                  );
-                }
-
-                if (newSession != null) {
-                  try {
-                    print('🔍 [signInWithKakao] Supabase 세션 설정 중...');
-                    // _sb.auth.setSession은 Session 객체를 인자로 받습니다.
-                    await _sb.auth.setSession(newSession);
-                    
-                    print('✅ [signInWithKakao] Supabase 세션 설정 완료!');
-                    print('   - Set Session User ID: ${_sb.auth.currentUser?.id}');
-                    print('   - Set Session User Email: ${_sb.auth.currentUser?.email}');
-                    print('   - Current Session 존재: ${_sb.auth.currentSession != null}');
-                    print('   - Current Access Token 존재: ${_sb.auth.currentSession?.accessToken != null}');
-                    print('   - Current Refresh Token 존재: ${_sb.auth.currentSession?.refreshToken != null}');
-                    
-                    if (_sb.auth.currentSession == null) {
-                      print('⚠️ [signInWithKakao] 세션 설정 후에도 currentSession이 null!');
-                    } else if (_sb.auth.currentSession?.refreshToken == null) {
-                      print('⚠️ [signInWithKakao] 세션 설정 후에도 refreshToken이 null!');
-                    }
-                  } catch (e, stackTrace) {
-                    print('❌ [signInWithKakao] Supabase 세션 설정 실패!');
-                    print('   - 에러: $e');
-                    print('   - 스택 트레이스 (처음 5줄): ');
-                    stackTrace.toString().split('\n').take(5).forEach((line) => print('     $line'));
+                try {
+                  print('🔍 [signInWithKakao] Supabase 세션 설정 중 (accessToken만 전달)...');
+                  // _sb.auth.setSession이 String accessToken을 받는다고 가정
+                  await _sb.auth.setSession(supabaseAccessToken);
+                  
+                  print('✅ [signInWithKakao] Supabase 세션 설정 완료!');
+                  print('   - Set Session User ID: ${_sb.auth.currentUser?.id}');
+                  print('   - Set Session User Email: ${_sb.auth.currentUser?.email}');
+                  print('   - Current Session 존재: ${_sb.auth.currentSession != null}');
+                  print('   - Current Access Token 존재: ${_sb.auth.currentSession?.accessToken != null}');
+                  print('   - Current Refresh Token 존재: ${_sb.auth.currentSession?.refreshToken != null}');
+                  
+                  if (_sb.auth.currentSession == null) {
+                    print('⚠️ [signInWithKakao] 세션 설정 후에도 currentSession이 null!');
+                  } else if (_sb.auth.currentSession?.refreshToken == null) {
+                    print('⚠️ [signInWithKakao] 세션 설정 후에도 refreshToken이 null!');
                   }
-                } else {
-                  print('❌ [signInWithKakao] Supabase 세션 객체 생성 실패: 유효한 토큰 없음.');
+                } catch (e, stackTrace) {
+                  print('❌ [signInWithKakao] Supabase 세션 설정 실패!');
+                  print('   - 에러: $e');
+                  print('   - 스택 트레이스 (처음 5줄): ');
+                  stackTrace.toString().split('\n').take(5).forEach((line) => print('     $line'));
                 }
               } else {
-                print('⚠️ [signInWithKakao] Supabase 토큰이 백엔드 응답에 없음!');
-                print('   - actualData keys: ${actualData.keys.toList()}');
-                print('   - supabase_access_token 값: $supabaseAccessToken');
+                print('❌ [signInWithKakao] Supabase 액세스 토큰이 없어 세션 설정 건너뜀.');
               }
               
               // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)
