@@ -306,7 +306,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('공사 완료'),
-        content: const Text('이 공사를 완료하시겠습니까?\n완료 후 오더 소유자가 확인하고 리뷰를 남길 수 있습니다.'),
+        content: const Text('이 공사를 완료하시겠습니까?\n완료 후 원 사업자가 확인하고 리뷰를 남길 수 있습니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -367,10 +367,11 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       
       if (listingId != null) {
         print('   marketplace_listings 업데이트 중: $listingId');
+        // ✅ status를 'awaiting_confirmation'으로 변경 (원 사업자 확인 대기)
         await Supabase.instance.client
             .from('marketplace_listings')
             .update({
-              'status': 'completed',
+              'status': 'awaiting_confirmation',
               'completed_at': DateTime.now().toIso8601String(),
               'completed_by': currentUserId,
               'updatedat': DateTime.now().toIso8601String(),
@@ -382,15 +383,15 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         print('   알림 전송 중: $ownerId');
         await Supabase.instance.client.from('notifications').insert({
           'userid': ownerId,
-          'title': '공사 완료',
-          'body': '${job.title} 공사가 완료되었습니다. 리뷰를 남겨주세요!',
+          'title': '공사 완료 확인 요청',
+          'body': '${job.title} 공사가 완료되었습니다. 확인 후 리뷰를 남겨주세요!',
           'type': 'order_completed',
           'jobid': listingId,
           'isread': false,
           'createdat': DateTime.now().toIso8601String(),
         });
 
-        print('✅ [JobManagement] 공사 완료 처리 완료');
+        print('✅ [JobManagement] 공사 완료 처리 완료 (awaiting_confirmation)');
       } else {
         print('⚠️ [JobManagement] listingId를 찾을 수 없음');
       }
@@ -401,7 +402,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         await Supabase.instance.client
             .from('jobs')
             .update({
-              'status': 'completed',
+              'status': 'awaiting_confirmation',
               'updated_at': DateTime.now().toIso8601String(),
             })
             .eq('id', job.id!);
@@ -412,8 +413,9 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('공사가 완료되었습니다!'),
+            content: Text('공사 완료 요청이 전송되었습니다!\n원 사업자의 확인을 기다리고 있어요'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
           ),
         );
         
@@ -551,8 +553,8 @@ class _ModernJobsList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final job = jobs[index];
-        final badge = _badgeFor(job, currentUserId);
         final listing = job.id != null ? listingsByJobId[job.id] : null;
+        final badge = _badgeFor(job, currentUserId, listing);
         final listingId = listing != null ? listing['id']?.toString() : null;
         final listingTitle = listing != null ? (listing['title']?.toString() ?? job.title) : job.title;
         final bidCount = listing != null
@@ -735,7 +737,24 @@ class _ModernJobsList extends StatelessWidget {
     );
   }
 
-  static _Badge _badgeFor(Job job, String me) {
+  static _Badge _badgeFor(Job job, String me, Map<String, dynamic>? listing) {
+    // ✅ 입찰 대기 상태 확인 (내가 입찰한 오더)
+    if (listing != null) {
+      final claimedBy = listing['claimed_by']?.toString();
+      final selectedBidderId = listing['selected_bidder_id']?.toString();
+      final listingStatus = listing['status']?.toString();
+      
+      // 내가 입찰했지만 아직 낙찰되지 않은 상태
+      if (claimedBy == me && selectedBidderId == null && listingStatus != 'assigned') {
+        return _Badge('낙찰 대기중', Colors.orange, Icons.schedule);
+      }
+      
+      // 완료 확인 대기 중 상태
+      if (listingStatus == 'awaiting_confirmation') {
+        return _Badge('원 사업자 확인 대기중', Colors.purple, Icons.hourglass_empty);
+      }
+    }
+    
     if (job.assignedBusinessId == me) {
       return _Badge('콜 공사', Colors.green, Icons.campaign_outlined);
     }

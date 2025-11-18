@@ -689,6 +689,19 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         return;
       }
       
+      // ✅ 이미 1개 이상 입찰했는지 확인
+      if (_myBidListingIds.isNotEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('한 번에 1개의 공사만 \'잡기\'가 가능합니다'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+      
       // 낙관적 UI 업데이트: 즉시 입찰 상태 반영
       setState(() {
         _myBidListingIds.add(id);
