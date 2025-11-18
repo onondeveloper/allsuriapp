@@ -10,6 +10,7 @@ import '../../models/job.dart';
 import '../../widgets/interactive_card.dart';
 import 'order_bidders_screen.dart';
 import 'order_review_screen.dart';
+import '../../services/api_service.dart';
 
 class JobManagementScreen extends StatefulWidget {
   const JobManagementScreen({super.key});
@@ -70,25 +71,28 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       print('🔍 [JobManagement] jobIds: $jobIds');
 
       if (jobIds.isNotEmpty) {
-        // marketplace_listings를 각 job별로 조회 (RLS 우회)
         final Map<String, Map<String, dynamic>> tempMap = {};
-        
+        final api = ApiService();
+
         for (final jobId in jobIds) {
           try {
-            final result = await Supabase.instance.client
-                .from('marketplace_listings')
-                .select('id, jobid, title, bid_count, status, claimed_by, selected_bidder_id, completed_by')
-                .eq('jobid', jobId)
-                .maybeSingle();
-            
-            if (result != null) {
-              tempMap[jobId] = Map<String, dynamic>.from(result);
+            final response = await api.get('/market/listings?jobId=$jobId&limit=1');
+            if (response['success'] == true) {
+              final List<dynamic> data = response['data'] ?? [];
+              if (data.isNotEmpty) {
+                final listing = Map<String, dynamic>.from(data.first);
+                tempMap[jobId] = listing;
+              } else {
+                print('⚠️ [JobManagement] jobId=$jobId 에 대한 listing 없음');
+              }
+            } else {
+              print('⚠️ [JobManagement] jobId=$jobId listing API 실패: ${response['error']}');
             }
           } catch (e) {
             print('⚠️ [JobManagement] listing 조회 실패 (jobId=$jobId): $e');
           }
         }
-        
+
         _listingByJobId = tempMap;
 
         print('🔍 [JobManagement] 조회된 listings: ${_listingByJobId.length}개');

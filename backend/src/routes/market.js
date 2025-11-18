@@ -7,12 +7,15 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 // Query params: status, region, category, limit, offset
 router.get('/listings', async (req, res) => {
   try {
-    const { status, region, category, limit, offset } = req.query;
-    let qb = supabase.from('marketplace_listings').select('*');
+    const { status, region, category, limit, offset, postedBy, claimedBy, jobId } = req.query;
+    let qb = supabase.from('marketplace_listings').select('*, jobs(*)');
 
     if (status && status !== 'all') qb = qb.eq('status', status);
     if (region) qb = qb.eq('region', region);
     if (category) qb = qb.eq('category', category);
+    if (postedBy) qb = qb.eq('posted_by', postedBy);
+    if (claimedBy) qb = qb.eq('claimed_by', claimedBy);
+    if (jobId) qb = qb.eq('jobid', jobId);
 
     let rangeStart = 0;
     let rangeEnd = 49;

@@ -60,9 +60,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
 async function handleGetListings(event: HandlerEvent) {
   const params = event.queryStringParameters || {}
-  const { status, region, category, limit, offset } = params
+  const { status, region, category, limit, offset, postedBy, claimedBy, jobId } = params
 
-  let url = `${SUPABASE_URL}/rest/v1/marketplace_listings?select=*`
+  let url = `${SUPABASE_URL}/rest/v1/marketplace_listings?select=*,jobs(*)`
   
   if (status && status !== 'all') {
     url += `&status=eq.${status}`
@@ -72,6 +72,15 @@ async function handleGetListings(event: HandlerEvent) {
   }
   if (category) {
     url += `&category=eq.${encodeURIComponent(category)}`
+  }
+  if (postedBy) {
+    url += `&posted_by=eq.${encodeURIComponent(postedBy)}`
+  }
+  if (claimedBy) {
+    url += `&claimed_by=eq.${encodeURIComponent(claimedBy)}`
+  }
+  if (jobId) {
+    url += `&jobid=eq.${encodeURIComponent(jobId)}`
   }
 
   url += '&order=createdat.desc'

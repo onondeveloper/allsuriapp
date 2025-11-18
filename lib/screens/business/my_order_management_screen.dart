@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/auth_service.dart';
-import '../../models/job.dart';
 import '../business/order_bidders_screen.dart';
 import '../business/order_review_screen.dart';
+import '../../services/api_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// 내 오더 관리 화면
 /// - 내가 생성한 오더만 표시
@@ -43,81 +43,23 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
       print('🔍 [MyOrderManagement] 내가 생성한 오더 로드 시작');
       print('   현재 사용자 ID: $currentUserId');
 
-      // marketplace_listings에서 내가 생성한 오더만 가져오기
-      final listings = await Supabase.instance.client
-          .from('marketplace_listings')
-          .select('*, jobs(*)')
-          .eq('posted_by', currentUserId)
-          .order('createdat', ascending: false);
+      final api = ApiService();
+      final response = await api.get('/market/listings?status=all&postedBy=$currentUserId');
 
-      print('🔍 [MyOrderManagement] 조회된 오더: ${listings.length}개');
-      
-      if (listings.isNotEmpty) {
-        print('   첫 번째 오더: ${listings[0]['id']} - ${listings[0]['title']}');
-        print('   posted_by: ${listings[0]['posted_by']}');
+      if (response['success'] != true) {
+        throw Exception(response['error'] ?? 'API 호출 실패');
       }
 
-      // 추가: jobs 테이블에서 내 공사 확인
-      final jobs = await Supabase.instance.client
-          .from('jobs')
-          .select('id, title, status, owner_business_id')
-          .eq('owner_business_id', currentUserId)
-          .order('created_at', ascending: false);
+      final data = List<Map<String, dynamic>>.from(response['data'] ?? []);
 
-      print('🔍 [MyOrderManagement] jobs 테이블 조회 결과: ${jobs.length}개');
-      
-      // 각 job에 대해 marketplace_listings를 개별 조회
-      final List<Map<String, dynamic>> jobsWithListings = [];
-      
-      for (final job in jobs) {
-        final jobId = job['id']?.toString();
-        if (jobId != null) {
-          try {
-            final listing = await Supabase.instance.client
-                .from('marketplace_listings')
-                .select('*')
-                .eq('jobid', jobId)
-                .maybeSingle();
-            
-            if (listing != null) {
-              jobsWithListings.add({
-                ...Map<String, dynamic>.from(listing),
-                'jobs': job,
-              });
-              print('   ✓ job $jobId → listing ${listing['id']}');
-            }
-          } catch (e) {
-            print('   ✗ job $jobId listing 조회 실패: $e');
-          }
-        }
+      print('🔍 [MyOrderManagement] 조회된 오더: ${data.length}개');
+      if (data.isNotEmpty) {
+        print('   첫 번째 오더: ${data[0]['id']} - ${data[0]['title']}');
+        print('   posted_by: ${data[0]['posted_by']}');
       }
-      
-      print('🔍 [MyOrderManagement] marketplace_listings가 있는 jobs: ${jobsWithListings.length}개');
-
-      // 두 결과를 합치기 (중복 제거)
-      final Set<String> seenIds = {};
-      final List<Map<String, dynamic>> combinedOrders = [];
-      
-      for (final listing in listings) {
-        final id = listing['id']?.toString();
-        if (id != null && !seenIds.contains(id)) {
-          seenIds.add(id);
-          combinedOrders.add(listing);
-        }
-      }
-      
-      for (final jobWithListing in jobsWithListings) {
-        final id = jobWithListing['id']?.toString();
-        if (id != null && !seenIds.contains(id)) {
-          seenIds.add(id);
-          combinedOrders.add(jobWithListing);
-        }
-      }
-
-      print('🔍 [MyOrderManagement] 최종 오더 수: ${combinedOrders.length}개');
 
       setState(() {
-        _myOrders = combinedOrders;
+        _myOrders = data;
       });
     } catch (e, stackTrace) {
       print('❌ [MyOrderManagement] 오더 로드 실패: $e');
