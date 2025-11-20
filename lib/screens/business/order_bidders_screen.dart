@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/services/auth_service.dart';
+import 'package:allsuriapp/services/chat_service.dart';
+import '../chat_screen.dart';
 
 class OrderBiddersScreen extends StatefulWidget {
   final String listingId;
@@ -121,6 +123,29 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
         
         if (!mounted) return;
         
+        // 채팅방 생성
+        String? chatRoomId;
+        try {
+          print('💬 [OrderBiddersScreen] 채팅방 생성 시도...');
+          print('   Owner ID: $currentUserId');
+          print('   Bidder ID: $bidderId');
+          print('   Listing ID: ${widget.listingId}');
+          
+          final chatService = ChatService();
+          chatRoomId = await chatService.ensureChatRoom(
+            customerId: currentUserId,
+            businessId: bidderId,
+            title: 'order_${widget.listingId}',
+          );
+          
+          print('✅ [OrderBiddersScreen] 채팅방 생성 성공: $chatRoomId');
+        } catch (chatErr) {
+          print('❌ [OrderBiddersScreen] 채팅방 생성 실패: $chatErr');
+          // 채팅방 생성 실패해도 계속 진행
+        }
+        
+        if (!mounted) return;
+        
         // 성공 다이얼로그 표시
         await showDialog(
           context: context,
@@ -152,8 +177,24 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
         
         if (!mounted) return;
         
-        // 화면 닫고 내 공사 목록으로 돌아가기
-        Navigator.pop(context, true);
+        // 채팅방으로 이동 (생성에 성공한 경우)
+        if (chatRoomId != null) {
+          print('💬 [OrderBiddersScreen] 채팅방으로 이동: $chatRoomId');
+          Navigator.pop(context); // 현재 화면 닫기
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatScreen(
+                roomId: chatRoomId!,
+                otherUserId: bidderId,
+                otherUserName: bidderName,
+              ),
+            ),
+          );
+        } else {
+          // 채팅방 생성 실패 시 내 공사 목록으로 돌아가기
+          Navigator.pop(context, true);
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

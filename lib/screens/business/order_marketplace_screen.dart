@@ -412,8 +412,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Header row
-                              Row(
+                              // Header row - Wrap으로 변경하여 오버플로 방지
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -430,7 +432,6 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                     decoration: BoxDecoration(
@@ -454,8 +455,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                     ),
                                   ),
                                   // 입찰자 수 배지 (오더 소유자만 표시)
-                                  if (isOwner && bidCount > 0) ...[
-                                    const SizedBox(width: 8),
+                                  if (isOwner && bidCount > 0)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                       decoration: BoxDecoration(
@@ -479,12 +479,9 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                         ],
                                       ),
                                     ),
-                                  ],
                                   // 입찰 상태 배지 (내가 입찰한 오더)
-                                  if (hasAnyBid && myBidStatus != null) ...[
-                                    const SizedBox(width: 8),
+                                  if (hasAnyBid && myBidStatus != null)
                                     _buildMyBidBadge(myBidStatus),
-                                  ],
                                 ],
                               ),
                               const SizedBox(height: 12),
