@@ -79,41 +79,75 @@ export const handler = async (event: any) => {
     
     // STEP 1: Supabase Auth 사용자 확인/생성 (UUID 확보)
     let authUserId: string | null = null;
+    let existingUser: any | null = null; // 전역 스코프로 이동
+    
     try {
-      // 1-1. Supabase Auth 사용자가 존재하는지 확인
-      let existingSupabaseUser: { id: string; email: string; } | null = null;
+      // 1-1. users 테이블에서 kakao_id로 먼저 조회 (가장 정확한 식별자)
+      console.log(`🔍 [Kakao Login] Step 1-1: kakao_id로 users 테이블 조회 중...`);
+      console.log(`   - Kakao ID: ${kakaoId}`);
+      try {
+        const usersCheckUrl = `${SUPABASE_URL}/rest/v1/users?kakao_id=eq.${kakaoId}&select=id,email,kakao_id,name`;
+        console.log(`   - Users Table URL: ${usersCheckUrl}`);
+        const usersCheckRes = await fetch(usersCheckUrl, {
+          headers: { 
+            apikey: SUPABASE_SERVICE_ROLE_KEY, 
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` 
+          },
+        });
+        
+        if (usersCheckRes.ok) {
+          const usersData = await usersCheckRes.json();
+          console.log(`🔍 [Kakao Login] users 테이블 조회 응답:`, JSON.stringify(usersData));
+          
+          if (Array.isArray(usersData) && usersData.length > 0) {
+            existingUser = usersData[0];
+            authUserId = existingUser.id;
+            console.log(`✅ [Kakao Login] users 테이블에서 기존 사용자 발견: ${authUserId}`);
+            console.log(`   - Name: ${existingUser.name}`);
+            console.log(`   - Email: ${existingUser.email}`);
+          } else {
+            console.log('🔍 [Kakao Login] users 테이블에 kakao_id로 사용자 없음.');
+          }
+        } else {
+          console.log(`⚠️ [Kakao Login] users 테이블 조회 실패 (HTTP ${usersCheckRes.status}): ${await usersCheckRes.text()}`);
+        }
+      } catch (e: any) {
+        console.log(`❌ [Kakao Login] users 테이블 조회 중 에러: ${e.message}`);
+      }
+      
+      // 1-2. Supabase Auth 사용자 확인 (authUserId가 있으면 해당 ID로 조회)
+      let existingSupabaseUser: { id: string; email: string; user_metadata?: any } | null = null;
       let userAlreadyExists = false;
 
       try {
-        const authAdminUsersUrl = `${SUPABASE_URL}/auth/v1/admin/users?email=eq.${supabaseAuthEmail}`;
-        console.log(`   - Auth Admin URL (Check User): ${authAdminUsersUrl}`);
-        const checkUserRes = await fetch(authAdminUsersUrl, {
-          method: 'GET',
-          headers: {
-            apikey: SUPABASE_SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-        });
+        if (authUserId) {
+          // authUserId가 있으면 ID로 직접 조회
+          const authCheckByIdUrl = `${SUPABASE_URL}/auth/v1/admin/users/${authUserId}`;
+          console.log(`   - Auth Admin URL (Check by ID): ${authCheckByIdUrl}`);
+          const checkByIdRes = await fetch(authCheckByIdUrl, {
+            method: 'GET',
+            headers: {
+              apikey: SUPABASE_SERVICE_ROLE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+          });
 
-        if (checkUserRes.ok) {
-          const responseData = await checkUserRes.json();
-          console.log(`🔍 [Kakao Login] Supabase Auth 조회 응답:`, JSON.stringify(responseData));
-          
-          // Supabase Auth Admin API는 { users: [...] } 형태로 반환할 수 있음
-          const users = Array.isArray(responseData) ? responseData : (responseData.users || []);
-          
-          if (users && users.length > 0) {
-            existingSupabaseUser = users[0];
+          if (checkByIdRes.ok) {
+            existingSupabaseUser = await checkByIdRes.json();
             userAlreadyExists = true;
-            if (existingSupabaseUser) {
-              authUserId = existingSupabaseUser.id;
-              console.log(`✅ [Kakao Login] Supabase Auth 사용자 이미 존재: ${existingSupabaseUser.id}`);
+            console.log(`✅ [Kakao Login] Supabase Auth 사용자 존재 확인 (ID: ${authUserId})`);
+            
+            // user_metadata에 kakao_id가 있는지 확인
+            const userMetadata = existingSupabaseUser?.user_metadata || {};
+            if (userMetadata.kakao_id !== kakaoId) {
+              console.warn(`⚠️ [Kakao Login] user_metadata의 kakao_id가 다릅니다! (저장된: ${userMetadata.kakao_id}, 현재: ${kakaoId})`);
             }
           } else {
-            console.log('🔍 [Kakao Login] Supabase Auth 사용자 존재하지 않음.');
+            console.log(`⚠️ [Kakao Login] Supabase Auth 사용자 없음 (ID: ${authUserId}). 새로 생성 필요.`);
+            authUserId = null; // Auth에 없으므로 새로 생성
           }
         } else {
-          console.log(`⚠️ [Kakao Login] Supabase Auth 사용자 확인 실패 (HTTP ${checkUserRes.status}): ${await checkUserRes.text()}`);
+          console.log('🔍 [Kakao Login] users 테이블에 사용자가 없으므로 새로 생성합니다.');
         }
       } catch (e: any) {
         console.log(`❌ [Kakao Login] Supabase Auth 사용자 확인 중 에러 발생: ${e.message}`);
@@ -151,30 +185,41 @@ export const handler = async (event: any) => {
           const errorText = await createUserRes.text();
           console.warn(`[Kakao Login] Supabase Auth 사용자 생성 실패: ${errorText}`);
           
-          // email_exists 오류인 경우, 다시 조회 시도
+          // email_exists 오류인 경우, kakao_id로 다시 조회
           try {
             const errorData = JSON.parse(errorText);
             if (errorData.error_code === 'email_exists') {
-              console.log('🔄 [Kakao Login] email_exists 오류 감지. 기존 사용자 재조회 시도...');
-              const retryCheckUserRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?email=eq.${supabaseAuthEmail}`, {
-                method: 'GET',
-                headers: {
-                  apikey: SUPABASE_SERVICE_ROLE_KEY,
-                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              console.log('🔄 [Kakao Login] email_exists 오류 감지. kakao_id로 기존 사용자 재조회 시도...');
+              
+              // users 테이블에서 kakao_id로 재조회
+              const retryUsersCheckRes = await fetch(`${SUPABASE_URL}/rest/v1/users?kakao_id=eq.${kakaoId}&select=id`, {
+                headers: { 
+                  apikey: SUPABASE_SERVICE_ROLE_KEY, 
+                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` 
                 },
               });
               
-              if (retryCheckUserRes.ok) {
-                const retryResponseData = await retryCheckUserRes.json();
-                console.log(`🔍 [Kakao Login] 재조회 응답:`, JSON.stringify(retryResponseData));
-                const retryUsers = Array.isArray(retryResponseData) ? retryResponseData : (retryResponseData.users || []);
+              if (retryUsersCheckRes.ok) {
+                const retryUsersData = await retryUsersCheckRes.json();
+                console.log(`🔍 [Kakao Login] users 테이블 재조회 응답:`, JSON.stringify(retryUsersData));
                 
-                if (retryUsers && retryUsers.length > 0) {
-                  existingSupabaseUser = retryUsers[0];
-                  if (existingSupabaseUser) {
-                    authUserId = existingSupabaseUser.id;
+                if (Array.isArray(retryUsersData) && retryUsersData.length > 0) {
+                  const foundUser = retryUsersData[0];
+                  authUserId = foundUser.id;
+                  
+                  // Supabase Auth에서도 해당 사용자 확인
+                  const retryAuthCheckRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${authUserId}`, {
+                    method: 'GET',
+                    headers: {
+                      apikey: SUPABASE_SERVICE_ROLE_KEY,
+                      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                    },
+                  });
+                  
+                  if (retryAuthCheckRes.ok) {
+                    existingSupabaseUser = await retryAuthCheckRes.json();
                     userAlreadyExists = true;
-                    console.log(`✅ [Kakao Login] 재조회 성공! 기존 사용자 ID: ${authUserId}`);
+                    console.log(`✅ [Kakao Login] kakao_id로 재조회 성공! 사용자 ID: ${authUserId}`);
                   }
                 }
               }
@@ -275,16 +320,21 @@ export const handler = async (event: any) => {
     console.log('[Kakao Login] 🗄️ Step 2: users 테이블 처리 시작');
     console.log(`   - Auth User ID: ${authUserId}`);
     
-    let row: any | null = null;
+    let row: any | null = existingUser; // Step 1-1에서 이미 조회한 사용자 재사용
     try {
-      // 2-1. users 테이블에서 authUserId로 조회
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(authUserId)}&select=*`, {
-        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-      });
-      const arr = await r.json();
-      if (Array.isArray(arr) && arr.length > 0) {
-        row = arr[0];
-        console.log(`✅ [Kakao Login] users 테이블에 이미 존재: ${row.id}`);
+      // 2-1. existingUser가 없으면 authUserId로 다시 조회 (혹시 모를 경우 대비)
+      if (!row && authUserId) {
+        console.log('[Kakao Login] Step 2-1: users 테이블 재조회 중...');
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(authUserId)}&select=*`, {
+          headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+        });
+        const arr = await r.json();
+        if (Array.isArray(arr) && arr.length > 0) {
+          row = arr[0];
+          console.log(`✅ [Kakao Login] users 테이블에 이미 존재: ${row.id}`);
+        }
+      } else if (row) {
+        console.log(`✅ [Kakao Login] users 테이블 레코드 이미 조회됨: ${row.id}`);
       }
       
       // 2-2. users 테이블에 없으면 생성 (authUserId를 id로 사용)
