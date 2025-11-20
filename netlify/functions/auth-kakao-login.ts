@@ -13,7 +13,7 @@ export const handler = async (event: any) => {
     const body = JSON.parse(event.body || '{}')
     const accessToken = body.access_token as string | undefined
     if (!accessToken) {
-      return { statusCode: 400, body: JSON.stringify({ message: 'access_token is required' }) }
+      return new Response(JSON.stringify({ message: 'access_token is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
     // Validate Kakao token and get profile
@@ -22,7 +22,7 @@ export const handler = async (event: any) => {
     })
     if (!me.ok) {
       const t = await me.text()
-      return { statusCode: 401, body: JSON.stringify({ message: 'Invalid Kakao token', detail: t }) }
+      return new Response(JSON.stringify({ message: 'Invalid Kakao token', detail: t }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
     const kakao = await me.json()
     const kakaoId = String(kakao.id)
@@ -53,7 +53,7 @@ export const handler = async (event: any) => {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       const localId = `kakao:${kakaoId}`;
       // issueJwt 제거 및 에러 반환
-      return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase 환경 변수 누락', error: 'SUPABASE_ENV_MISSING' }) };
+      return new Response(JSON.stringify({ success: false, message: 'Supabase 환경 변수 누락', error: 'SUPABASE_ENV_MISSING' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
 
     let externalId = `kakao:${kakaoId}`
@@ -118,7 +118,7 @@ export const handler = async (event: any) => {
         // const crypto = require('crypto')
         // const uuid = crypto.randomUUID()
         // const token = await issueJwt(uuid)
-        return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase 사용자 생성 실패', error: errText }) };
+        return new Response(JSON.stringify({ success: false, message: 'Supabase 사용자 생성 실패', error: errText }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       }
     } else {
       // 기존 사용자 정보 업데이트 (카카오 정보가 변경되었을 수 있음)
