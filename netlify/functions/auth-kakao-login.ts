@@ -328,47 +328,44 @@ export const handler = async (event: any) => {
 
 
         // 3. 토큰 생성 (Generate Link)
-        console.log('[Kakao Login] 3️⃣ 토큰 생성 중...');
-        const generateLinkUrl = `${SUPABASE_URL}/auth/v1/admin/generate_link`;
-        console.log(`   - Generate Link URL: ${generateLinkUrl}`);
+        console.log('[Kakao Login] 3️⃣ 토큰 생성 중 (password grant)...');
+        const tokenUrl = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+        console.log(`   - Token URL: ${tokenUrl}`);
+        console.log(`   - User Email: ${supabaseAuthEmail}`);
         console.log(`   - User ID: ${userId}`);
         
-        const generateLinkBody = {
-          type: 'token', // Changed from 'magiclink' to 'token'
-          user_id: userId, // Changed from 'email' to 'user_id'
-          email: supabaseAuthEmail, // ✅ Added email to generateLinkBody
-          // refresh_token: 'true' // 필요 시 refresh token도 함께 요청 (Supabase 버전 따라 다름)
+        const tokenBody = {
+          email: supabaseAuthEmail,
+          password: kakaoId,
         };
-        console.log(`   - Request Body:`, generateLinkBody);
+        console.log(`   - Request Body:`, tokenBody);
 
-        const generateLinkRes = await fetch(generateLinkUrl, {
+        const tokenRes = await fetch(tokenUrl, {
           method: 'POST',
           headers: {
             apikey: SUPABASE_SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(generateLinkBody),
+          body: JSON.stringify(tokenBody),
         });
         
-        console.log(`   - 응답 상태: ${generateLinkRes.status} ${generateLinkRes.statusText}`);
+        console.log(`   - 응답 상태: ${tokenRes.status} ${tokenRes.statusText}`);
         
-        if (generateLinkRes.ok) {
-          const linkData = await generateLinkRes.json();
-          console.log(`   - 전체 응답 데이터:`, linkData);
-          console.log(`   - access_token 존재:`, linkData.access_token ? 'O' : 'X');
-          console.log(`   - refresh_token 존재:`, linkData.refresh_token ? 'O' : 'X');
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          console.log(`   - access_token 존재:`, tokenData.access_token ? 'O' : 'X');
+          console.log(`   - refresh_token 존재:`, tokenData.refresh_token ? 'O' : 'X');
           
-          supabaseAccessToken = linkData.access_token || null;
-          supabaseRefreshToken = linkData.refresh_token || null;
+          supabaseAccessToken = tokenData.access_token || null;
+          supabaseRefreshToken = tokenData.refresh_token || null;
           
           console.log('[Kakao Login] ✅ Supabase 세션 토큰 생성 성공');
           console.log(`   - Access Token: ${supabaseAccessToken ? `있음 (${supabaseAccessToken.substring(0, 20)}...)` : '❌ 없음'}`);
           console.log(`   - Refresh Token: ${supabaseRefreshToken ? `있음 (${supabaseRefreshToken.substring(0, 20)}...)` : '❌ 없음'}`);
         } else {
-          const errText = await generateLinkRes.text();
+          const errText = await tokenRes.text();
           console.error('[Kakao Login] ❌ Supabase 토큰 생성 실패');
-          console.error(`   - 상태: ${generateLinkRes.status}`);
+          console.error(`   - 상태: ${tokenRes.status}`);
           console.error(`   - 에러: ${errText}`);
           return new Response(JSON.stringify({ success: false, message: 'Supabase 토큰 생성 실패', error: errText }), { status: 500, headers: { 'Content-Type': 'application/json' } });
         }
