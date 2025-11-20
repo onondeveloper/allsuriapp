@@ -1,6 +1,6 @@
 // Netlify function: admin API router
 // Proxies selected endpoints used by backend/public/admin.js
-import type { Handler } from '@netlify/functions'
+import { createClient } from "@supabase/supabase-js";
 
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.env.ADMIN_DEVELOPER_TOKEN || 'devtoken'
 const SUPABASE_URL = process.env.SUPABASE_URL as string
@@ -15,7 +15,7 @@ function withAuth(headers: Record<string, string>): boolean {
   return token === ADMIN_TOKEN
 }
 
-export const handler: Handler = async (event) => {
+export const handler = async (event) => {
   try {
     // method/path
     const path = (() => {

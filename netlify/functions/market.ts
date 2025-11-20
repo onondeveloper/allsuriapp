@@ -1,4 +1,6 @@
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions'
+import { Config, Context } from "@netlify/functions"; // ✅ Removed this line
+
+import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL as string
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string
@@ -327,8 +329,8 @@ async function handleBidListing(event: HandlerEvent, path: string) {
             },
             body: JSON.stringify({
               userId: listing.posted_by,
-              title: notificationTitle,
-              body: notificationBody,
+              title: ownerNotificationTitle,
+              body: ownerNotificationBody,
               data: {
                 type: 'new_bid',
                 listingId: id,
