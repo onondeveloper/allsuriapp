@@ -302,27 +302,35 @@ export const handler = async (event: any) => {
         } else if (existingSupabaseUser) { // existingSupabaseUser가 null이 아님을 보장
           // 이미 사용자가 존재하면, userId는 existingSupabaseUser.id로 설정됨
           console.log('🔍 [Kakao Login] 사용자 이미 존재하므로 생성 건너뜜.');
-          // 기존 사용자의 이메일이 현재 정규화된 이메일과 다를 경우 업데이트
+          
+          // 기존 사용자의 비밀번호를 강제로 업데이트 (password grant 로그인을 위해)
+          console.log(`🔄 [Kakao Login] 기존 사용자 비밀번호 업데이트 시도...`);
+          const updateUserUrl = `${SUPABASE_URL}/auth/v1/admin/users/${existingSupabaseUser.id}`;
+          const updateUserBody: Record<string, any> = { 
+            password: kakaoId // 비밀번호를 kakaoId로 설정
+          };
+          
+          // 이메일이 다르면 함께 업데이트
           if (existingSupabaseUser.email !== supabaseAuthEmail) {
-            console.log(`⚠️ [Kakao Login] 기존 사용자 이메일(${existingSupabaseUser.email})이 다름. 업데이트 시도...`);
-            const updateUserUrl = `${SUPABASE_URL}/auth/v1/admin/users/${existingSupabaseUser.id}`;
-            const updateEmailBody = { email: supabaseAuthEmail };
-            const updateRes = await fetch(updateUserUrl, {
-              method: 'PUT',
-              headers: {
-                apikey: SUPABASE_SERVICE_ROLE_KEY,
-                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(updateEmailBody),
-            });
+            console.log(`⚠️ [Kakao Login] 기존 사용자 이메일(${existingSupabaseUser.email})도 업데이트합니다.`);
+            updateUserBody.email = supabaseAuthEmail;
+          }
+          
+          const updateRes = await fetch(updateUserUrl, {
+            method: 'PUT',
+            headers: {
+              apikey: SUPABASE_SERVICE_ROLE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(updateUserBody),
+          });
 
-            if (updateRes.ok) {
-              console.log(`✅ [Kakao Login] 사용자 이메일(${existingSupabaseUser.id}) 업데이트 완료.`);
-            } else {
-              console.warn(`❌ [Kakao Login] 사용자 이메일(${existingSupabaseUser.id}) 업데이트 실패: ${await updateRes.text()}`);
-              // 이메일 업데이트 실패하더라도, 기존 토큰 생성 시도
-            }
+          if (updateRes.ok) {
+            console.log(`✅ [Kakao Login] 사용자 정보 업데이트 완료 (비밀번호 & 이메일)`);
+          } else {
+            console.warn(`❌ [Kakao Login] 사용자 정보 업데이트 실패: ${await updateRes.text()}`);
+            // 업데이트 실패해도 토큰 생성 시도
           }
         }
 
