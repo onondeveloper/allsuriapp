@@ -230,11 +230,16 @@ class AuthService extends ChangeNotifier {
         print('🔍 [signInWithKakao] actualData: $actualData');
         
         if (actualData != null) {
-          final backendToken = actualData['token'] as String?;
-          print('🔍 [signInWithKakao] token: ${backendToken != null ? "존재" : "null"}');
+          // Supabase 토큰을 JWT 토큰으로 사용
+          final supabaseAccessToken = actualData['supabase_access_token'] as String?;
+          final supabaseRefreshToken = actualData['supabase_refresh_token'] as String?;
           
-          if (backendToken != null && backendToken.isNotEmpty) {
-            ApiService.setBearerToken(backendToken);
+          print('🔍 [signInWithKakao] supabase_access_token: ${supabaseAccessToken != null ? "존재" : "null"}');
+          print('🔍 [signInWithKakao] supabase_refresh_token: ${supabaseRefreshToken != null ? "존재" : "null"}');
+          
+          if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
+            // Supabase Access Token을 Bearer Token으로 설정
+            ApiService.setBearerToken(supabaseAccessToken);
             
             final user = actualData['user'] as Map<String, dynamic>?;
             print('🔍 [signInWithKakao] user: $user');
@@ -243,8 +248,6 @@ class AuthService extends ChangeNotifier {
               final uid = user['id'] as String;
               
               // Supabase 세션 설정 (백엔드에서 발급한 실제 Supabase Auth 토큰)
-              final supabaseAccessToken = actualData['supabase_access_token'] as String?;
-              final supabaseRefreshToken = actualData['supabase_refresh_token'] as String?;
               
               if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
                 try {
