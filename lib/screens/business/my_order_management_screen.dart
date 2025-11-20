@@ -21,11 +21,54 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
   List<Map<String, dynamic>> _myOrders = [];
   bool _isLoading = false;
   String _filter = 'all'; // all, pending, in_progress, completed
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
     _loadMyOrders();
+    _subscribeToOrderBids();
+  }
+  
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    super.dispose();
+  }
+  
+  /// 내 오더에 대한 입찰 실시간 구독
+  void _subscribeToOrderBids() {
+    final currentUserId = context.read<AuthService>().currentUser?.id;
+    if (currentUserId == null) return;
+    
+    print('🔔 [MyOrderManagement] 입찰 실시간 알림 구독 시작');
+    
+    _channel = Supabase.instance.client
+        .channel('my_order_bids_$currentUserId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'order_bids',
+          callback: (payload) {
+            print('🔔 [MyOrderManagement] 새 입찰 감지!');
+            print('   Payload: $payload');
+            
+            // 새 입찰이 들어온 경우 목록 새로고침
+            _loadMyOrders();
+            
+            // 사용자에게 알림 표시
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('새로운 입찰이 들어왔습니다!'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _loadMyOrders() async {
