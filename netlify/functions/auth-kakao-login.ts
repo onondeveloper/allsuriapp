@@ -1,13 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
+/// <reference types="node" />
+// import { createClient } from "@supabase/supabase-js"; // ✅ 제거
 
 const SUPABASE_URL = process.env.SUPABASE_URL as string
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string
 const JWT_SECRET = process.env.JWT_SECRET || 'change_me'
 
-export const handler = async (event) => {
+export const handler = async (event: any) => {
   try {
     if (event.httpMethod !== 'POST') {
-      return { statusCode: 405, body: 'Method Not Allowed' }
+      return new Response(JSON.stringify({ message: 'Method Not Allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
     }
     const body = JSON.parse(event.body || '{}')
     const accessToken = body.access_token as string | undefined
@@ -204,9 +205,11 @@ export const handler = async (event) => {
             if (users && users.length > 0) {
               existingSupabaseUser = users[0];
               userAlreadyExists = true;
-              console.log(`✅ [Kakao Login] Supabase Auth 사용자 이미 존재: ${existingSupabaseUser.id}`);
-              // 기존 사용자의 ID와 이메일을 사용하여 토큰 생성 단계로 바로 진행
-              userId = existingSupabaseUser.id; // 기존 사용자 ID 사용
+              if (existingSupabaseUser) {
+                console.log(`✅ [Kakao Login] Supabase Auth 사용자 이미 존재: ${existingSupabaseUser.id}`);
+                // 기존 사용자의 ID와 이메일을 사용하여 토큰 생성 단계로 바로 진행
+                userId = existingSupabaseUser.id; // 기존 사용자 ID 사용
+              }
               // 기존 사용자의 이메일이 다를 경우 업데이트 로직은 아래에서 처리
             } else {
               console.log('🔍 [Kakao Login] Supabase Auth 사용자 존재하지 않음.');

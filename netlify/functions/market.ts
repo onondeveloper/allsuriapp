@@ -1,11 +1,12 @@
-import { Config, Context } from "@netlify/functions"; // ✅ Removed this line
+/// <reference types="node" />
+// import { Config, Context } from "@netlify/functions"; // ✅ Removed this line
 
-import { createClient } from "@supabase/supabase-js";
+// import { createClient } from "@supabase/supabase-js"; // ✅ 제거
 
 const SUPABASE_URL = process.env.SUPABASE_URL as string
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string
 
-export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
+export const handler = async (event: any, context: any) => {
   // Netlify redirects: /api/market/* -> /.netlify/functions/market/*
   // event.path will be like: /api/market/listings/xxx/claim
   let path = event.path
@@ -57,20 +58,14 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       return await handleDeleteBid(event, path)
     }
 
-    return {
-      statusCode: 404,
-      body: JSON.stringify({ message: 'Not found' })
-    }
+    return new Response(JSON.stringify({ message: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   } catch (error: any) {
     console.error('[market] error:', error)
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: 'Internal server error', error: error.message })
-    }
+    return new Response(JSON.stringify({ message: 'Internal server error', error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
-async function handleGetListings(event: HandlerEvent) {
+async function handleGetListings(event: any) {
   const params = event.queryStringParameters || {}
   const { status, region, category, limit, offset, postedBy, claimedBy, jobId, jobIds } = params
 
@@ -95,9 +90,9 @@ async function handleGetListings(event: HandlerEvent) {
     url += `&jobid=eq.${encodeURIComponent(jobId)}`
   }
   if (jobIds) {
-    const ids = jobIds.split(',').map((id) => id.trim()).filter(Boolean)
+    const ids = jobIds.split(',').map((id: string) => id.trim()).filter(Boolean)
     if (ids.length > 0) {
-      url += `&jobid=in.(${ids.map((id) => encodeURIComponent(id)).join(',')})`
+      url += `&jobid=in.(${ids.map((id: string) => encodeURIComponent(id)).join(',')})`
     }
   }
 
@@ -120,23 +115,16 @@ async function handleGetListings(event: HandlerEvent) {
 
   const data = await response.json()
   
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data || [])
-  }
+  return new Response(JSON.stringify(data || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
-async function handleClaimListing(event: HandlerEvent, path: string) {
+async function handleClaimListing(event: any, path: string) {
   const id = path.split('/')[2]
   const body = JSON.parse(event.body || '{}')
   const { businessId } = body
 
   if (!businessId) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: 'businessId는 필수입니다' })
-    }
+    return new Response(JSON.stringify({ message: 'businessId는 필수입니다' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
@@ -172,40 +160,27 @@ async function handleClaimListing(event: HandlerEvent, path: string) {
           },
           body: JSON.stringify({ user_id: businessId })
         })
-      } catch (e) {
-        console.warn('[market] increment count failed:', e)
+      } catch (e: any) {
+        console.warn('[market] increment count failed:', e.message)
       }
 
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ success: true })
-      }
+      return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
-    return {
-      statusCode: 409,
-      body: JSON.stringify({ success: false, message: '이미 다른 사업자가 가져갔습니다' })
-    }
+    return new Response(JSON.stringify({ success: false, message: '이미 다른 사업자가 가져갔습니다' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
   } catch (error: any) {
-    console.error('[market] claim error:', error)
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: '가져가기 처리 실패', error: error.message })
-    }
+    console.error('[market] claim error:', error.message)
+    return new Response(JSON.stringify({ message: '가져가기 처리 실패', error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
-async function handleBidListing(event: HandlerEvent, path: string) {
+async function handleBidListing(event: any, path: string) {
   const id = path.split('/')[2]
   const body = JSON.parse(event.body || '{}')
   const { businessId, message } = body
 
   if (!businessId) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: 'businessId는 필수입니다' })
-    }
+    return new Response(JSON.stringify({ message: 'businessId는 필수입니다' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
@@ -227,10 +202,7 @@ async function handleBidListing(event: HandlerEvent, path: string) {
 
     if (!response.ok) {
       if (response.status === 409) {
-        return {
-          statusCode: 409,
-          body: JSON.stringify({ success: false, message: '이미 입찰하셨습니다' })
-        }
+        return new Response(JSON.stringify({ success: false, message: '이미 입찰하셨습니다' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
       }
       throw new Error(data.message || 'Bid failed')
     }
@@ -346,21 +318,14 @@ async function handleBidListing(event: HandlerEvent, path: string) {
       console.warn('[market] notification failed:', e.message)
     }
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true, bidId: data })
-    }
+    return new Response(JSON.stringify({ success: true, bidId: data }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error: any) {
-    console.error('[market] bid error:', error)
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: '입찰 처리 실패', error: error.message })
-    }
+    console.error('[market] bid error:', error.message)
+    return new Response(JSON.stringify({ message: '입찰 처리 실패', error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
-async function handleGetBids(event: HandlerEvent, path: string) {
+async function handleGetBids(event: any, path: string) {
   const id = path.split('/')[2]
 
   try {
@@ -376,21 +341,14 @@ async function handleGetBids(event: HandlerEvent, path: string) {
 
     const data = await response.json()
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data || [])
-    }
+    return new Response(JSON.stringify(data || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error: any) {
-    console.error('[market] get bids error:', error)
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: '입찰 목록 조회 실패', error: error.message })
-    }
+    console.error('[market] get bids error:', error.message)
+    return new Response(JSON.stringify({ message: '입찰 목록 조회 실패', error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
-async function handleListBids(event: HandlerEvent) {
+async function handleListBids(event: any) {
   const params = event.queryStringParameters || {}
   const { bidderId, status, statuses } = params
 
@@ -400,9 +358,9 @@ async function handleListBids(event: HandlerEvent) {
     url += `&bidder_id=eq.${encodeURIComponent(bidderId)}`
   }
   if (statuses) {
-    const statusList = statuses.split(',').map((s) => s.trim()).filter(Boolean)
+    const statusList = statuses.split(',').map((s: string) => s.trim()).filter(Boolean)
     if (statusList.length > 0) {
-      url += `&status=in.(${statusList.map((s) => encodeURIComponent(s)).join(',')})`
+      url += `&status=in.(${statusList.map((s: string) => encodeURIComponent(s)).join(',')})`
     }
   } else if (status) {
     url += `&status=eq.${encodeURIComponent(status)}`
@@ -417,14 +375,10 @@ async function handleListBids(event: HandlerEvent) {
 
   const data = await response.json()
 
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data || [])
-  }
+  return new Response(JSON.stringify(data || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
-async function handleSelectBidder(event: HandlerEvent, path: string) {
+async function handleSelectBidder(event: any, path: string) {
   const id = path.split('/')[2]
   const body = JSON.parse(event.body || '{}')
   const { bidderId, ownerId } = body
@@ -432,10 +386,7 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
   console.log(`[handleSelectBidder] 시작:`, { id, bidderId, ownerId })
 
   if (!bidderId || !ownerId) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: 'bidderId, ownerId는 필수입니다' })
-    }
+    return new Response(JSON.stringify({ message: 'bidderId, ownerId는 필수입니다' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
@@ -667,25 +618,18 @@ async function handleSelectBidder(event: HandlerEvent, path: string) {
       console.warn('[market] notification/push failed:', e.message)
     }
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true })
-    }
+    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error: any) {
-    console.error('[handleSelectBidder] 에러:', error)
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ 
-        success: false,
-        message: error.message || '입찰자 선택 실패',
-        error: error.message 
-      })
-    }
+    console.error('[handleSelectBidder] 에러:', error.message)
+    return new Response(JSON.stringify({ 
+      success: false,
+      message: error.message || '입찰자 선택 실패',
+      error: error.message 
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
-async function handleDeleteBid(event: HandlerEvent, path: string) {
+async function handleDeleteBid(event: any, path: string) {
   const listingId = path.split('/')[2]
   const params = event.queryStringParameters || {}
   const { bidderId } = params
@@ -693,10 +637,7 @@ async function handleDeleteBid(event: HandlerEvent, path: string) {
   console.log(`[handleDeleteBid] listingId=${listingId}, bidderId=${bidderId}`)
 
   if (!bidderId) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ success: false, message: 'bidderId는 필수입니다' })
-    }
+    return new Response(JSON.stringify({ success: false, message: 'bidderId는 필수입니다' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
@@ -716,10 +657,7 @@ async function handleDeleteBid(event: HandlerEvent, path: string) {
     if (!response.ok) {
       const errorText = await response.text()
       console.error('[handleDeleteBid] DELETE 실패:', errorText)
-      return {
-        statusCode: response.status,
-        body: JSON.stringify({ success: false, message: '입찰 삭제 실패' })
-      }
+      return new Response(JSON.stringify({ success: false, message: '입찰 삭제 실패' }), { status: response.status, headers: { 'Content-Type': 'application/json' } });
     }
 
     const data = await response.json()
@@ -728,23 +666,13 @@ async function handleDeleteBid(event: HandlerEvent, path: string) {
     console.log(`[handleDeleteBid] ${deletedCount}개 행 삭제 완료`)
 
     if (deletedCount === 0) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ success: false, message: '삭제할 입찰을 찾을 수 없습니다' })
-      }
+      return new Response(JSON.stringify({ success: false, message: '삭제할 입찰을 찾을 수 없습니다' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     }
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true, deleted: deletedCount })
-    }
+    return new Response(JSON.stringify({ success: true, deleted: deletedCount }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error: any) {
-    console.error('[handleDeleteBid] error:', error)
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ success: false, message: '입찰 삭제 실패', error: error.message })
-    }
+    console.error('[handleDeleteBid] error:', error.message)
+    return new Response(JSON.stringify({ success: false, message: '입찰 삭제 실패', error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
