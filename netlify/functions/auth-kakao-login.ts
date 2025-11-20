@@ -8,12 +8,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change_me'
 export const handler = async (event: any) => {
   try {
     if (event.httpMethod !== 'POST') {
-      return new Response(JSON.stringify({ message: 'Method Not Allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }), headers: { 'Content-Type': 'application/json' } };
     }
     const body = JSON.parse(event.body || '{}')
     const accessToken = body.access_token as string | undefined
     if (!accessToken) {
-      return new Response(JSON.stringify({ message: 'access_token is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 400, body: JSON.stringify({ message: 'access_token is required' }), headers: { 'Content-Type': 'application/json' } };
     }
 
     // Validate Kakao token and get profile
@@ -22,7 +22,7 @@ export const handler = async (event: any) => {
     })
     if (!me.ok) {
       const t = await me.text()
-      return new Response(JSON.stringify({ message: 'Invalid Kakao token', detail: t }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 401, body: JSON.stringify({ message: 'Invalid Kakao token', detail: t }), headers: { 'Content-Type': 'application/json' } };
     }
     const kakao = await me.json()
     const kakaoId = String(kakao.id)
@@ -375,38 +375,39 @@ export const handler = async (event: any) => {
           console.error('[Kakao Login] ❌ Supabase 토큰 생성 실패');
           console.error(`   - 상태: ${tokenRes.status}`);
           console.error(`   - 에러: ${errText}`);
-          return new Response(JSON.stringify({ success: false, message: 'Supabase 토큰 생성 실패', error: errText }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+          return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase 토큰 생성 실패', error: errText }), headers: { 'Content-Type': 'application/json' } };
         }
       } catch (authErr: any) {
         console.error('[Kakao Login] ❌ Supabase Auth 처리 오류:', authErr.message);
         console.error(`   - 스택:`, authErr.stack);
-        return new Response(JSON.stringify({ success: false, message: 'Supabase Auth 처리 오류', error: authErr.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        return { statusCode: 500, body: JSON.stringify({ success: false, message: 'Supabase Auth 처리 오류', error: authErr.message }), headers: { 'Content-Type': 'application/json' } };
       }
     }
     
     console.log('[Kakao Login] 로그인 성공, userId:', userId);
     
-    return new Response(JSON.stringify({
-      success: true,
-      message: 'Kakao login successful',
-      data: {
-        user: {
-          id: userId,
-          name: row?.name || name,
-          email: supabaseAuthEmail,
-          role: userRole,
-          businessStatus: businessStatus,
-          external_id: row?.external_id || externalId,
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        success: true,
+        message: 'Kakao login successful',
+        data: {
+          user: {
+            id: userId,
+            name: row?.name || name,
+            email: supabaseAuthEmail,
+            role: userRole,
+            businessStatus: businessStatus,
+            external_id: row?.external_id || externalId,
+          },
+          supabase_access_token: supabaseAccessToken,
+          supabase_refresh_token: supabaseRefreshToken,
         },
-        supabase_access_token: supabaseAccessToken,
-        supabase_refresh_token: supabaseRefreshToken,
-      },
-    }), {
-      status: 200,
+      }),
       headers: { 'Content-Type': 'application/json' },
-    });
+    };
   } catch (e: any) {
-    return new Response(JSON.stringify({ message: 'Kakao login failed', error: String(e) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return { statusCode: 500, body: JSON.stringify({ message: 'Kakao login failed', error: String(e) }), headers: { 'Content-Type': 'application/json' } };
   }
 }
 
