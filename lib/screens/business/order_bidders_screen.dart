@@ -185,9 +185,8 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => ChatScreen(
-                roomId: chatRoomId!,
-                otherUserId: bidderId,
-                otherUserName: bidderName,
+                chatRoomId: chatRoomId!,
+                chatRoomTitle: '$bidderName 님과의 대화',
               ),
             ),
           );
