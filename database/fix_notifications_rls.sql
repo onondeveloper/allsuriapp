@@ -1,6 +1,13 @@
 -- notifications 테이블 RLS 정책 수정
 -- Supabase SQL Editor에서 실행
 
+-- 0. userid 컬럼 타입 확인
+SELECT '=== notifications 테이블 스키마 ===' as info;
+SELECT column_name, data_type, udt_name
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'notifications'
+ORDER BY ordinal_position;
+
 -- 1. 기존 정책 확인
 SELECT '=== 현재 notifications 정책 ===' as info;
 SELECT policyname, cmd, qual 
@@ -14,14 +21,13 @@ DROP POLICY IF EXISTS ins_notifications ON public.notifications;
 DROP POLICY IF EXISTS upd_notifications ON public.notifications;
 DROP POLICY IF EXISTS del_notifications ON public.notifications;
 
--- 3. 새 정책 생성
+-- 3. 새 정책 생성 (둘 다 text로 변환하여 비교)
 -- SELECT: 본인의 알림만 조회 가능
 CREATE POLICY sel_notifications ON public.notifications
 FOR SELECT
 TO authenticated, anon
 USING (
-  userid::uuid = auth.uid()
-  OR userid = auth.uid()::text
+  userid::text = (auth.uid())::text
 );
 
 -- INSERT: 시스템(service role)만 생성 가능하도록 정책 없음
@@ -32,12 +38,10 @@ CREATE POLICY upd_notifications ON public.notifications
 FOR UPDATE
 TO authenticated, anon
 USING (
-  userid::uuid = auth.uid()
-  OR userid = auth.uid()::text
+  userid::text = (auth.uid())::text
 )
 WITH CHECK (
-  userid::uuid = auth.uid()
-  OR userid = auth.uid()::text
+  userid::text = (auth.uid())::text
 );
 
 -- DELETE: 본인의 알림만 삭제 가능
@@ -45,8 +49,7 @@ CREATE POLICY del_notifications ON public.notifications
 FOR DELETE
 TO authenticated, anon
 USING (
-  userid::uuid = auth.uid()
-  OR userid = auth.uid()::text
+  userid::text = (auth.uid())::text
 );
 
 -- 4. 테이블에 RLS 활성화
@@ -59,7 +62,7 @@ SELECT '✅ notifications RLS 정책 업데이트 완료!' as status;
 SELECT '=== 현재 사용자 알림 확인 ===' as info;
 SELECT id, userid, title, type, isread, createdat
 FROM notifications
-WHERE userid::uuid = auth.uid() OR userid = auth.uid()::text
+WHERE userid::text = (auth.uid())::text
 ORDER BY createdat DESC
 LIMIT 10;
 
