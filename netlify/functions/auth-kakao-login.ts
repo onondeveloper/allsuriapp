@@ -201,7 +201,12 @@ export const handler = async (event: any) => {
           });
 
           if (checkUserRes.ok) {
-            const users = await checkUserRes.json();
+            const responseData = await checkUserRes.json();
+            console.log(`🔍 [Kakao Login] Supabase Auth 조회 응답:`, JSON.stringify(responseData));
+            
+            // Supabase Auth Admin API는 { users: [...] } 형태로 반환할 수 있음
+            const users = Array.isArray(responseData) ? responseData : (responseData.users || []);
+            
             if (users && users.length > 0) {
               existingSupabaseUser = users[0];
               userAlreadyExists = true;
@@ -245,19 +250,55 @@ export const handler = async (event: any) => {
           if (!createUserRes.ok) {
             const errorText = await createUserRes.text();
             console.warn(`[Kakao Login] Supabase Auth 사용자 생성 실패: ${errorText}`);
-            return new Response(JSON.stringify({
-              success: false,
-              message: 'Supabase Auth 사용자 생성 실패',
-              error: errorText,
-            }), {
-              status: 500,
-              headers: { 'Content-Type': 'application/json' },
-            });
+            
+            // email_exists 오류인 경우, 다시 조회 시도
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.error_code === 'email_exists') {
+                console.log('🔄 [Kakao Login] email_exists 오류 감지. 기존 사용자 재조회 시도...');
+                const retryCheckUserRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?email=eq.${supabaseAuthEmail}`, {
+                  method: 'GET',
+                  headers: {
+                    apikey: SUPABASE_SERVICE_ROLE_KEY,
+                    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                  },
+                });
+                
+                if (retryCheckUserRes.ok) {
+                  const retryResponseData = await retryCheckUserRes.json();
+                  console.log(`🔍 [Kakao Login] 재조회 응답:`, JSON.stringify(retryResponseData));
+                  const retryUsers = Array.isArray(retryResponseData) ? retryResponseData : (retryResponseData.users || []);
+                  
+                  if (retryUsers && retryUsers.length > 0) {
+                    existingSupabaseUser = retryUsers[0];
+                    if (existingSupabaseUser) {
+                      userId = existingSupabaseUser.id;
+                      userAlreadyExists = true;
+                      console.log(`✅ [Kakao Login] 재조회 성공! 기존 사용자 ID: ${userId}`);
+                    }
+                  }
+                }
+              }
+            } catch (parseError) {
+              console.log(`⚠️ [Kakao Login] 오류 응답 파싱 실패:`, parseError);
+            }
+            
+            // 재조회에도 실패한 경우에만 에러 반환
+            if (!userAlreadyExists) {
+              return new Response(JSON.stringify({
+                success: false,
+                message: 'Supabase Auth 사용자 생성 실패',
+                error: errorText,
+              }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+              });
+            }
+          } else {
+            const createUserData = await createUserRes.json();
+            userId = createUserData.id; // 새로 생성된 사용자 ID 사용
+            console.log(`✅ [Kakao Login] Supabase Auth 사용자 생성 완료: ${userId}`);
           }
-
-          const createUserData = await createUserRes.json();
-          userId = createUserData.id; // 새로 생성된 사용자 ID 사용
-          console.log(`✅ [Kakao Login] Supabase Auth 사용자 생성 완료: ${userId}`);
         } else if (existingSupabaseUser) { // existingSupabaseUser가 null이 아님을 보장
           // 이미 사용자가 존재하면, userId는 existingSupabaseUser.id로 설정됨
           console.log('🔍 [Kakao Login] 사용자 이미 존재하므로 생성 건너뜜.');
