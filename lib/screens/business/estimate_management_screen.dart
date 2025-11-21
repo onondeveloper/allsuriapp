@@ -39,7 +39,53 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _estimateService = Provider.of<EstimateService>(context, listen: false);
+    
+    // 🔒 사업자 승인 상태 확인
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkBusinessApproval();
+    });
+    
     _loadEstimates();
+  }
+  
+  /// 🔒 사업자 승인 상태 확인
+  void _checkBusinessApproval() {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+    
+    if (user == null) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('로그인이 필요합니다.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    if (user.role != 'business') {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사업자 계정만 접근 가능합니다.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    if (user.businessStatus != 'approved') {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사업자 승인이 필요합니다. 관리자 승인 후 이용 가능합니다.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
   }
 
   Future<void> _loadEstimates() async {

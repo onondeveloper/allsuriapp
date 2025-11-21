@@ -53,6 +53,11 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       print('⚠️ [OrderMarketplaceScreen] 사용자가 로그인되어 있지 않습니다!');
     }
     
+    // 🔒 사업자 승인 상태 확인
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkBusinessApproval();
+    });
+    
     // 내가 입찰한 오더 목록과 전체 목록을 동시에 로드
     _future = _loadInitialData();
     print('OrderMarketplaceScreen: _future 설정됨');
@@ -136,6 +141,46 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         _reload();
       }
     });
+  }
+
+  /// 🔒 사업자 승인 상태 확인
+  void _checkBusinessApproval() {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+    
+    if (user == null) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('로그인이 필요합니다.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    if (user.role != 'business') {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사업자 계정만 접근 가능합니다.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    if (user.businessStatus != 'approved') {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사업자 승인이 필요합니다. 관리자 승인 후 이용 가능합니다.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
   }
 
   Future<List<Map<String, dynamic>>> _loadInitialData() async {
