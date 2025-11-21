@@ -104,6 +104,28 @@ class _OrderReviewScreenState extends State<OrderReviewScreen> {
 
       print('✅ [OrderReview] 리뷰 저장 완료');
 
+      // marketplace_listings 상태를 'completed'로 업데이트
+      await Supabase.instance.client
+          .from('marketplace_listings')
+          .update({
+            'status': 'completed',
+            'updatedat': DateTime.now().toIso8601String(),
+          })
+          .eq('id', widget.listingId);
+
+      print('✅ [OrderReview] marketplace_listings 완료 처리');
+
+      // jobs 상태를 'completed'로 업데이트
+      await Supabase.instance.client
+          .from('jobs')
+          .update({
+            'status': 'completed',
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', widget.jobId);
+
+      print('✅ [OrderReview] jobs 완료 처리');
+
       // 리뷰 대상 사업자에게 알림
       await Supabase.instance.client.from('notifications').insert({
         'userid': widget.revieweeId,

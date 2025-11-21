@@ -650,23 +650,25 @@ class _ModernJobsList extends StatelessWidget {
                 : int.tryParse(listing['bid_count']?.toString() ?? '0') ?? 0)
             : 0;
         final canViewBidders = job.ownerBusinessId == currentUserId && listingId != null;
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        return GestureDetector(
+          onTap: () => _showJobDetail(context, job, listing),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 // Header row
                 Row(
                   children: [
@@ -763,18 +765,18 @@ class _ModernJobsList extends StatelessWidget {
                 ],
                 // 받은 공사 완료 버튼 (assignedBusinessId == currentUserId)
                 if (job.assignedBusinessId == currentUserId && 
-                    (job.status == 'assigned' || job.status == 'awaiting_confirmation')) ...[
+                    (job.status == 'assigned' || job.status == 'in_progress' || job.status == 'awaiting_confirmation')) ...[
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: job.status == 'assigned' ? () => onCompleteJob(job) : null,
+                      onPressed: (job.status == 'assigned' || job.status == 'in_progress') ? () => onCompleteJob(job) : null,
                       icon: Icon(
                         job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline,
                         size: 18,
                       ),
                       label: Text(
-                        job.status == 'awaiting_confirmation' ? '완료된 공사' : '공사 완료',
+                        job.status == 'awaiting_confirmation' ? '확인 대기 중' : '공사 완료',
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
@@ -831,6 +833,212 @@ class _ModernJobsList extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  static void _showJobDetail(BuildContext context, Job job, Map<String, dynamic>? listing) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        job.title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(job.status),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _getStatusText(job.status),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Description
+                const Text(
+                  '설명',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  job.description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Details
+                _buildDetailRow(Icons.location_on_outlined, '위치', job.location ?? '미정'),
+                const SizedBox(height: 8),
+                _buildDetailRow(Icons.category_outlined, '카테고리', job.category ?? '일반'),
+                const SizedBox(height: 8),
+                if (job.budgetAmount != null)
+                  _buildDetailRow(Icons.attach_money, '예산', '₩${job.budgetAmount!.toStringAsFixed(0)}'),
+                const SizedBox(height: 8),
+                if (job.commissionRate != null)
+                  _buildDetailRow(Icons.percent, '수수료율', '${job.commissionRate!.toStringAsFixed(1)}%'),
+                const SizedBox(height: 8),
+                if (job.commissionAmount != null)
+                  _buildDetailRow(Icons.money_off, '수수료', '₩${job.commissionAmount!.toStringAsFixed(0)}'),
+                
+                // Listing info
+                if (listing != null) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '오더 정보',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDetailRow(Icons.info_outline, '오더 상태', listing['status']?.toString() ?? '알 수 없음'),
+                  const SizedBox(height: 8),
+                  if (listing['bid_count'] != null)
+                    _buildDetailRow(Icons.people_outline, '입찰 수', '${listing['bid_count']}명'),
+                ],
+                
+                const SizedBox(height: 24),
+                
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1976D2),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      '닫기',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[700],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Color _getStatusColor(String status) {
+    switch (status) {
+      case 'created':
+        return Colors.blue;
+      case 'pending_transfer':
+        return Colors.orange;
+      case 'assigned':
+      case 'in_progress':
+        return Colors.green;
+      case 'awaiting_confirmation':
+        return Colors.purple;
+      case 'completed':
+        return Colors.teal;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  static String _getStatusText(String status) {
+    switch (status) {
+      case 'created':
+        return '생성됨';
+      case 'pending_transfer':
+        return '이전 대기';
+      case 'assigned':
+        return '배정됨';
+      case 'in_progress':
+        return '진행 중';
+      case 'awaiting_confirmation':
+        return '확인 대기';
+      case 'completed':
+        return '완료';
+      case 'cancelled':
+        return '취소됨';
+      default:
+        return status;
+    }
   }
 
   static _Badge _badgeFor(Job job, String me, Map<String, dynamic>? listing) {
