@@ -14,7 +14,7 @@ CREATE POLICY ins_marketplace_listings ON public.marketplace_listings
 FOR INSERT
 TO authenticated
 WITH CHECK (
-  created_by::text = (auth.uid())::text
+  posted_by::text = (auth.uid())::text
   AND EXISTS (
     SELECT 1 FROM public.users
     WHERE id::text = (auth.uid())::text
@@ -36,6 +36,7 @@ ORDER BY policyname;
 
 -- 기존 INSERT 정책 삭제
 DROP POLICY IF EXISTS ins_order_bids ON public.order_bids;
+DROP POLICY IF EXISTS insert_order_bids ON public.order_bids;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON public.order_bids;
 
 -- 새 INSERT 정책: 승인된 사업자만 입찰 가능
@@ -94,6 +95,7 @@ ORDER BY policyname;
 
 -- 기존 INSERT 정책 삭제
 DROP POLICY IF EXISTS ins_jobs ON public.jobs;
+DROP POLICY IF EXISTS "Business users can create jobs" ON public.jobs;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON public.jobs;
 
 -- 새 INSERT 정책: 승인된 사업자만 공사 등록 가능
