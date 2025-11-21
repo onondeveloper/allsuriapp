@@ -816,6 +816,7 @@ class _ModernJobsList extends StatelessWidget {
               ],
             ),
           ),
+          ),
         );
       },
     );
