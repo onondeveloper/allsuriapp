@@ -6,6 +6,9 @@ import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/screens/business/estimate_management_screen.dart';
 import 'package:allsuriapp/widgets/interactive_card.dart';
 import 'package:allsuriapp/widgets/shimmer_widgets.dart';
+import 'package:allsuriapp/widgets/modern_order_card.dart';
+import 'package:allsuriapp/widgets/modern_button.dart';
+import 'package:allsuriapp/config/app_constants.dart';
 import 'package:allsuriapp/services/chat_service.dart';
 import 'package:provider/provider.dart';
 import 'package:allsuriapp/models/estimate.dart';
@@ -1307,7 +1310,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                       width: double.infinity,
                       height: 56,
                       child: isOwner
-                          ? ElevatedButton.icon(
+                          ? ModernButton(
+                              text: '입찰자 보기 ($bidCount명)',
+                              icon: Icons.people_outline,
+                              backgroundColor: AppConstants.primaryColor,
                               onPressed: () {
                                 Navigator.pop(context);
                                 Navigator.push(
@@ -1320,71 +1326,19 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                   ),
                                 );
                               },
-                              icon: const Icon(Icons.people, size: 20),
-                              label: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text(
-                                    '입찰자 보기',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                  ),
-                                  if (bidCount > 0) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '$bidCount',
-                                        style: const TextStyle(
-                                          color: Colors.blue,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
                             )
-                          : ElevatedButton.icon(
+                          : ModernButton(
+                              text: hasPendingBid ? '입찰 취소' : '오더 잡기',
+                              icon: hasPendingBid ? Icons.cancel_outlined : Icons.touch_app_rounded,
+                              backgroundColor: hasPendingBid ? AppConstants.errorColor : AppConstants.warningColor,
                               onPressed: () async {
                                 Navigator.pop(context);
                                 if (hasPendingBid) {
-                                  // 입찰 취소
                                   await _cancelBid(data['id'].toString());
                                 } else {
-                                  // 오더 잡기
                                   await _claimListing(data['id'].toString());
                                 }
                               },
-                              icon: Icon(
-                                hasPendingBid ? Icons.cancel_outlined : Icons.touch_app_rounded, 
-                                size: 20, 
-                                color: Colors.white
-                              ),
-                              label: Text(
-                                hasPendingBid ? '입찰 취소' : '오더 잡기',
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: hasPendingBid ? Colors.red : const Color(0xFFF57C00),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
                             ),
                     ),
                   ),
