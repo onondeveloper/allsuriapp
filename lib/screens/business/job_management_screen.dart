@@ -8,6 +8,9 @@ import '../../services/auth_service.dart';
 import '../../services/job_service.dart';
 import '../../models/job.dart';
 import '../../widgets/interactive_card.dart';
+import '../../widgets/modern_order_card.dart';
+import '../../widgets/modern_button.dart';
+import '../../config/app_constants.dart';
 import 'order_bidders_screen.dart';
 import 'order_review_screen.dart';
 import '../../services/api_service.dart';
@@ -650,189 +653,75 @@ class _ModernJobsList extends StatelessWidget {
                 : int.tryParse(listing['bid_count']?.toString() ?? '0') ?? 0)
             : 0;
         final canViewBidders = job.ownerBusinessId == currentUserId && listingId != null;
-        return GestureDetector(
-          onTap: () => _showJobDetail(context, job, listing),
-          child: Container(
+        
+        // 액션 버튼 빌드
+        Widget? actionButton;
+        if (canViewBidders) {
+          actionButton = ModernButton(
+            text: '입찰자 보기 ($bidCount명)',
+            icon: Icons.people_outline,
+            backgroundColor: AppConstants.primaryColor,
+            onPressed: () => onViewBidders(listingId!, listingTitle),
+          );
+        } else if (job.assignedBusinessId == currentUserId && 
+                   (job.status == 'assigned' || job.status == 'in_progress' || job.status == 'awaiting_confirmation')) {
+          actionButton = ModernButton(
+            text: job.status == 'awaiting_confirmation' ? '확인 대기 중' : '공사 완료',
+            icon: job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline,
+            backgroundColor: job.status == 'awaiting_confirmation' ? AppConstants.greyColor : AppConstants.secondaryColor,
+            onPressed: (job.status == 'assigned' || job.status == 'in_progress') ? () => onCompleteJob(job) : null,
+          );
+        } else if (job.ownerBusinessId == currentUserId && 
+                   job.status == 'completed' && 
+                   listing != null && 
+                   listing['status'] == 'completed') {
+          actionButton = ModernButton(
+            text: '리뷰 작성',
+            icon: Icons.star_outline,
+            backgroundColor: AppConstants.warningColor,
+            onPressed: () => onReview(job),
+          );
+        }
+        
+        // 커스텀 배지 빌드
+        final badges = <Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              color: badge.color,
+              borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                // Header row
-                Row(
-                  children: [
-                    // Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: badge.color,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(badge.icon, size: 14, color: Colors.white),
-                          const SizedBox(width: 4),
-                          Text(
-                            badge.label,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Spacer(),
-                    // Budget
-                    if (job.budgetAmount != null)
-                      Text(
-                        '₩${job.budgetAmount!.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFF9A825),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Title
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(badge.icon, size: 14, color: Colors.white),
+                const SizedBox(width: 4),
                 Text(
-                  job.title,
+                  badge.label,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    height: 1.3,
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 8),
-                // Description
-                Text(
-                  job.description,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-                // Info row
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 8,
-                  children: [
-                    if (job.location != null && job.location!.isNotEmpty)
-                      _buildInfoChip(Icons.location_on_outlined, job.location!),
-                    if (job.category != null && job.category!.isNotEmpty)
-                      _buildInfoChip(Icons.category_outlined, job.category!),
-                    if (job.commissionRate != null)
-                      _buildInfoChip(Icons.percent_rounded, '수수료 ${job.commissionRate!.toStringAsFixed(1)}%'),
-                  ],
-                ),
-                // Action buttons
-                if (canViewBidders) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => onViewBidders(listingId!, listingTitle),
-                      icon: const Icon(Icons.people_outline, size: 18),
-                      label: Text('입찰자 보기 (${bidCount}명)', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1976D2),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-                // 받은 공사 완료 버튼 (assignedBusinessId == currentUserId)
-                if (job.assignedBusinessId == currentUserId && 
-                    (job.status == 'assigned' || job.status == 'in_progress' || job.status == 'awaiting_confirmation')) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: (job.status == 'assigned' || job.status == 'in_progress') ? () => onCompleteJob(job) : null,
-                      icon: Icon(
-                        job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline,
-                        size: 18,
-                      ),
-                      label: Text(
-                        job.status == 'awaiting_confirmation' ? '확인 대기 중' : '공사 완료',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: job.status == 'awaiting_confirmation' ? Colors.grey : Colors.green,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey[400],
-                        disabledForegroundColor: Colors.white70,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-                // 진행 중(assigned) 오더 리뷰 버튼 (ownerBusinessId == currentUserId && status == 'completed')
-                if (job.ownerBusinessId == currentUserId && 
-                    job.status == 'completed' && 
-                    listing != null && 
-                    listing['status'] == 'completed') ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => onReview(job),
-                      icon: const Icon(Icons.star_outline, size: 18),
-                      label: const Text('리뷰 작성', style: TextStyle(fontWeight: FontWeight.w600)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
-          ),
+        ];
+        
+        return ModernOrderCard(
+          title: job.title,
+          description: job.description,
+          category: job.category,
+          region: job.location,
+          budget: job.budgetAmount,
+          status: job.status,
+          bidCount: bidCount > 0 ? bidCount : null,
+          onTap: () => _showJobDetail(context, job, listing),
+          actionButton: actionButton,
+          badges: badges,
         );
       },
-    );
-  }
-
-  static Widget _buildInfoChip(IconData icon, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Colors.grey[600]),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
-      ],
     );
   }
 
