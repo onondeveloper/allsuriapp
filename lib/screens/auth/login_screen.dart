@@ -189,8 +189,33 @@ class _LoginScreenState extends State<LoginScreen> {
                             }
                             
                             if (ok) {
-                              // 사업자 로그인 의도: 역할을 즉시 사업자로 설정해 홈이 자동 전환되도록 함
-                              await authService.updateRole('business');
+                              // 사업자 로그인 의도: 역할을 즉시 사업자로 설정 (승인 필요)
+                              final currentUser = authService.currentUser;
+                              if (currentUser?.role == 'business') {
+                                // 이미 사업자인 경우 businessStatus 확인
+                                if (currentUser?.businessStatus != 'approved') {
+                                  // 승인 대기 중
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('사업자 승인 대기 중입니다. 관리자 승인 후 이용 가능합니다. 잠시만 기다려 주세요!'),
+                                        duration: Duration(seconds: 3),
+                                      ),
+                                    );
+                                  }
+                                }
+                              } else {
+                                // 처음 사업자로 등록하는 경우
+                                await authService.updateRole('business');
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('사업자 등록 신청이 완료되었습니다. 관리자 승인 후 이용 가능합니다.'),
+                                      duration: Duration(seconds: 3),
+                                    ),
+                                  );
+                                }
+                              }
                             } else if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('카카오 로그인 실패')),

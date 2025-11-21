@@ -8,7 +8,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL as string
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string
 
 function unauthorized() {
-  return new Response(JSON.stringify({ message: '관리자 권한이 필요합니다' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+  return { statusCode: 401, body: JSON.stringify({ message: '관리자 권한이 필요합니다' }), headers: { 'Content-Type': 'application/json' } };
 }
 
 function withAuth(headers: Record<string, string>): boolean {
@@ -110,33 +110,37 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       const pendingJobs = Array.isArray(jobs) ? jobs.filter((j: any) => j.status === 'pending').length : 0
       const completedJobs = Array.isArray(jobs) ? jobs.filter((j: any) => j.status === 'completed').length : 0
 
-      return new Response(JSON.stringify({
-        totalUsers,
-        totalBusinessUsers,
-        totalCustomers,
-        approvedUsers: totalBusinessUsers - pendingBusinessUsers,
-        totalEstimates,
-        pendingEstimates,
-        approvedEstimates,
-        completedEstimates,
-        inProgressEstimates,
-        awardedEstimates,
-        transferredEstimates,
-        totalEstimateAmount: Math.round(totalEstimateAmount),
-        totalRevenue: Math.round(totalRevenue),
-        totalOrders,
-        pendingOrders,
-        completedOrders,
-        totalOrderAmount: Math.round(totalOrderAmount),
-        totalJobs,
-        pendingJobs,
-        completedJobs
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          totalUsers,
+          totalBusinessUsers,
+          totalCustomers,
+          approvedUsers: totalBusinessUsers - pendingBusinessUsers,
+          totalEstimates,
+          pendingEstimates,
+          approvedEstimates,
+          completedEstimates,
+          inProgressEstimates,
+          awardedEstimates,
+          transferredEstimates,
+          totalEstimateAmount: Math.round(totalEstimateAmount),
+          totalRevenue: Math.round(totalRevenue),
+          totalOrders,
+          pendingOrders,
+          completedOrders,
+          totalOrderAmount: Math.round(totalOrderAmount),
+          totalJobs,
+          pendingJobs,
+          completedJobs
+        }),
+        headers: { 'Content-Type': 'application/json' }
+      };
     }
 
     // Admin me
     if (event.httpMethod === 'GET' && path === '/me') {
-      return new Response(JSON.stringify({ role: 'developer', permissions: { canManageUsers: true, canManageAds: true } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 200, body: JSON.stringify({ role: 'developer', permissions: { canManageUsers: true, canManageAds: true } }), headers: { 'Content-Type': 'application/json' } };
     }
 
     // Users list (from Supabase)
@@ -145,7 +149,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
         headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
       })
       const json = await res.json()
-      return new Response(JSON.stringify(Array.isArray(json) ? json : []), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } };
     }
 
     // Users search
@@ -155,7 +159,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       const url = `${SUPABASE_URL}/rest/v1/users?or=(name.ilike.${like},email.ilike.${like})`
       const res = await fetch(url, { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } })
       const json = await res.json()
-      return new Response(JSON.stringify(Array.isArray(json) ? json : []), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } };
     }
 
     // User status update
@@ -183,12 +187,12 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       if (!upRes.ok) {
         const errText = await upRes.text()
         console.error('❌ 사용자 상태 업데이트 실패:', upRes.status, errText)
-        return new Response(JSON.stringify({ message: '상태 업데이트 실패', error: errText }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        return { statusCode: 500, body: JSON.stringify({ message: '상태 업데이트 실패', error: errText }), headers: { 'Content-Type': 'application/json' } };
       }
 
       const updated = await upRes.json()
       console.log('✅ 사용자 상태 업데이트 성공:', userId, '→', status)
-      return new Response(JSON.stringify({ success: true, user: Array.isArray(updated) ? updated[0] : updated }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 200, body: JSON.stringify({ success: true, user: Array.isArray(updated) ? updated[0] : updated }), headers: { 'Content-Type': 'application/json' } };
     }
 
     // DELETE user
@@ -198,8 +202,8 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
         method: 'DELETE',
         headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
       })
-      if (!del.ok) return new Response(JSON.stringify({ message: '삭제 실패' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-      return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      if (!del.ok) return { statusCode: 500, body: JSON.stringify({ message: '삭제 실패' }), headers: { 'Content-Type': 'application/json' } };
+      return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } };
     }
 
     // Estimates list
@@ -216,7 +220,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
         headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
       })
       const json = await res.json()
-      return new Response(JSON.stringify(Array.isArray(json) ? json : []), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } };
     }
 
     // Estimate status update
@@ -234,8 +238,8 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
         },
         body: JSON.stringify({ status }),
       })
-      if (!res.ok) return new Response(JSON.stringify({ message: '견적 상태 업데이트 실패' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-      return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '견적 상태 업데이트 실패' }), headers: { 'Content-Type': 'application/json' } };
+      return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } };
     }
 
     // Market/Call listings
@@ -250,7 +254,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
         }
         const res = await fetch(url, { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } })
         const json = await res.json()
-        return new Response(JSON.stringify(Array.isArray(json) ? json : []), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } };
       }
     }
 
@@ -262,7 +266,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       const jobs = await jobsRes.json()
 
       if (!Array.isArray(jobs)) {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } };
       }
 
       // 사업자 정보 가져오기
@@ -291,7 +295,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
         assigned_business_name: job.assigned_business_id ? (usersMap[job.assigned_business_id]?.businessname || usersMap[job.assigned_business_id]?.name || '알 수 없음') : null,
       }))
 
-      return new Response(JSON.stringify(jobsWithUsers), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return { statusCode: 200, body: JSON.stringify(jobsWithUsers), headers: { 'Content-Type': 'application/json' } };
     }
 
     // Ads endpoints via Supabase
@@ -300,7 +304,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       if (event.httpMethod === 'GET' && (sub === '' || sub === '/')) {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/ads?select=*`, { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } })
         const json = await res.json()
-        return new Response(JSON.stringify(Array.isArray(json) ? json : []), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } };
       }
       if (event.httpMethod === 'POST' && (sub === '' || sub === '/')) {
         const payload = JSON.parse(event.body || '{}')
@@ -310,8 +314,8 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
           headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
-        if (!res.ok) return new Response(JSON.stringify({ message: '광고 생성 실패' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-        return new Response(JSON.stringify(await res.json()), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '광고 생성 실패' }), headers: { 'Content-Type': 'application/json' } };
+        return { statusCode: 200, body: JSON.stringify(await res.json()), headers: { 'Content-Type': 'application/json' } };
       }
       if (event.httpMethod === 'PUT' && /^\/(.+)/.test(sub)) {
         const id = sub.slice(1)
@@ -321,8 +325,8 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
           headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
           body: JSON.stringify(payload),
         })
-        if (!res.ok) return new Response(JSON.stringify({ message: '광고 업데이트 실패' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-        return new Response(JSON.stringify(await res.json()), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '광고 업데이트 실패' }), headers: { 'Content-Type': 'application/json' } };
+        return { statusCode: 200, body: JSON.stringify(await res.json()), headers: { 'Content-Type': 'application/json' } };
       }
       if (event.httpMethod === 'DELETE' && /^\/(.+)/.test(sub)) {
         const id = sub.slice(1)
@@ -330,13 +334,13 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
           method: 'DELETE',
           headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
         })
-        if (!res.ok) return new Response(JSON.stringify({ message: '광고 삭제 실패' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-        return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '광고 삭제 실패' }), headers: { 'Content-Type': 'application/json' } };
+        return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } };
       }
     }
 
-    return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+    return { statusCode: 404, body: JSON.stringify({ message: 'Not Found' }), headers: { 'Content-Type': 'application/json' } };
   } catch (e: any) {
-    return new Response(JSON.stringify({ message: 'Admin function error', error: String(e) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return { statusCode: 500, body: JSON.stringify({ message: 'Admin function error', error: String(e) }), headers: { 'Content-Type': 'application/json' } };
   }
 }
