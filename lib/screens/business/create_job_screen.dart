@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../services/job_service.dart';
 import '../../services/marketplace_service.dart';
 import '../../services/media_service.dart';
+import '../../services/notification_service.dart';
 import 'transfer_job_screen.dart';
 import 'order_marketplace_screen.dart';
 import '../../widgets/interactive_card.dart';
@@ -728,6 +729,42 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                           
                           if (result != null) {
                             print('OrderMarketplaceScreen으로 네비게이션 시작');
+                            
+                            // 다른 사업자들에게 알림 전송
+                            try {
+                              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+                              final notificationService = NotificationService();
+                              
+                              // 모든 사업자(자신 제외) 조회
+                              final businessUsers = await Supabase.instance.client
+                                .from('users')
+                                .select('id, businessname')
+                                .eq('usertype', 'business')
+                                .neq('id', currentUserId ?? '');
+                              
+                              print('🔔 ${businessUsers.length}명의 사업자에게 알림 전송 중...');
+                              
+                              // 각 사업자에게 알림 전송
+                              for (final business in businessUsers) {
+                                try {
+                                  await notificationService.sendNotification(
+                                    userId: business['id'],
+                                    title: '새로운 오더 등록',
+                                    body: '$title - 새로운 공사 오더가 등록되었습니다!',
+                                    type: 'new_order',
+                                    orderId: result['id']?.toString(),
+                                    jobTitle: title,
+                                    region: region,
+                                  );
+                                } catch (e) {
+                                  print('⚠️ 알림 전송 실패 (${business['businessname']}): $e');
+                                }
+                              }
+                              
+                              print('✅ 알림 전송 완료');
+                            } catch (e) {
+                              print('⚠️ 알림 전송 중 오류 (무시됨): $e');
+                            }
                             
                             // 즉시 OrderMarketplaceScreen으로 이동 (모든 이전 화면 제거)
                             Navigator.pushAndRemoveUntil(

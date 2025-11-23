@@ -157,6 +157,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
     switch (type) {
       case 'comment':
         return Icons.comment;
+      case 'new_order':
+        return Icons.campaign;
       case 'new_bid':
         return Icons.gavel;
       case 'bid_pending':
@@ -186,6 +188,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
     switch (type) {
       case 'comment':
         return Colors.purple;
+      case 'new_order':
+        return Colors.deepOrange;
       case 'new_bid':
         return Colors.orange;
       case 'bid_pending':
@@ -344,6 +348,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         ),
                       );
                     }
+                  } else if (type == 'new_order') {
+                    // 새로운 오더 → 오더 마켓플레이스로 이동
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const OrderMarketplaceScreen(),
+                      ),
+                    );
                   } else if (type == 'new_bid') {
                     // 새로운 입찰 → 입찰자 목록 화면
                     final listingId = notification['jobid']?.toString() ?? notification['jobId']?.toString() ?? '';

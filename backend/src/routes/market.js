@@ -308,7 +308,7 @@ router.get('/listings/:id/bids', async (req, res) => {
       .from('order_bids')
       .select(`
         *,
-        bidder:users!order_bids_bidder_id_fkey(id, businessname, avatar_url, estimates_created_count, jobs_accepted_count)
+        bidder:users!order_bids_bidder_id_fkey(id, businessname, avatar_url, estimates_created_count, jobs_accepted_count, serviceareas, address, specialties)
       `)
       .eq('listing_id', id)
       .order('created_at', { ascending: false });

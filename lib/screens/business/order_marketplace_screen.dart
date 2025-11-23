@@ -231,12 +231,18 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       );
       
       // 3. 자신이 등록한 오더 제외 (오더 마켓플레이스에서는 다른 사람이 등록한 오더만 표시)
+      print('🔍 [_loadInitialData] 필터링 중 - currentUserId: $currentUserId');
+      
       final filteredListings = allListings.where((listing) {
         final postedBy = listing['posted_by']?.toString() ?? '';
-        return postedBy != currentUserId;
+        final shouldShow = postedBy != currentUserId;
+        if (!shouldShow) {
+          print('   ⏭️ 제외: ${listing['title']} (posted_by: $postedBy)');
+        }
+        return shouldShow;
       }).toList();
       
-      print('✅ [_loadInitialData] ${allListings.length}개 오더 중 ${filteredListings.length}개 표시 (자신이 등록한 오더 제외)');
+      print('✅ [_loadInitialData] ${allListings.length}개 오더 중 ${filteredListings.length}개 표시 (자신이 등록한 오더 ${allListings.length - filteredListings.length}개 제외)');
       
       return filteredListings;
     } catch (e) {
