@@ -33,6 +33,8 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   late Future<int> _callOpenCountFuture;
   late Future<int> _estimateRequestsCountFuture;
   late Future<int> _totalWaitingFuture;
+  late Future<int> _myOrdersCountFuture;
+  late Future<int> _myBidsCountFuture;
   
   RealtimeChannel? _marketplaceChannel;
   RealtimeChannel? _ordersChannel;
@@ -96,18 +98,26 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       _callOpenCountFuture = _getCallOpenCount();
       _estimateRequestsCountFuture = _getEstimateRequestsCount();
       _totalWaitingFuture = _getTotalWaitingCount();
+      _myOrdersCountFuture = _getMyOrdersCount();
+      _myBidsCountFuture = _getMyBidsCount();
     });
   }
 
   Future<int> _getCallOpenCount() async {
     try {
-      // 오더 마켓에서 화면에 보이는 기준: open + withdrawn + created (사업자가 올린 모든 공사)
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      
+      // 오더 마켓에서 화면에 보이는 기준: open + withdrawn + created (자신이 올린 오더 제외)
       final items = await _market.listListings(status: 'all');
       final count = items.where((row) {
         final s = (row['status'] ?? '').toString();
-        return s == 'open' || s == 'withdrawn' || s == 'created';
+        final postedBy = row['posted_by']?.toString() ?? '';
+        final isValidStatus = s == 'open' || s == 'withdrawn' || s == 'created';
+        final isNotMyOrder = postedBy != currentUserId;
+        return isValidStatus && isNotMyOrder;
       }).length;
-      print('🔍 [_getCallOpenCount] 오더 개수: $count');
+      print('🔍 [_getCallOpenCount] 오더 개수 (자신 제외): $count');
       return count;
     } catch (e) {
       print('❌ [_getCallOpenCount] 에러: $e');
@@ -139,6 +149,48 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       return total;
     } catch (e) {
       print('❌ [_getTotalWaitingCount] 에러: $e');
+      return 0;
+    }
+  }
+
+  Future<int> _getMyOrdersCount() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      
+      if (currentUserId == null) return 0;
+      
+      // 내가 만든 오더 수
+      final items = await _market.listListings(status: 'all');
+      final count = items.where((row) {
+        final postedBy = row['posted_by']?.toString() ?? '';
+        return postedBy == currentUserId;
+      }).length;
+      print('🔍 [_getMyOrdersCount] 내가 만든 오더 수: $count');
+      return count;
+    } catch (e) {
+      print('❌ [_getMyOrdersCount] 에러: $e');
+      return 0;
+    }
+  }
+
+  Future<int> _getMyBidsCount() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      
+      if (currentUserId == null) return 0;
+      
+      // 내가 입찰한 오더 수
+      final bids = await _market.getBidsByBidder(currentUserId);
+      final activeBids = bids.where((bid) {
+        final status = bid['status']?.toString() ?? '';
+        return status != 'withdrawn'; // 취소하지 않은 입찰만
+      }).length;
+      print('🔍 [_getMyBidsCount] 입찰한 오더 수: $activeBids');
+      return activeBids;
+    } catch (e) {
+      print('❌ [_getMyBidsCount] 에러: $e');
       return 0;
     }
   }
@@ -263,27 +315,61 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: FutureBuilder<int>(
-                          future: _totalWaitingFuture,
-                          builder: (context, snapshot) {
-                            final n = snapshot.data ?? 0;
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '$businessName 님,',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '$n건의 공사가 사장님을 애타게 기다리고 있어요!',
-                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            );
-                          },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$businessName 님,',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            FutureBuilder<List<int>>(
+                              future: Future.wait([
+                                _callOpenCountFuture,
+                                _myOrdersCountFuture,
+                                _myBidsCountFuture,
+                              ]),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) {
+                                  return const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  );
+                                }
+                                
+                                final newOrders = snapshot.data![0];
+                                final myOrders = snapshot.data![1];
+                                final myBids = snapshot.data![2];
+                                
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildStatRow(
+                                      context,
+                                      '새로운 오더',
+                                      newOrders,
+                                      Colors.orange,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    _buildStatRow(
+                                      context,
+                                      '내가 만든 오더',
+                                      myOrders,
+                                      Colors.blue,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    _buildStatRow(
+                                      context,
+                                      '입찰한 오더',
+                                      myBids,
+                                      Colors.green,
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       )
                     ],
@@ -473,6 +559,38 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStatRow(BuildContext context, String label, int count, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$count건',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: color,
+            fontSize: 12,
+          ),
+        ),
+      ],
     );
   }
 }
