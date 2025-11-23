@@ -162,6 +162,43 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } };
     }
 
+    // User admin toggle (관리자 권한 지정/해제)
+    if (event.httpMethod === 'PATCH' && path.startsWith('/users/') && path.endsWith('/admin')) {
+      const userId = path.split('/')[2]
+      const body = JSON.parse(event.body || '{}')
+      const is_admin = body.is_admin === true
+
+      const upRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({ is_admin }),
+      })
+
+      if (!upRes.ok) {
+        const errText = await upRes.text()
+        console.error('❌ 관리자 권한 변경 실패:', upRes.status, errText)
+        return { statusCode: 500, body: JSON.stringify({ success: false, message: '관리자 권한 변경 실패', error: errText }), headers: { 'Content-Type': 'application/json' } };
+      }
+
+      const updated = await upRes.json()
+      const user = Array.isArray(updated) ? updated[0] : updated
+      console.log('✅ 관리자 권한 변경 성공:', userId, '→', is_admin)
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          success: true, 
+          message: is_admin ? '관리자로 지정되었습니다' : '관리자 권한이 해제되었습니다',
+          data: user 
+        }), 
+        headers: { 'Content-Type': 'application/json' } 
+      };
+    }
+
     // User status update
     if (event.httpMethod === 'PATCH' && path.startsWith('/users/') && path.endsWith('/status')) {
       const userId = path.split('/')[2]
@@ -195,15 +232,45 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       return { statusCode: 200, body: JSON.stringify({ success: true, user: Array.isArray(updated) ? updated[0] : updated }), headers: { 'Content-Type': 'application/json' } };
     }
 
-    // DELETE user
+    // DELETE user (CASCADE 삭제 사용)
     if (event.httpMethod === 'DELETE' && path.startsWith('/users/')) {
       const userId = path.split('/')[2]
-      const del = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
-        method: 'DELETE',
-        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+      
+      console.log(`[ADMIN] 사용자 삭제 시작: userId=${userId}`)
+      
+      // RPC 함수 호출로 CASCADE 삭제
+      const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_user_cascade`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_id_to_delete: userId }),
       })
-      if (!del.ok) return { statusCode: 500, body: JSON.stringify({ message: '삭제 실패' }), headers: { 'Content-Type': 'application/json' } };
-      return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } };
+      
+      if (!rpcRes.ok) {
+        const errText = await rpcRes.text()
+        console.error('❌ 사용자 삭제 실패:', rpcRes.status, errText)
+        return { 
+          statusCode: 500, 
+          body: JSON.stringify({ success: false, message: '사용자 삭제 실패', error: errText }), 
+          headers: { 'Content-Type': 'application/json' } 
+        };
+      }
+      
+      const deleted_counts = await rpcRes.json()
+      console.log(`[ADMIN] 사용자 삭제 완료:`, deleted_counts)
+      
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          success: true, 
+          message: '사용자가 삭제되었습니다',
+          deleted_counts 
+        }), 
+        headers: { 'Content-Type': 'application/json' } 
+      };
     }
 
     // Estimates list
