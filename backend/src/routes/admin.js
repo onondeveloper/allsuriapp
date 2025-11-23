@@ -605,9 +605,22 @@ router.patch('/users/:id/status', async (req, res) => {
 
 router.delete('/users/:id', async (req, res) => {
   try {
-    const { error } = await supabase.from('users').delete().eq('id', req.params.id);
+    console.log(`[ADMIN] 사용자 삭제 시작: userId=${req.params.id}`);
+    
+    // CASCADE 삭제 함수 사용 (모든 관련 데이터 삭제)
+    const { data, error } = await supabase.rpc('delete_user_cascade', {
+      user_id_to_delete: req.params.id
+    });
+    
     if (error) throw error;
-    res.json({ success: true, message: '사용자 삭제 완료' });
+    
+    console.log(`[ADMIN] 사용자 삭제 완료:`, data);
+    
+    res.json({ 
+      success: true, 
+      message: '사용자가 삭제되었습니다',
+      deleted_counts: data 
+    });
   } catch (error) {
     console.error('[ADMIN] 사용자 삭제 실패:', error);
     res.status(500).json({ success: false, message: '사용자 삭제 실패', error: error.message });

@@ -258,6 +258,7 @@ function filterUsers(searchTerm) {
                                 <th>상호</th>
                                 <th>이름</th>
                                 <th>카카오 ID</th>
+                                <th>관리자</th>
                                 <th>상태</th>
                                 <th>가입일</th>
                                 <th>작업</th>
@@ -273,6 +274,12 @@ function filterUsers(searchTerm) {
                                         </span>
                                     </td>
                                     <td><code>${user.kakao_id || user.external_id || '-'}</code></td>
+                                    <td>
+                                        ${user.is_admin ? 
+                                            '<span class="status-badge approved" style="background: #e6f4ea; color: #15803d;">관리자</span>' : 
+                                            '<span style="color: #999;">-</span>'
+                                        }
+                                    </td>
                                     <td>
                                         <span class="status-badge ${(user.businessStatus || user.businessstatus || 'pending')}">
                                             ${getStatusText(user.businessStatus || user.businessstatus)}
@@ -543,18 +550,68 @@ function getStatusText(status) {
 
 // 사용자 삭제
 async function deleteUser(userId) {
-    if (!confirm('정말로 이 사용자를 삭제하시겠습니까?')) {
+    if (!confirm('정말로 이 사용자를 삭제하시겠습니까?\n\n⚠️ 관련된 모든 데이터도 함께 삭제됩니다:\n- 견적 및 입찰\n- 오더 및 작업\n- 채팅 메시지\n- 알림\n- 커뮤니티 게시글/댓글')) {
         return;
     }
 
     try {
-        await apiCall(`/users/${userId}`, {
+        // 모든 사용자에 대해 CASCADE 삭제 사용
+        const response = await apiCall(`/users/${userId}`, {
             method: 'DELETE'
         });
+        
+        // 삭제된 데이터 통계 표시
+        if (response.deleted_counts) {
+            const counts = response.deleted_counts;
+            let message = '사용자가 삭제되었습니다.\n\n삭제된 데이터:\n';
+            if (counts.estimates > 0) message += `- 견적: ${counts.estimates}개\n`;
+            if (counts.bids > 0) message += `- 입찰: ${counts.bids}개\n`;
+            if (counts.listings > 0) message += `- 오더: ${counts.listings}개\n`;
+            if (counts.jobs > 0) message += `- 작업: ${counts.jobs}개\n`;
+            if (counts.chats > 0) message += `- 채팅방: ${counts.chats}개\n`;
+            if (counts.notifications > 0) message += `- 알림: ${counts.notifications}개\n`;
+            alert(message);
+        } else {
+            alert('사용자가 삭제되었습니다.');
+        }
+        
         loadUsers();
         loadDashboard();
     } catch (error) {
-        alert('사용자 삭제에 실패했습니다.');
+        console.error('사용자 삭제 오류:', error);
+        alert('사용자 삭제에 실패했습니다: ' + error.message);
+    }
+}
+
+// 관리자 권한 토글
+async function toggleAdmin(userId) {
+    try {
+        const user = allUsers.find(u => u.id === userId);
+        if (!user) {
+            alert('사용자를 찾을 수 없습니다.');
+            return;
+        }
+        
+        const newAdminStatus = !user.is_admin;
+        const confirmMsg = newAdminStatus 
+            ? '이 사용자를 관리자로 지정하시겠습니까?' 
+            : '이 사용자의 관리자 권한을 해제하시겠습니까?';
+        
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+        
+        const response = await apiCall(`/users/${userId}/admin`, {
+            method: 'PATCH',
+            body: JSON.stringify({ is_admin: newAdminStatus })
+        });
+        
+        if (response.success) {
+            alert(response.message);
+            loadUsers();
+        }
+    } catch (error) {
+        alert('관리자 권한 변경에 실패했습니다: ' + error.message);
     }
 }
 
@@ -858,14 +915,24 @@ async function deleteUser(userId) {
                     <div style="margin-bottom: 1rem;">
                         <strong>수정일:</strong> ${new Date(user.updatedAt || user.updatedat).toLocaleString()}
                     </div>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>관리자 권한:</strong> 
+                        <span class="status-badge ${user.is_admin ? 'approved' : 'pending'}">
+                            ${user.is_admin ? '관리자' : '일반 사용자'}
+                        </span>
+                    </div>
                 `;
                 
                 // 모달 footer 버튼 조건부 표시
                 const modalFooter = document.querySelector('#userModal .modal-footer');
                 if (userStatus === 'approved') {
-                    // 승인된 사용자: 삭제 버튼만
+                    // 승인된 사용자: 관리자 권한 토글 버튼, 삭제 버튼
                     modalFooter.innerHTML = `
                         <button class="btn btn-secondary" onclick="closeUserModal()">닫기</button>
+                        <button class="btn ${user.is_admin ? 'btn-warning' : 'btn-primary'} btn-sm" onclick="toggleAdminFromModal()" style="margin-right: auto;">
+                            <span class="material-icons" style="font-size: 1rem;">${user.is_admin ? 'remove_moderator' : 'admin_panel_settings'}</span>
+                            ${user.is_admin ? '관리자 해제' : '관리자 지정'}
+                        </button>
                         <button class="btn btn-danger btn-sm" onclick="deleteUserFromModal()">삭제</button>
                     `;
                 } else {
@@ -903,6 +970,14 @@ async function deleteUser(userId) {
             if (!currentUserId) return;
             await deleteUser(currentUserId);
             closeUserModal();
+        }
+
+        // 사용자 모달에서 관리자 권한 토글
+        async function toggleAdminFromModal() {
+            if (!currentUserId) return;
+            await toggleAdmin(currentUserId);
+            // 모달 다시 열어서 업데이트된 정보 보여주기
+            setTimeout(() => showUserDetail(currentUserId), 100);
         }
 
         // 사용자 모달 닫기
