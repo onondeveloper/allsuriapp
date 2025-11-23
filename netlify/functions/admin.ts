@@ -273,6 +273,43 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       };
     }
 
+    // DELETE listing (오더 삭제)
+    if (event.httpMethod === 'DELETE' && path.startsWith('/listings/')) {
+      const listingId = path.split('/')[2]
+      
+      console.log(`[ADMIN] 오더 삭제 시작: listingId=${listingId}`)
+      
+      // marketplace_listings 삭제 (CASCADE로 order_bids도 삭제됨)
+      const delRes = await fetch(`${SUPABASE_URL}/rest/v1/marketplace_listings?id=eq.${encodeURIComponent(listingId)}`, {
+        method: 'DELETE',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      })
+      
+      if (!delRes.ok) {
+        const errText = await delRes.text()
+        console.error('❌ 오더 삭제 실패:', delRes.status, errText)
+        return { 
+          statusCode: 500, 
+          body: JSON.stringify({ success: false, message: '오더 삭제 실패', error: errText }), 
+          headers: { 'Content-Type': 'application/json' } 
+        };
+      }
+      
+      console.log(`[ADMIN] 오더 삭제 완료: ${listingId}`)
+      
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          success: true, 
+          message: '오더가 삭제되었습니다'
+        }), 
+        headers: { 'Content-Type': 'application/json' } 
+      };
+    }
+
     // Estimates list
     if (event.httpMethod === 'GET' && path.startsWith('/estimates')) {
       const qs = (() => {

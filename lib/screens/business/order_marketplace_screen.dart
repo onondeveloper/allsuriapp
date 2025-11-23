@@ -224,14 +224,21 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       // 2. 전체 오더 목록 로드
       print('🔍 [_loadInitialData] 오더 목록 로드 중...');
-      final listings = await _market.listListings(
+      final allListings = await _market.listListings(
         status: _status, 
         throwOnError: true, 
         postedBy: widget.createdByUserId
       );
-      print('✅ [_loadInitialData] ${listings.length}개 오더 로드 완료');
       
-      return listings;
+      // 3. 자신이 등록한 오더 제외 (오더 마켓플레이스에서는 다른 사람이 등록한 오더만 표시)
+      final filteredListings = allListings.where((listing) {
+        final postedBy = listing['posted_by']?.toString() ?? '';
+        return postedBy != currentUserId;
+      }).toList();
+      
+      print('✅ [_loadInitialData] ${allListings.length}개 오더 중 ${filteredListings.length}개 표시 (자신이 등록한 오더 제외)');
+      
+      return filteredListings;
     } catch (e) {
       print('❌ [_loadInitialData] 실패: $e');
       rethrow;

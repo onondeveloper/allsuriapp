@@ -291,6 +291,23 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                           final jobsCount = bidder?['jobs_accepted_count'] ?? 0;
                           final message = bid['message']?.toString() ?? '';
                           final createdAt = bid['created_at']?.toString() ?? '';
+                          
+                          // 활동 지역과 전문 분야 가져오기
+                          final serviceAreas = bidder?['serviceareas'] ?? bidder?['serviceAreas'] ?? bidder?['service_areas'];
+                          List<String> serviceAreasList = [];
+                          if (serviceAreas is List) {
+                            serviceAreasList = serviceAreas.map((e) => e.toString()).toList();
+                          } else if (serviceAreas is String && serviceAreas.isNotEmpty) {
+                            serviceAreasList = [serviceAreas];
+                          }
+                          
+                          final specialties = bidder?['specialties'];
+                          List<String> specialtiesList = [];
+                          if (specialties is List) {
+                            specialtiesList = specialties.map((e) => e.toString()).toList();
+                          } else if (specialties is String && specialties.isNotEmpty) {
+                            specialtiesList = [specialties];
+                          }
 
                           return _buildBidderCard(
                             bidderId: bid['bidder_id']?.toString() ?? '',
@@ -301,6 +318,8 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                             message: message,
                             createdAt: createdAt,
                             status: status,
+                            serviceAreas: serviceAreasList,
+                            specialties: specialtiesList,
                           );
                         },
                       ),
@@ -317,6 +336,8 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
     required String message,
     required String createdAt,
     required String status,
+    List<String> serviceAreas = const [],
+    List<String> specialties = const [],
   }) {
     final isPending = status == 'pending';
     final isSelected = status == 'selected';
@@ -382,6 +403,40 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                           ),
                         ],
                       ),
+                      // 활동 지역 표시
+                      if (serviceAreas.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.location_on, size: 14, color: Colors.blue[700]),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                serviceAreas.take(2).join(', ') + (serviceAreas.length > 2 ? ' 외 ${serviceAreas.length - 2}곳' : ''),
+                                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      // 전문 분야 표시
+                      if (specialties.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.work_outline, size: 14, color: Colors.orange[700]),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                specialties.take(2).join(', ') + (specialties.length > 2 ? ' 외 ${specialties.length - 2}개' : ''),
+                                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -466,10 +521,10 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  icon: const Icon(Icons.check_circle, size: 20),
+                  icon: const Icon(Icons.check_circle, size: 20, color: Colors.white),
                   label: const Text(
                     '이 사업자 선택하기',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
               ),

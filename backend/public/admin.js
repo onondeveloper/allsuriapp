@@ -1430,9 +1430,42 @@ async function showCallDetail(jobId) {
             return;
         }
         
+        // 상태 매핑 함수 (displayCalls에서 사용하는 것과 동일)
+        const getCallStatusText = (status, claimedBy) => {
+            if (claimedBy) return '완료';
+            if (status === 'assigned') return '완료';
+            if (status === 'completed') return '종료됨';
+            if (status === 'cancelled') return '취소됨';
+            if (status === 'created' || status === 'open') return '대기 중';
+            return status || '대기 중';
+        };
+        
+        const getStatusClass = (status, claimedBy) => {
+            if (claimedBy || status === 'assigned') return 'success';
+            if (status === 'completed') return 'completed';
+            if (status === 'cancelled') return 'cancelled';
+            return 'warning';
+        };
+        
+        // 날짜 포맷 함수
+        const formatDate = (dateStr) => {
+            if (!dateStr) return '-';
+            try {
+                const date = new Date(dateStr);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day} ${hours}:${minutes}`;
+            } catch (e) {
+                return '-';
+            }
+        };
+        
         const modalBody = document.getElementById('callModalBody');
-        const statusText = getCallStatusText(job.status, job.assigned_business_id);
-        const statusClass = getStatusClass(job.status, job.assigned_business_id);
+        const statusText = getCallStatusText(job.status, job.claimed_by);
+        const statusClass = getStatusClass(job.status, job.claimed_by);
         
         let detailHtml = `
             <div class="detail-group">
@@ -1497,10 +1530,51 @@ async function showCallDetail(jobId) {
         detailHtml += `</div>`;
         
         modalBody.innerHTML = detailHtml;
+        
+        // 모달 footer에 삭제 버튼 추가
+        const modalFooter = document.querySelector('#callModal .modal-footer');
+        if (modalFooter) {
+            modalFooter.innerHTML = `
+                <button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>
+                <button class="btn btn-danger" onclick="deleteCall('${jobId}')">
+                    <span class="material-icons" style="font-size: 1rem;">delete</span>
+                    오더 삭제
+                </button>
+            `;
+        }
+        
         document.getElementById('callModal').style.display = 'flex';
     } catch (error) {
         console.error('Call 상세 정보 로드 오류:', error);
         alert('Call 상세 정보를 불러오는데 실패했습니다.');
+    }
+}
+
+// 오더 삭제 함수
+async function deleteCall(listingId) {
+    if (!confirm('정말로 이 오더를 삭제하시겠습니까?\n\n⚠️ 관련된 입찰 정보도 함께 삭제됩니다.')) {
+        return;
+    }
+    
+    try {
+        console.log('[deleteCall] 오더 삭제 시작:', listingId);
+        
+        // marketplace_listings 삭제 (CASCADE로 order_bids도 함께 삭제됨)
+        const response = await apiCall(`/listings/${listingId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.success) {
+            alert('오더가 삭제되었습니다.');
+            closeCallModal();
+            loadCalls();
+            loadDashboard();
+        } else {
+            throw new Error(response.message || '삭제 실패');
+        }
+    } catch (error) {
+        console.error('[deleteCall] 에러:', error);
+        alert('오더 삭제에 실패했습니다: ' + error.message);
     }
 }
 
