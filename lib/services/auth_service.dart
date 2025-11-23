@@ -566,4 +566,18 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// 현재 사용자 정보를 새로고침 (승인 상태 확인용)
+  Future<void> refreshCurrentUser() async {
+    if (_currentUser == null) return;
+    
+    try {
+      print('🔄 [AuthService] 사용자 정보 새로고침 시작');
+      await _loadUserData(_currentUser!.id);
+      print('✅ [AuthService] 사용자 정보 새로고침 완료');
+      notifyListeners();
+    } catch (e) {
+      print('❌ [AuthService] 사용자 정보 새로고침 실패: $e');
+    }
+  }
 } 

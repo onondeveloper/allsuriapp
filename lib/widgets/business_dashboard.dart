@@ -7,6 +7,7 @@ import '../screens/notification/notification_screen.dart';
 import '../screens/business/job_management_screen.dart';
 import '../screens/business/order_marketplace_screen.dart';
 import '../screens/business/my_order_management_screen.dart';
+import '../screens/business/pending_approval_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
@@ -204,6 +205,17 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
         final user = authService.currentUser;
+        
+        // 승인 상태 체크
+        final businessStatus = user?.businessStatus?.toLowerCase() ?? '';
+        final isApproved = businessStatus == 'approved';
+        
+        // 승인되지 않은 경우 대기 화면 표시
+        if (!isApproved) {
+          print('🔒 [BusinessDashboard] 승인 대기 중: businessStatus=$businessStatus');
+          return const PendingApprovalScreen();
+        }
+        
         final businessName = (user?.businessName != null && user!.businessName!.trim().isNotEmpty)
             ? user.businessName!
             : (user?.name ?? "사업자");
@@ -323,7 +335,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '$businessName 님,',
+                              '$businessName 님, 번창하세요!',
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 8),
