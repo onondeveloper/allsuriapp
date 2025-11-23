@@ -16,6 +16,7 @@ import 'services/payment_service.dart';
 import 'services/api_service.dart';
 import 'services/chat_service.dart';
 import 'services/notification_service.dart';
+import 'services/local_notification_service.dart';
 import 'services/community_service.dart';
 import 'services/fcm_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -50,6 +51,14 @@ void main() async {
   
   // NotificationService 초기화
   await NotificationService().initialize();
+  
+  // LocalNotificationService 초기화
+  await LocalNotificationService().initialize(
+    onSelectNotification: (String? payload) {
+      print('🔔 [Main] 알림 클릭: $payload');
+      // TODO: 페이로드를 처리하여 적절한 화면으로 이동
+    },
+  );
   
   // FCM 초기화 (선택사항 - Firebase 설정이 완료된 경우에만 작동)
   try {

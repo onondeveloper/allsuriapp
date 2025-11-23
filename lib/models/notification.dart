@@ -2,12 +2,14 @@ class NotificationModel {
   final String id;
   final String title;
   final String message;
-  final String type; // 'estimate', 'order', 'system' 등
+  final String type; // 'estimate', 'order', 'system', 'new_order', 'job_completed', 'chat_start', 'new_bid' 등
   final String? orderId;
   final String? estimateId;
   final String? jobId;
   final String? jobTitle;
   final String? region;
+  final String? listingId;
+  final String? chatRoomId;
   final bool isRead;
   final DateTime createdAt;
   final String userId;
@@ -22,6 +24,8 @@ class NotificationModel {
     this.jobId,
     this.jobTitle,
     this.region,
+    this.listingId,
+    this.chatRoomId,
     this.isRead = false,
     required this.createdAt,
     required this.userId,
@@ -44,6 +48,8 @@ class NotificationModel {
       jobId: map['jobId']?.toString() ?? map['jobid']?.toString(),
       jobTitle: map['jobTitle']?.toString() ?? map['jobtitle']?.toString(),
       region: map['region']?.toString(),
+      listingId: map['listingId']?.toString() ?? map['listingid']?.toString(),
+      chatRoomId: map['chatRoomId']?.toString() ?? map['chatroom_id']?.toString(),
       isRead: (map['isRead'] as bool?) ?? (map['isread'] as bool?) ?? false,
       createdAt: _dt(map['createdAt'] ?? map['createdat']),
       userId: _str(map['userId'] ?? map['userid']),
@@ -61,6 +67,8 @@ class NotificationModel {
       'jobId': jobId,
       'jobTitle': jobTitle,
       'region': region,
+      'listingId': listingId,
+      'chatRoomId': chatRoomId,
       'isRead': isRead,
       'createdAt': createdAt.toIso8601String(),
       'userId': userId,
@@ -74,6 +82,11 @@ class NotificationModel {
     String? type,
     String? orderId,
     String? estimateId,
+    String? jobId,
+    String? jobTitle,
+    String? region,
+    String? listingId,
+    String? chatRoomId,
     bool? isRead,
     DateTime? createdAt,
     String? userId,
@@ -85,6 +98,11 @@ class NotificationModel {
       type: type ?? this.type,
       orderId: orderId ?? this.orderId,
       estimateId: estimateId ?? this.estimateId,
+      jobId: jobId ?? this.jobId,
+      jobTitle: jobTitle ?? this.jobTitle,
+      region: region ?? this.region,
+      listingId: listingId ?? this.listingId,
+      chatRoomId: chatRoomId ?? this.chatRoomId,
       isRead: isRead ?? this.isRead,
       createdAt: createdAt ?? this.createdAt,
       userId: userId ?? this.userId,

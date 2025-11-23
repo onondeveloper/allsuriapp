@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/loading_indicator.dart';
 
 class OrderReviewScreen extends StatefulWidget {
   final String listingId;
@@ -64,13 +65,8 @@ class _OrderReviewScreenState extends State<OrderReviewScreen> {
             child: Card(
               child: Padding(
                 padding: EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('리뷰를 제출하고 있습니다...'),
-                  ],
+                child: SmallLoadingIndicator(
+                  message: '리뷰를 제출하고 있습니다...',
                 ),
               ),
             ),
@@ -381,7 +377,7 @@ class _OrderReviewScreenState extends State<OrderReviewScreen> {
                   ),
                 ),
                 child: _isSubmitting
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const ButtonLoadingIndicator(color: Colors.white)
                     : const Text(
                         '리뷰 제출',
                         style: TextStyle(

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/services/auth_service.dart';
 import 'package:allsuriapp/services/chat_service.dart';
+import 'package:allsuriapp/widgets/loading_indicator.dart';
 import '../chat_screen.dart';
 
 class OrderBiddersScreen extends StatefulWidget {
@@ -232,7 +233,10 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingIndicator(
+              message: '입찰자 목록을 불러오는 중...',
+              subtitle: '잠시만 기다려주세요',
+            )
           : _error != null
               ? Center(
                   child: Column(

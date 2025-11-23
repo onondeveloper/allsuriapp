@@ -107,10 +107,8 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('카카오로 로그인'),
-                  onPressed: _isLoading
+                child: InkWell(
+                  onTap: _isLoading
                       ? null
                       : () async {
                           // 로딩 다이얼로그 표시
@@ -231,6 +229,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             }
                           }
                         },
+                  child: Image.asset(
+                    'assets/images/kakao_login_large_narrow.png',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

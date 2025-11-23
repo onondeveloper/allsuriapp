@@ -6,6 +6,7 @@ import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/screens/business/estimate_management_screen.dart';
 import 'package:allsuriapp/widgets/interactive_card.dart';
 import 'package:allsuriapp/widgets/shimmer_widgets.dart';
+import 'package:allsuriapp/widgets/loading_indicator.dart';
 import 'package:allsuriapp/widgets/modern_order_card.dart';
 import 'package:allsuriapp/widgets/modern_button.dart';
 import 'package:allsuriapp/config/app_constants.dart';
@@ -322,7 +323,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                   
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     print('OrderMarketplaceScreen: 로딩 중...');
-                    return const ShimmerList(itemCount: 6, itemHeight: 110);
+                    return const LoadingIndicator(
+                      message: '공사 목록을 불러오는 중...',
+                      subtitle: '잠시만 기다려주세요',
+                    );
                   }
                   if (snapshot.hasError) {
                     print('OrderMarketplaceScreen: 에러 발생 - ${snapshot.error}');

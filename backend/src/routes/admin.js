@@ -723,4 +723,147 @@ router.put('/settings', async (req, res) => {
   }
 });
 
+// ==========================================
+// 관리자 권한 관리 API
+// ==========================================
+
+// 사용자를 관리자로 지정/해제
+router.patch('/users/:userId/admin', requireRole('developer'), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { is_admin } = req.body;
+    
+    console.log(`[ADMIN] 관리자 권한 변경: userId=${userId}, is_admin=${is_admin}`);
+    
+    const { data, error } = await supabase
+      .from('users')
+      .update({ is_admin })
+      .eq('id', userId)
+      .select('id, name, email, is_admin')
+      .single();
+    
+    if (error) throw error;
+    
+    res.json({ 
+      success: true, 
+      message: is_admin ? '관리자로 지정되었습니다' : '관리자 권한이 해제되었습니다',
+      data 
+    });
+  } catch (error) {
+    console.error('[ADMIN] 관리자 권한 변경 실패:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 사업자 삭제 (CASCADE)
+router.delete('/users/:userId/delete-business', requireRole('developer'), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log(`[ADMIN] 사업자 삭제 시작: userId=${userId}`);
+    
+    // Supabase Function 호출
+    const { data, error } = await supabase.rpc('delete_business_user', {
+      user_id_to_delete: userId
+    });
+    
+    if (error) throw error;
+    
+    console.log(`[ADMIN] 사업자 삭제 완료:`, data);
+    
+    res.json({ 
+      success: true, 
+      message: '사업자가 삭제되었습니다',
+      data 
+    });
+  } catch (error) {
+    console.error('[ADMIN] 사업자 삭제 실패:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 공사 삭제 (관리자 전용)
+router.delete('/jobs/:jobId', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    console.log(`[ADMIN] 공사 삭제: jobId=${jobId}`);
+    
+    const { error } = await supabase
+      .from('jobs')
+      .delete()
+      .eq('id', jobId);
+    
+    if (error) throw error;
+    
+    res.json({ success: true, message: '공사가 삭제되었습니다' });
+  } catch (error) {
+    console.error('[ADMIN] 공사 삭제 실패:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 오더 삭제 (관리자 전용)
+router.delete('/listings/:listingId', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    
+    console.log(`[ADMIN] 오더 삭제: listingId=${listingId}`);
+    
+    const { error } = await supabase
+      .from('marketplace_listings')
+      .delete()
+      .eq('id', listingId);
+    
+    if (error) throw error;
+    
+    res.json({ success: true, message: '오더가 삭제되었습니다' });
+  } catch (error) {
+    console.error('[ADMIN] 오더 삭제 실패:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 커뮤니티 게시글 삭제 (관리자 전용)
+router.delete('/posts/:postId', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { postId } = req.params;
+    
+    console.log(`[ADMIN] 게시글 삭제: postId=${postId}`);
+    
+    const { error } = await supabase
+      .from('community_posts')
+      .delete()
+      .eq('id', postId);
+    
+    if (error) throw error;
+    
+    res.json({ success: true, message: '게시글이 삭제되었습니다' });
+  } catch (error) {
+    console.error('[ADMIN] 게시글 삭제 실패:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 커뮤니티 댓글 삭제 (관리자 전용)
+router.delete('/comments/:commentId', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    
+    console.log(`[ADMIN] 댓글 삭제: commentId=${commentId}`);
+    
+    const { error } = await supabase
+      .from('community_comments')
+      .delete()
+      .eq('id', commentId);
+    
+    if (error) throw error;
+    
+    res.json({ success: true, message: '댓글이 삭제되었습니다' });
+  } catch (error) {
+    console.error('[ADMIN] 댓글 삭제 실패:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router; 

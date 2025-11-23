@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/loading_indicator.dart';
 import '../business/order_bidders_screen.dart';
 import '../business/order_review_screen.dart';
 import '../../services/api_service.dart';
@@ -224,7 +225,10 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingIndicator(
+              message: '내 오더를 불러오는 중...',
+              subtitle: '잠시만 기다려주세요',
+            )
           : Column(
               children: [
                 _buildFilterChips(),
