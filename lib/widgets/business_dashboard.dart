@@ -181,8 +181,12 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       
       if (currentUserId == null) return 0;
       
-      // 내가 입찰한 오더 수
-      final bids = await _market.getBidsByBidder(currentUserId);
+      // 내가 입찰한 오더 수 (order_bids 테이블에서 직접 조회)
+      final bids = await Supabase.instance.client
+          .from('order_bids')
+          .select('id, status')
+          .eq('bidder_id', currentUserId);
+      
       final activeBids = bids.where((bid) {
         final status = bid['status']?.toString() ?? '';
         return status != 'withdrawn'; // 취소하지 않은 입찰만
