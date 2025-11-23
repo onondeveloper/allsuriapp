@@ -120,13 +120,13 @@ class PendingApprovalScreen extends StatelessWidget {
                       '이메일',
                       user?.email ?? '미등록',
                     ),
-                    if (user?.phone != null) ...[
+                    if (user?.phoneNumber != null) ...[
                       const SizedBox(height: 8),
                       _buildInfoRow(
                         context,
                         Icons.phone,
                         '연락처',
-                        user!.phone!,
+                        user!.phoneNumber!,
                       ),
                     ],
                   ],
