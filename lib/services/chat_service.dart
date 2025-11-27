@@ -316,20 +316,29 @@ class ChatService extends ChangeNotifier {
         }
         
         // 오더 제목 가져오기
-        if (room['listingid'] != null) {
+        final listingId = room['listingid']?.toString();
+        debugPrint('   listingid: $listingId');
+        
+        if (listingId != null && listingId.isNotEmpty) {
           try {
+            debugPrint('   🔍 오더 제목 조회 시작: $listingId');
             final listing = await _sb
                 .from('marketplace_listings')
-                .select('title')
-                .eq('id', room['listingid'])
+                .select('title, id, status')
+                .eq('id', listingId)
                 .maybeSingle();
+            
             if (listing != null) {
               room['orderTitle'] = listing['title']?.toString() ?? '';
-              debugPrint('   오더 제목: ${room['orderTitle']}');
+              debugPrint('   ✅ 오더 제목: ${room['orderTitle']} (status: ${listing['status']})');
+            } else {
+              debugPrint('   ⚠️ 오더를 찾을 수 없음: $listingId');
             }
           } catch (e) {
-            debugPrint('⚠️ 오더 제목 조회 실패: $e');
+            debugPrint('   ❌ 오더 제목 조회 실패 (listingid=$listingId): $e');
           }
+        } else {
+          debugPrint('   ℹ️ listingid 없음 (견적 채팅방)');
         }
         
         // 최근 메시지
