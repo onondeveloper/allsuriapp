@@ -26,73 +26,157 @@ class BottomNavigation extends StatelessWidget {
       builder: (context, authService, child) {
         final isCustomer = authService.currentUser?.role != 'business';
         
-        return NavigationBar(
-          selectedIndex: currentIndex,
-          onDestinationSelected: (index) {
-            switch (index) {
-              case 0:
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        isCustomer ? const CustomerDashboard() : const BusinessDashboard(),
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Container(
+              height: 65,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildNavItem(
+                    context: context,
+                    index: 0,
+                    icon: Icons.home_rounded,
+                    outlinedIcon: Icons.home_outlined,
+                    label: '홈',
+                    isCustomer: isCustomer,
                   ),
-                  (route) => false,
-                );
-                break;
-              case 1:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => isCustomer
-                        ? const CustomerMyEstimatesScreen()
-                        : const CreateJobScreen(),
+                  _buildNavItem(
+                    context: context,
+                    index: 1,
+                    icon: Icons.construction_rounded,
+                    outlinedIcon: Icons.construction_outlined,
+                    label: isCustomer ? '내 견적' : '공사 만들기',
+                    isCustomer: isCustomer,
                   ),
-                );
-                break;
-              case 2:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ChatListPage(),
+                  _buildNavItem(
+                    context: context,
+                    index: 2,
+                    icon: Icons.chat_bubble_rounded,
+                    outlinedIcon: Icons.chat_bubble_outline_rounded,
+                    label: '채팅',
+                    isCustomer: isCustomer,
                   ),
-                );
-                break;
-              case 3:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileScreen(),
+                  _buildNavItem(
+                    context: context,
+                    index: 3,
+                    icon: Icons.account_circle_rounded,
+                    outlinedIcon: Icons.account_circle_outlined,
+                    label: '프로필',
+                    isCustomer: isCustomer,
                   ),
-                );
-                break;
-            }
-            onTap(index);
-          },
-          destinations: [
-            const NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: '홈',
+                ],
+              ),
             ),
-            NavigationDestination(
-              icon: const Icon(Icons.assignment_outlined),
-              selectedIcon: const Icon(Icons.assignment),
-              label: isCustomer ? '내 견적' : '공사 만들기',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.chat_outlined),
-              selectedIcon: Icon(Icons.chat),
-              label: '채팅',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: '프로필',
-            ),
-          ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildNavItem({
+    required BuildContext context,
+    required int index,
+    required IconData icon,
+    required IconData outlinedIcon,
+    required String label,
+    required bool isCustomer,
+  }) {
+    final isSelected = currentIndex == index;
+    final primaryColor = Theme.of(context).primaryColor;
+    
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          switch (index) {
+            case 0:
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      isCustomer ? const CustomerDashboard() : const BusinessDashboard(),
+                ),
+                (route) => false,
+              );
+              break;
+            case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => isCustomer
+                      ? const CustomerMyEstimatesScreen()
+                      : const CreateJobScreen(),
+                ),
+              );
+              break;
+            case 2:
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ChatListPage(),
+                ),
+              );
+              break;
+            case 3:
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ProfileScreen(),
+                ),
+              );
+              break;
+          }
+          onTap(index);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: EdgeInsets.all(isSelected ? 8 : 6),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? primaryColor.withOpacity(0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isSelected ? icon : outlinedIcon,
+                  size: isSelected ? 26 : 24,
+                  color: isSelected ? primaryColor : Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? primaryColor : Colors.grey[700],
+                  letterSpacing: -0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 } 
