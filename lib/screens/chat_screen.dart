@@ -140,27 +140,27 @@ class _ChatScreenState extends State<ChatScreen> {
       final chatService = Provider.of<ChatService>(context, listen: false);
       final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
       final text = _messageController.text.trim();
+      
+      print('🔵 [ChatScreen] 메시지 전송 시작: $text');
       await chatService.sendMessage(widget.chatRoomId, text, me);
+      print('✅ [ChatScreen] 메시지 전송 완료');
+      
       _messageController.clear();
-      // 낙관적 UI 업데이트 (실시간 스트림으로 곧 동기화됨)
-      setState(() {
-        _messages.add({
-          'text': text,
-          'timestamp': DateTime.now(),
-          'isFromMe': true,
-        });
-      });
+      
+      // 메시지 목록 새로고침 (낙관적 UI 업데이트 제거)
+      await _loadMessages();
+      
       // 스크롤 하단으로 이동
-      await Future.delayed(const Duration(milliseconds: 50));
-      if (mounted) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted && _scrollController.hasClients) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 60,
+          _scrollController.position.maxScrollExtent + 100,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
       }
     } catch (e) {
-      print('메시지 전송 오류: $e');
+      print('❌ [ChatScreen] 메시지 전송 오류: $e');
     } finally {
       setState(() {
         _isSending = false;
