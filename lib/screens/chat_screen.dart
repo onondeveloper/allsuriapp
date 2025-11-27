@@ -43,10 +43,13 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToEnd = false;
   StreamSubscription<List<Map<String, dynamic>>>? _messagesSub; // realtime 구독
+  String? _otherUserName; // 상대방 이름
+  String? _orderTitle; // 오더 제목
 
   @override
   void initState() {
     super.initState();
+    _loadChatRoomInfo(); // 채팅방 정보 로드 (상대방 이름, 오더 제목)
     _loadMessages();
     _subscribeRealtime();
     _scrollController.addListener(() {
@@ -61,6 +64,64 @@ class _ChatScreenState extends State<ChatScreen> {
         _inputFocusNode.requestFocus();
       }
     });
+  }
+
+  Future<void> _loadChatRoomInfo() async {
+    try {
+      final myId = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+      
+      // 채팅방 정보 가져오기
+      final chatRoom = await Supabase.instance.client
+          .from('chat_rooms')
+          .select('customerid, businessid, participant_a, participant_b, title, listingid')
+          .eq('id', widget.chatRoomId)
+          .single();
+      
+      // 상대방 ID 찾기
+      String? otherId;
+      if (chatRoom['participant_a'] == myId) {
+        otherId = chatRoom['participant_b'];
+      } else if (chatRoom['participant_b'] == myId) {
+        otherId = chatRoom['participant_a'];
+      } else if (chatRoom['customerid'] == myId) {
+        otherId = chatRoom['businessid'];
+      } else if (chatRoom['businessid'] == myId) {
+        otherId = chatRoom['customerid'];
+      }
+      
+      // 상대방 이름 가져오기
+      if (otherId != null) {
+        final user = await Supabase.instance.client
+            .from('users')
+            .select('businessname, name')
+            .eq('id', otherId)
+            .single();
+        
+        setState(() {
+          _otherUserName = user['businessname'] ?? user['name'] ?? '사업자';
+        });
+      }
+      
+      // 오더 제목 가져오기 (listingid가 있는 경우)
+      final listingId = chatRoom['listingid'];
+      if (listingId != null) {
+        try {
+          final listing = await Supabase.instance.client
+              .from('marketplace_listings')
+              .select('title')
+              .eq('id', listingId)
+              .single();
+          
+          setState(() {
+            _orderTitle = listing['title'];
+          });
+        } catch (e) {
+          print('⚠️ 오더 제목 조회 실패: $e');
+        }
+      }
+    } catch (e) {
+      print('❌ 채팅방 정보 로드 실패: $e');
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -89,25 +150,30 @@ class _ChatScreenState extends State<ChatScreen> {
       final client = Supabase.instance.client;
       final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
 
-      // messages 테이블의 roomid별 스트림 구독 (createdat 기준 정렬)
+      // chat_messages 테이블의 room_id별 스트림 구독 (createdat 기준 정렬)
       _messagesSub = client
-          .from('messages')
-          .stream(primaryKey: ['roomid', 'createdat'])
-          .eq('roomid', widget.chatRoomId)
+          .from('chat_messages')
+          .stream(primaryKey: ['id'])
+          .eq('room_id', widget.chatRoomId)
           .order('createdat', ascending: true)
           .listen((rows) {
+        print('🔔 [ChatScreen] 실시간 메시지 수신: ${rows.length}개');
         final mapped = rows.map((r) {
           final m = Map<String, dynamic>.from(r);
           final created = m['createdat'] ?? m['createdAt'] ?? m['created_at'];
           final text = (m['content'] ?? m['text'] ?? '').toString();
-          final isFromMe = (m['senderid']?.toString() ?? m['senderId']?.toString() ?? m['sender_id']?.toString() ?? '') == me;
-          return {
+          final senderId = m['sender_id']?.toString() ?? m['senderid']?.toString() ?? m['senderId']?.toString() ?? '';
+          final isFromMe = senderId == me;
+          
+          return <String, dynamic>{
             'text': text,
             'timestamp': DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now(),
             'isFromMe': isFromMe,
           };
         }).toList();
 
+        print('   매핑된 메시지: ${mapped.length}개');
+        
         if (!mounted) return;
         setState(() {
           _messages = mapped;
@@ -177,7 +243,17 @@ class _ChatScreenState extends State<ChatScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(widget.chatRoomTitle ?? '채팅'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_orderTitle ?? widget.chatRoomTitle ?? '채팅'),
+            if (_otherUserName != null)
+              Text(
+                _otherUserName!,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+              ),
+          ],
+        ),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) async {
@@ -322,7 +398,7 @@ class _ChatScreenState extends State<ChatScreen> {
               radius: 16,
               backgroundColor: Colors.blue[100],
               child: Text(
-                '업체',
+                (_otherUserName ?? '업체').substring(0, 1),
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.blue[700],
