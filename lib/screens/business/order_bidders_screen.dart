@@ -136,6 +136,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           chatRoomId = await chatService.ensureChatRoom(
             customerId: currentUserId,
             businessId: bidderId,
+            listingId: widget.listingId, // 오더 마켓플레이스 ID 전달
             title: 'order_${widget.listingId}',
           );
           

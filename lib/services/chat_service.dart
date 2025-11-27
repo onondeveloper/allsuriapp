@@ -14,10 +14,15 @@ class ChatService extends ChangeNotifier {
   Future<String> ensureChatRoom({
     required String customerId,
     required String businessId,
-    String? estimateId, // 관련 엔티티 id(옵션)
+    String? estimateId, // 견적서 ID (옵션)
+    String? listingId, // 오더 마켓플레이스 ID (옵션)
     String? title,
   }) async {
     try {
+      debugPrint('🔍 [ensureChatRoom] 채팅방 생성/조회 시작');
+      debugPrint('   customerId: $customerId, businessId: $businessId');
+      debugPrint('   estimateId: $estimateId, listingId: $listingId');
+      
       // 0) If caller passed a deterministic key (e.g., 'call_<listingId>'),
       // try to reuse a room whose title equals it, or id if it's a UUID.
       if (title != null && title.isNotEmpty) {
@@ -31,6 +36,7 @@ class ChatService extends ChangeNotifier {
                 .limit(1)
                 .maybeSingle();
             if (byId != null && byId['id'] != null) {
+              debugPrint('✅ [ensureChatRoom] 기존 채팅방 찾음 (ID)');
               return byId['id'].toString();
             }
           }
@@ -41,54 +47,81 @@ class ChatService extends ChangeNotifier {
               .limit(1)
               .maybeSingle();
           if (byTitle != null && byTitle['id'] != null) {
+            debugPrint('✅ [ensureChatRoom] 기존 채팅방 찾음 (Title)');
             return byTitle['id'].toString();
           }
         } catch (_) {}
       }
+      
       Map<String, dynamic>? existing;
-      // Schema: customerid/businessid
+      // Schema: participant_a/participant_b 우선, 없으면 customerid/businessid
       try {
+        debugPrint('🔍 [ensureChatRoom] 기존 채팅방 검색 (participants)');
         var q1 = _sb
             .from('chat_rooms')
             .select('id')
-            .eq('customerid', customerId)
-            .eq('businessid', businessId);
-        if (estimateId != null && estimateId.isNotEmpty) {
+            .or('and(participant_a.eq.$customerId,participant_b.eq.$businessId),and(participant_a.eq.$businessId,participant_b.eq.$customerId)');
+        
+        // listingId가 있으면 listingId로 필터링
+        if (listingId != null && listingId.isNotEmpty) {
+          q1 = q1.eq('listingid', listingId);
+        }
+        // estimateId가 있으면 estimateId로 필터링
+        else if (estimateId != null && estimateId.isNotEmpty) {
           q1 = q1.eq('estimateid', estimateId);
         }
+        
         existing = await q1.limit(1).maybeSingle();
-      } catch (_) {
-        existing = null;
+      } catch (e) {
+        debugPrint('⚠️ [ensureChatRoom] participants 검색 실패: $e');
+        // Fallback: customerid/businessid로 검색
+        try {
+          var q2 = _sb
+              .from('chat_rooms')
+              .select('id')
+              .eq('customerid', customerId)
+              .eq('businessid', businessId);
+          if (listingId != null && listingId.isNotEmpty) {
+            q2 = q2.eq('listingid', listingId);
+          } else if (estimateId != null && estimateId.isNotEmpty) {
+            q2 = q2.eq('estimateid', estimateId);
+          }
+          existing = await q2.limit(1).maybeSingle();
+        } catch (_) {
+          existing = null;
+        }
       }
+      
       if (existing != null && existing['id'] != null) {
+        debugPrint('✅ [ensureChatRoom] 기존 채팅방 찾음: ${existing['id']}');
         return existing['id'].toString();
       }
 
       final nowIso = DateTime.now().toIso8601String();
-      // Insert with customerid/businessid schema
+      // Insert with participant_a/participant_b schema (새로운 스키마)
       try {
+        debugPrint('🆕 [ensureChatRoom] 새 채팅방 생성');
         final payloadA = <String, dynamic>{
-          'customerid': customerId,
-          'businessid': businessId,
+          'participant_a': customerId,
+          'participant_b': businessId,
           'active': true,
           'createdat': nowIso,
-          // estimateid NOT NULL인 경우를 대비해 비워두지 않음
+          // 오더 시스템인 경우 listingId, 견적 시스템인 경우 estimateId
+          if (listingId != null && listingId.isNotEmpty) 'listingid': listingId,
           if (estimateId != null && estimateId.isNotEmpty) 'estimateid': estimateId,
           if (title != null && title.isNotEmpty) 'title': title,
         };
-        if (!payloadA.containsKey('estimateid')) {
-          // DB가 NOT NULL이면 임시 UUID 생성 방지: 대신 participants+title 기반 중복을 허용하고,
-          // 상위 호출부에서 반드시 estimateId를 전달하도록 유도
-          throw PostgrestException(message: 'estimateid_required', code: '23502', details: 'estimateid is required', hint: null);
-        }
+        
+        debugPrint('   Payload: $payloadA');
         final insA = await _sb.from('chat_rooms').insert(payloadA).select('id').single();
+        debugPrint('✅ [ensureChatRoom] 새 채팅방 생성 완료: ${insA['id']}');
         return insA['id'].toString();
       } catch (e) {
-        debugPrint('insert chat_room failed: $e');
+        debugPrint('❌ [ensureChatRoom] 채팅방 생성 실패: $e');
         rethrow;
       }
     } catch (e) {
-      debugPrint('ensureChatRoom failed: $e');
+      debugPrint('❌ [ensureChatRoom] 전체 프로세스 실패: $e');
       rethrow;
     }
   }
