@@ -1,0 +1,85 @@
+-- ==========================================
+-- 🔧 notifications 테이블 외래 키 제약 조건 수정
+-- jobid 컬럼을 nullable로 변경
+-- ==========================================
+
+-- 1. 현재 notifications 외래 키 제약 조건 확인
+SELECT '=== 현재 notifications 외래 키 제약 조건 ===' as info;
+SELECT 
+    conname as constraint_name,
+    conrelid::regclass as table_name,
+    confrelid::regclass as foreign_table,
+    pg_get_constraintdef(oid) as constraint_definition
+FROM pg_constraint
+WHERE conrelid = 'notifications'::regclass
+  AND contype = 'f'
+  AND conname LIKE '%jobid%';
+
+-- 2. notifications_jobid_fkey 외래 키 제약 조건 삭제
+ALTER TABLE public.notifications
+DROP CONSTRAINT IF EXISTS notifications_jobid_fkey;
+
+-- 3. jobid 컬럼을 nullable로 변경 (이미 nullable일 수도 있음)
+ALTER TABLE public.notifications
+ALTER COLUMN jobid DROP NOT NULL;
+
+-- 4. 새로운 외래 키 제약 조건 생성 (ON DELETE SET NULL)
+-- jobid가 존재하지 않아도 INSERT 가능하도록
+ALTER TABLE public.notifications
+ADD CONSTRAINT notifications_jobid_fkey
+FOREIGN KEY (jobid)
+REFERENCES jobs(id)
+ON DELETE SET NULL;  -- job이 삭제되면 jobid를 NULL로 설정
+
+-- 5. estimateid도 동일하게 처리 (있는 경우)
+ALTER TABLE public.notifications
+DROP CONSTRAINT IF EXISTS notifications_estimateid_fkey;
+
+ALTER TABLE public.notifications
+ALTER COLUMN estimateid DROP NOT NULL;
+
+-- estimateid 외래 키는 제거 (estimates 테이블이 없을 수 있음)
+-- ALTER TABLE public.notifications
+-- ADD CONSTRAINT notifications_estimateid_fkey
+-- FOREIGN KEY (estimateid)
+-- REFERENCES estimates(id)
+-- ON DELETE SET NULL;
+
+-- 6. listingid도 동일하게 처리
+ALTER TABLE public.notifications
+DROP CONSTRAINT IF EXISTS notifications_listingid_fkey;
+
+ALTER TABLE public.notifications
+ALTER COLUMN listingid DROP NOT NULL;
+
+ALTER TABLE public.notifications
+ADD CONSTRAINT notifications_listingid_fkey
+FOREIGN KEY (listingid)
+REFERENCES marketplace_listings(id)
+ON DELETE SET NULL;
+
+-- 7. 수정된 제약 조건 확인
+SELECT '=== 수정된 notifications 외래 키 제약 조건 ===' as info;
+SELECT 
+    conname as constraint_name,
+    confrelid::regclass as foreign_table,
+    pg_get_constraintdef(oid) as constraint_definition
+FROM pg_constraint
+WHERE conrelid = 'notifications'::regclass
+  AND contype = 'f'
+ORDER BY conname;
+
+-- 8. nullable 컬럼 확인
+SELECT '=== notifications 테이블 nullable 컬럼 ===' as info;
+SELECT 
+    column_name,
+    data_type,
+    is_nullable
+FROM information_schema.columns
+WHERE table_name = 'notifications'
+  AND column_name IN ('jobid', 'estimateid', 'listingid')
+ORDER BY column_name;
+
+SELECT '✅ notifications 외래 키 제약 조건 수정 완료!' AS result;
+SELECT '📋 이제 jobid가 없어도 알림을 전송할 수 있습니다!' AS note;
+

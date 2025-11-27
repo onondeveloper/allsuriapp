@@ -671,7 +671,8 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     print('   claimedBy: $claimedBy');
     print('   최종 revieweeId: $revieweeId');
     
-    if (listingId == null || revieweeId == null || jobId == null) {
+    // jobId는 선택사항 (없어도 리뷰 작성 가능)
+    if (listingId == null || revieweeId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('리뷰 작성 정보가 부족합니다.\n오더가 완료되지 않았을 수 있습니다.'),
