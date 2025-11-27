@@ -333,6 +333,11 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   }
 
   Future<void> _completeJob(Job job) async {
+    print('🔘 [_completeJob] 공사 완료 버튼 클릭!');
+    print('   jobId: ${job.id}');
+    print('   job.status: ${job.status}');
+    print('   job.title: ${job.title}');
+    
     // 중복 실행 방지
     if (_isCompleting) {
       print('⚠️ [_completeJob] 이미 완료 작업 진행 중, 무시');
@@ -340,6 +345,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     }
     
     // 완료 확인 다이얼로그
+    print('🔘 [_completeJob] 확인 다이얼로그 표시');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -362,6 +368,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       ),
     );
 
+    print('🔘 [_completeJob] 사용자 확인 결과: $confirmed');
     if (confirmed != true) return;
     
     setState(() => _isCompleting = true);
@@ -650,11 +657,17 @@ class _ModernJobsList extends StatelessWidget {
           );
         } else if (job.assignedBusinessId == currentUserId && 
                    (job.status == 'assigned' || job.status == 'in_progress' || job.status == 'awaiting_confirmation')) {
+          final canComplete = (job.status == 'assigned' || job.status == 'in_progress');
+          print('🔍 [BuildButton] jobId=${job.id}, status=${job.status}, canComplete=$canComplete');
+          
           actionButton = ModernButton(
             text: job.status == 'awaiting_confirmation' ? '확인 대기 중' : '공사 완료',
             icon: job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline,
             backgroundColor: job.status == 'awaiting_confirmation' ? AppConstants.greyColor : AppConstants.secondaryColor,
-            onPressed: (job.status == 'assigned' || job.status == 'in_progress') ? () => onCompleteJob(job) : null,
+            onPressed: canComplete ? () {
+              print('🔘 [Button] 공사 완료 버튼 클릭! jobId=${job.id}');
+              onCompleteJob(job);
+            } : null,
           );
         } else if (job.ownerBusinessId == currentUserId && 
                    job.status == 'completed' && 

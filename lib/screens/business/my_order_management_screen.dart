@@ -83,15 +83,19 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     super.dispose();
   }
   
-  /// 내 오더에 대한 입찰 실시간 구독
+  /// 내 오더에 대한 입찰 및 상태 변경 실시간 구독
   void _subscribeToOrderBids() {
     final currentUserId = context.read<AuthService>().currentUser?.id;
-    if (currentUserId == null) return;
+    if (currentUserId == null) {
+      print('❌ [MyOrderManagement] 현재 사용자 ID가 없어 실시간 구독 불가');
+      return;
+    }
     
     print('🔔 [MyOrderManagement] 입찰 및 상태 실시간 알림 구독 시작');
+    print('   currentUserId: $currentUserId');
     
     _channel = Supabase.instance.client
-        .channel('my_order_bids_$currentUserId')
+        .channel('my_order_realtime_$currentUserId')
         // 새 입찰 감지
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
@@ -121,15 +125,45 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
           event: PostgresChangeEvent.update,
           schema: 'public',
           table: 'marketplace_listings',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'posted_by',
+            value: currentUserId,
+          ),
           callback: (payload) {
-            print('🔔 [MyOrderManagement] 오더 상태 변경 감지!');
-            print('   Payload: $payload');
+            print('🔔 [MyOrderManagement] 내 오더 상태 변경 감지!');
+            print('   Old: ${payload.oldRecord}');
+            print('   New: ${payload.newRecord}');
             
-            // 상태가 변경된 경우 목록 새로고침
-            _loadMyOrders();
+            final oldStatus = payload.oldRecord?['status'];
+            final newStatus = payload.newRecord?['status'];
+            
+            if (oldStatus != newStatus) {
+              print('   상태 변경: $oldStatus → $newStatus');
+              
+              // 상태가 변경된 경우 목록 새로고침
+              _loadMyOrders();
+              
+              // 사용자에게 알림 표시
+              if (mounted && newStatus == 'awaiting_confirmation') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('공사가 완료되었습니다! 확인 후 리뷰를 작성해주세요.'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 4),
+                  ),
+                );
+              }
+            }
           },
         )
-        .subscribe();
+        .subscribe((status, error) {
+          if (error != null) {
+            print('❌ [MyOrderManagement] 실시간 구독 에러: $error');
+          } else {
+            print('✅ [MyOrderManagement] 실시간 구독 상태: $status');
+          }
+        });
   }
 
   Future<void> _loadMyOrders() async {
