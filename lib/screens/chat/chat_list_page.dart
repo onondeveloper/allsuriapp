@@ -37,6 +37,10 @@ class _ChatListPageState extends State<ChatListPage> {
         });
       } else {
         final chatRooms = await chatService.getChatRooms(userId);
+        print('📱 [ChatListPage] 로드된 채팅방: ${chatRooms.length}개');
+        for (var room in chatRooms) {
+          print('   - ${room['displayName']}: orderTitle=${room['orderTitle']}, listingid=${room['listingid']}');
+        }
         setState(() {
           _chatRooms = chatRooms;
         });
@@ -222,9 +226,10 @@ class _ChatListPageState extends State<ChatListPage> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  if (chatRoom['orderTitle']?.toString().isNotEmpty ?? false) ...[
+                  // 오더 제목 표시 (파란색)
+                  if (chatRoom['orderTitle'] != null && chatRoom['orderTitle'].toString().isNotEmpty) ...[
                     Text(
-                      chatRoom['orderTitle'].toString(),
+                      '📋 ${chatRoom['orderTitle'].toString()}',
                       style: const TextStyle(
                         fontSize: 13,
                         color: CupertinoColors.systemBlue,
