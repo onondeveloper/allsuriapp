@@ -462,6 +462,14 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     final budget = order['budget_amount'];
     final selectedBidderId = order['selected_bidder_id']?.toString();
     final completedBy = order['completed_by']?.toString();
+    final claimedBy = order['claimed_by']?.toString();
+
+    print('📋 [_buildOrderCard] 오더: $title');
+    print('   status: $status');
+    print('   completedBy: $completedBy');
+    print('   selectedBidderId: $selectedBidderId');
+    print('   claimedBy: $claimedBy');
+    print('   bidCount: $bidCount');
 
     // 상태 배지
     final badge = _getBadgeForStatus(status, bidCount, selectedBidderId, completedBy);
@@ -546,8 +554,47 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             
-            // 입찰자 보기 버튼 (입찰이 있을 때만)
-            if (bidCount > 0) ...[
+            // 버튼 로직: 완료 상태면 리뷰 버튼만, 아니면 입찰자 보기 버튼
+            // 1. 리뷰 작성 버튼 (완료 확인 대기 또는 완료된 상태일 때)
+            if (status == 'awaiting_confirmation' || status == 'completed') ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    print('🔍 [후기 작성 버튼 클릭]');
+                    print('   status: $status');
+                    print('   completedBy: $completedBy');
+                    print('   selectedBidderId: $selectedBidderId');
+                    
+                    if (completedBy == null && selectedBidderId == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('낙찰된 사업자 정보를 찾을 수 없습니다.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    _openReviewScreen(order);
+                  },
+                  icon: const Icon(Icons.star_outline, size: 18),
+                  label: Text(
+                    status == 'completed' ? '후기 작성하기' : '후기 작성하기',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ]
+            // 2. 입찰자 보기 버튼 (완료 상태가 아닐 때만)
+            else if (bidCount > 0) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -560,31 +607,6 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1976D2),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            
-            // 리뷰 작성 버튼 (완료 확인 대기 또는 완료된 상태일 때)
-            // completedBy가 없으면 selectedBidderId 사용
-            if ((status == 'awaiting_confirmation' || status == 'completed') && 
-                (completedBy != null || selectedBidderId != null)) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _openReviewScreen(order),
-                  icon: const Icon(Icons.star_outline, size: 18),
-                  label: Text(
-                    status == 'completed' ? '후기 작성하기' : '리뷰 작성',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
