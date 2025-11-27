@@ -148,7 +148,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void _subscribeRealtime() {
     try {
       final client = Supabase.instance.client;
-      final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+      
+      print('🔵 [ChatScreen] Realtime 구독 시작');
 
       // chat_messages 테이블의 room_id별 스트림 구독 (createdat 기준 정렬)
       _messagesSub = client
@@ -157,7 +158,11 @@ class _ChatScreenState extends State<ChatScreen> {
           .eq('room_id', widget.chatRoomId)
           .order('createdat', ascending: true)
           .listen((rows) {
-        print('🔔 [ChatScreen] 실시간 메시지 수신: ${rows.length}개');
+        // 현재 사용자 ID를 listen 콜백 내부에서 가져오기
+        final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+        
+        print('🔔 [ChatScreen] 실시간 메시지 수신: ${rows.length}개, 내 ID: $me');
+        
         final mapped = rows.map((r) {
           final m = Map<String, dynamic>.from(r);
           final created = m['createdat'] ?? m['createdAt'] ?? m['created_at'];
@@ -165,14 +170,14 @@ class _ChatScreenState extends State<ChatScreen> {
           final senderId = m['sender_id']?.toString() ?? m['senderid']?.toString() ?? m['senderId']?.toString() ?? '';
           final isFromMe = senderId == me;
           
+          print('   메시지: "$text" (sender: $senderId, isFromMe: $isFromMe)');
+          
           return <String, dynamic>{
             'text': text,
             'timestamp': DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now(),
             'isFromMe': isFromMe,
           };
         }).toList();
-
-        print('   매핑된 메시지: ${mapped.length}개');
         
         if (!mounted) return;
         setState(() {
@@ -182,6 +187,7 @@ class _ChatScreenState extends State<ChatScreen> {
         // 새로운 메시지가 오면 하단으로 스크롤
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
+          if (!_scrollController.hasClients) return;
           final max = _scrollController.position.maxScrollExtent;
           _scrollController.animateTo(
             max + 60,
@@ -191,7 +197,7 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       });
     } catch (e) {
-      print('실시간 구독 설정 실패: $e');
+      print('❌ 실시간 구독 설정 실패: $e');
     }
   }
 
@@ -207,24 +213,18 @@ class _ChatScreenState extends State<ChatScreen> {
       final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
       final text = _messageController.text.trim();
       
-      print('🔵 [ChatScreen] 메시지 전송 시작: $text');
+      print('🔵 [ChatScreen] 메시지 전송 시작');
+      print('   보내는 사람 ID: $me');
+      print('   메시지: $text');
+      
       await chatService.sendMessage(widget.chatRoomId, text, me);
       print('✅ [ChatScreen] 메시지 전송 완료');
       
       _messageController.clear();
       
-      // 메시지 목록 새로고침 (낙관적 UI 업데이트 제거)
-      await _loadMessages();
+      // Realtime 구독이 자동으로 업데이트하므로 _loadMessages() 호출 제거
+      // (Realtime이 새 메시지를 받아서 UI를 업데이트함)
       
-      // 스크롤 하단으로 이동
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (mounted && _scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 100,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
     } catch (e) {
       print('❌ [ChatScreen] 메시지 전송 오류: $e');
     } finally {
