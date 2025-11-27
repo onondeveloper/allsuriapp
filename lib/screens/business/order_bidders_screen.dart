@@ -148,42 +148,22 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
         
         if (!mounted) return;
         
-        // 성공 다이얼로그 표시
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 28),
-                SizedBox(width: 12),
-                Text('선택 완료'),
-              ],
-            ),
-            content: Text(
-              '$bidderName 사업자가 선택되었습니다!\n\n채팅방이 자동으로 생성되었으며,\n알림이 전송되었습니다.',
-              style: const TextStyle(fontSize: 15),
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('확인'),
-              ),
-            ],
+        // 스낵바로 성공 메시지 표시 (빠른 피드백)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ $bidderName 사업자가 선택되었습니다!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
           ),
         );
         
-        if (!mounted) return;
+        // 현재 화면 닫기
+        Navigator.pop(context, true);
         
-        // 채팅방으로 이동 (생성에 성공한 경우)
-        if (chatRoomId != null) {
-          print('💬 [OrderBiddersScreen] 채팅방으로 이동: $chatRoomId');
-          Navigator.pop(context); // 현재 화면 닫기
-          Navigator.push(
+        // 채팅방으로 즉시 이동 (생성에 성공한 경우)
+        if (chatRoomId != null && mounted) {
+          print('💬 [OrderBiddersScreen] 채팅방으로 즉시 이동: $chatRoomId');
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => ChatScreen(
@@ -192,9 +172,6 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
               ),
             ),
           );
-        } else {
-          // 채팅방 생성 실패 시 내 공사 목록으로 돌아가기
-          Navigator.pop(context, true);
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
