@@ -315,13 +315,21 @@ class ChatService extends ChangeNotifier {
           room['displayName'] = room['title']?.toString() ?? '채팅';
         }
         
-        // 오더 제목 가져오기
+        // 오더 제목: chat_rooms.title에 저장된 값 우선 사용
         final listingId = room['listingid']?.toString();
-        debugPrint('   listingid: $listingId');
+        final savedTitle = room['title']?.toString();
         
-        if (listingId != null && listingId.isNotEmpty) {
+        debugPrint('   listingid: $listingId, saved title: $savedTitle');
+        
+        // 1. title에 저장된 오더 제목이 있으면 사용
+        if (savedTitle != null && savedTitle.isNotEmpty && !savedTitle.startsWith('order_') && !savedTitle.startsWith('call_')) {
+          room['orderTitle'] = savedTitle;
+          debugPrint('   ✅ 오더 제목 (저장됨): ${room['orderTitle']}');
+        }
+        // 2. title이 없거나 임시값이면 DB에서 조회 시도
+        else if (listingId != null && listingId.isNotEmpty) {
           try {
-            debugPrint('   🔍 오더 제목 조회 시작: $listingId');
+            debugPrint('   🔍 오더 제목 조회 시도: $listingId');
             final listing = await _sb
                 .from('marketplace_listings')
                 .select('title, id, status')
@@ -330,7 +338,16 @@ class ChatService extends ChangeNotifier {
             
             if (listing != null) {
               room['orderTitle'] = listing['title']?.toString() ?? '';
-              debugPrint('   ✅ 오더 제목: ${room['orderTitle']} (status: ${listing['status']})');
+              debugPrint('   ✅ 오더 제목 (조회됨): ${room['orderTitle']} (status: ${listing['status']})');
+              
+              // title 업데이트 (다음번엔 조회 불필요)
+              try {
+                await _sb
+                    .from('chat_rooms')
+                    .update({'title': room['orderTitle']})
+                    .eq('id', room['id']);
+                debugPrint('   💾 오더 제목 저장 완료');
+              } catch (_) {}
             } else {
               debugPrint('   ⚠️ 오더를 찾을 수 없음: $listingId');
             }

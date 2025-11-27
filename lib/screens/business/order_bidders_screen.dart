@@ -137,7 +137,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
             customerId: currentUserId,
             businessId: bidderId,
             listingId: widget.listingId, // 오더 마켓플레이스 ID 전달
-            title: 'order_${widget.listingId}',
+            title: widget.orderTitle, // 오더 제목 저장
           );
           
           print('✅ [OrderBiddersScreen] 채팅방 생성 성공: $chatRoomId');
