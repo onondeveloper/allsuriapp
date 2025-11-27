@@ -111,16 +111,20 @@ class _OrderReviewScreenState extends State<OrderReviewScreen> {
 
       print('✅ [OrderReview] marketplace_listings 완료 처리');
 
-      // jobs 상태를 'completed'로 업데이트
-      await Supabase.instance.client
-          .from('jobs')
-          .update({
-            'status': 'completed',
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', widget.jobId);
-
-      print('✅ [OrderReview] jobs 완료 처리');
+      // jobs 상태를 'completed'로 업데이트 (jobId가 있는 경우만)
+      final jobIdValue = widget.jobId;
+      if (jobIdValue != null && jobIdValue.isNotEmpty) {
+        await Supabase.instance.client
+            .from('jobs')
+            .update({
+              'status': 'completed',
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', jobIdValue);
+        print('✅ [OrderReview] jobs 완료 처리');
+      } else {
+        print('ℹ️ [OrderReview] jobId 없음, jobs 업데이트 스킵');
+      }
 
       // 리뷰 대상 사업자에게 알림 (실패해도 리뷰는 저장됨)
       try {
