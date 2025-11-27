@@ -98,12 +98,16 @@ class ChatService extends ChangeNotifier {
       }
 
       final nowIso = DateTime.now().toIso8601String();
-      // Insert with participant_a/participant_b schema (새로운 스키마)
+      // Insert with both schemas (호환성 유지)
       try {
         debugPrint('🆕 [ensureChatRoom] 새 채팅방 생성');
         final payloadA = <String, dynamic>{
+          // 새로운 스키마
           'participant_a': customerId,
           'participant_b': businessId,
+          // 기존 스키마 (호환성)
+          'customerid': customerId,
+          'businessid': businessId,
           'active': true,
           'createdat': nowIso,
           // 오더 시스템인 경우 listingId, 견적 시스템인 경우 estimateId
