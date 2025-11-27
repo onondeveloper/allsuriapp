@@ -569,15 +569,20 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
               ),
             ],
             
-            // 리뷰 작성 버튼 (완료 확인 대기 중일 때)
-            if (status == 'awaiting_confirmation' && completedBy != null) ...[
+            // 리뷰 작성 버튼 (완료 확인 대기 또는 완료된 상태일 때)
+            // completedBy가 없으면 selectedBidderId 사용
+            if ((status == 'awaiting_confirmation' || status == 'completed') && 
+                (completedBy != null || selectedBidderId != null)) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () => _openReviewScreen(order),
                   icon: const Icon(Icons.star_outline, size: 18),
-                  label: const Text('리뷰 작성', style: TextStyle(fontWeight: FontWeight.w600)),
+                  label: Text(
+                    status == 'completed' ? '후기 작성하기' : '리뷰 작성',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.amber,
                     foregroundColor: Colors.white,
@@ -628,12 +633,29 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
   Future<void> _openReviewScreen(Map<String, dynamic> order) async {
     final listingId = order['id']?.toString();
     final completedBy = order['completed_by']?.toString();
+    final selectedBidderId = order['selected_bidder_id']?.toString();
+    final claimedBy = order['claimed_by']?.toString();
     final title = order['title']?.toString() ?? '오더';
     final jobId = order['jobid']?.toString();
     
-    if (listingId == null || completedBy == null || jobId == null) {
+    // 리뷰 대상자 ID: completedBy > selectedBidderId > claimedBy 순서로 확인
+    final revieweeId = completedBy ?? selectedBidderId ?? claimedBy;
+    
+    print('🔍 [_openReviewScreen] 리뷰 화면 열기');
+    print('   listingId: $listingId');
+    print('   jobId: $jobId');
+    print('   completedBy: $completedBy');
+    print('   selectedBidderId: $selectedBidderId');
+    print('   claimedBy: $claimedBy');
+    print('   최종 revieweeId: $revieweeId');
+    
+    if (listingId == null || revieweeId == null || jobId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('리뷰 작성 정보가 부족합니다'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('리뷰 작성 정보가 부족합니다.\n오더가 완료되지 않았을 수 있습니다.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }
@@ -643,11 +665,12 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     try {
       final userResponse = await Supabase.instance.client
           .from('users')
-          .select('businessname')
-          .eq('id', completedBy)
+          .select('businessname, name')
+          .eq('id', revieweeId)
           .single();
       
-      revieweeName = userResponse['businessname']?.toString() ?? '사업자';
+      revieweeName = userResponse['businessname']?.toString() ?? 
+                     userResponse['name']?.toString() ?? '사업자';
     } catch (e) {
       print('⚠️ [MyOrderManagement] 사업자 이름 조회 실패: $e');
     }
@@ -658,7 +681,7 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
         builder: (_) => OrderReviewScreen(
           listingId: listingId,
           jobId: jobId,
-          revieweeId: completedBy,
+          revieweeId: revieweeId,
           revieweeName: revieweeName,
           orderTitle: title,
         ),
