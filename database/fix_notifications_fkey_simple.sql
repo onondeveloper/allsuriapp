@@ -1,43 +1,32 @@
 -- ==========================================
--- 🔧 notifications 테이블 외래 키 제약 조건 수정
--- jobid 컬럼을 nullable로 변경
+-- 🔧 notifications 테이블 외래 키 제약 조건 수정 (간소화)
+-- jobid, listingid만 처리 (estimateid 제외)
 -- ==========================================
 
--- 1. 현재 notifications 외래 키 제약 조건 확인
-SELECT '=== 현재 notifications 외래 키 제약 조건 ===' as info;
-SELECT 
-    conname as constraint_name,
-    conrelid::regclass as table_name,
-    confrelid::regclass as foreign_table,
-    pg_get_constraintdef(oid) as constraint_definition
-FROM pg_constraint
-WHERE conrelid = 'notifications'::regclass
-  AND contype = 'f'
-  AND conname LIKE '%jobid%';
-
--- 2. notifications_jobid_fkey 외래 키 제약 조건 삭제
+-- 1. jobid 외래 키 제약 조건 삭제
 ALTER TABLE public.notifications
 DROP CONSTRAINT IF EXISTS notifications_jobid_fkey;
 
--- 3. jobid 컬럼을 nullable로 변경 (이미 nullable일 수도 있음)
+-- 2. jobid 컬럼을 nullable로 변경
 ALTER TABLE public.notifications
 ALTER COLUMN jobid DROP NOT NULL;
 
--- 4. 새로운 외래 키 제약 조건 생성 (ON DELETE SET NULL)
--- jobid가 존재하지 않아도 INSERT 가능하도록
+-- 3. 새로운 jobid 외래 키 제약 조건 생성 (ON DELETE SET NULL)
 ALTER TABLE public.notifications
 ADD CONSTRAINT notifications_jobid_fkey
 FOREIGN KEY (jobid)
 REFERENCES jobs(id)
-ON DELETE SET NULL;  -- job이 삭제되면 jobid를 NULL로 설정
+ON DELETE SET NULL;
 
--- 5. listingid도 동일하게 처리
+-- 4. listingid 외래 키 제약 조건 삭제
 ALTER TABLE public.notifications
 DROP CONSTRAINT IF EXISTS notifications_listingid_fkey;
 
+-- 5. listingid 컬럼을 nullable로 변경
 ALTER TABLE public.notifications
 ALTER COLUMN listingid DROP NOT NULL;
 
+-- 6. 새로운 listingid 외래 키 제약 조건 생성 (ON DELETE SET NULL)
 ALTER TABLE public.notifications
 ADD CONSTRAINT notifications_listingid_fkey
 FOREIGN KEY (listingid)
@@ -53,6 +42,7 @@ SELECT
 FROM pg_constraint
 WHERE conrelid = 'notifications'::regclass
   AND contype = 'f'
+  AND conname IN ('notifications_jobid_fkey', 'notifications_listingid_fkey')
 ORDER BY conname;
 
 -- 8. nullable 컬럼 확인
