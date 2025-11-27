@@ -6,7 +6,7 @@ import '../../widgets/loading_indicator.dart';
 
 class OrderReviewScreen extends StatefulWidget {
   final String listingId;
-  final String jobId;
+  final String? jobId; // nullable로 변경
   final String revieweeId; // 리뷰 대상 사업자 ID
   final String revieweeName; // 리뷰 대상 사업자 이름
   final String orderTitle;
@@ -14,7 +14,7 @@ class OrderReviewScreen extends StatefulWidget {
   const OrderReviewScreen({
     Key? key,
     required this.listingId,
-    required this.jobId,
+    this.jobId, // nullable로 변경
     required this.revieweeId,
     required this.revieweeName,
     required this.orderTitle,
@@ -122,18 +122,21 @@ class _OrderReviewScreenState extends State<OrderReviewScreen> {
 
       print('✅ [OrderReview] jobs 완료 처리');
 
-      // 리뷰 대상 사업자에게 알림
-      await Supabase.instance.client.from('notifications').insert({
-        'userid': widget.revieweeId,
-        'title': '새로운 리뷰',
-        'body': '${widget.orderTitle} 공사에 대한 리뷰가 등록되었습니다.',
-        'type': 'review_received',
-        'jobid': widget.listingId,
-        'isread': false,
-        'createdat': DateTime.now().toIso8601String(),
-      });
-
-      print('✅ [OrderReview] 알림 전송 완료');
+      // 리뷰 대상 사업자에게 알림 (실패해도 리뷰는 저장됨)
+      try {
+        await Supabase.instance.client.from('notifications').insert({
+          'userid': widget.revieweeId,
+          'title': '새로운 리뷰',
+          'body': '${widget.orderTitle} 공사에 대한 리뷰가 등록되었습니다.',
+          'type': 'review_received',
+          'isread': false,
+          'createdat': DateTime.now().toIso8601String(),
+        });
+        print('✅ [OrderReview] 알림 전송 완료');
+      } catch (notifError) {
+        print('⚠️ [OrderReview] 알림 전송 실패 (무시됨): $notifError');
+        // 알림 실패해도 리뷰는 저장되었으므로 계속 진행
+      }
 
       if (mounted) {
         Navigator.pop(context); // 로딩 닫기
