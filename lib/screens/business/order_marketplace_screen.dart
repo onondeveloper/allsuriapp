@@ -939,12 +939,12 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         return;
       }
       
-      // ✅ 이미 1개 이상 입찰했는지 확인
-      if (_myActiveBidListingIds.isNotEmpty) {
+      // ✅ 이미 이 오더에 입찰했는지 확인 (같은 오더 중복 입찰 방지)
+      if (_myActiveBidListingIds.contains(id)) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('한 번에 1개의 공사만 \'잡기\'가 가능합니다'),
+            content: Text('이미 이 오더에 입찰하셨습니다'),
             backgroundColor: Colors.orange,
             duration: Duration(seconds: 3),
           ),
