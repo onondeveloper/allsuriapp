@@ -208,16 +208,22 @@ class ChatService extends ChangeNotifier {
         print('발신자가 사업자, 수신자는 고객: $recipientId');
       }
 
-      // 채팅 알림 전송
+      // 채팅 알림 전송 (실패해도 메시지는 성공으로 처리)
       print('채팅 알림 전송 시도...');
-      await _notificationService.sendChatNotification(
-        recipientUserId: recipientId,
-        senderName: senderName,
-        message: message,
-        chatRoomId: resolvedId,
-      );
+      try {
+        await _notificationService.sendChatNotification(
+          recipientUserId: recipientId,
+          senderName: senderName,
+          message: message,
+          chatRoomId: resolvedId,
+        );
+        print('✅ 채팅 알림 전송 성공');
+      } catch (notifError) {
+        print('⚠️ 채팅 알림 전송 실패 (무시됨): $notifError');
+        // 알림 실패해도 메시지는 저장되었으므로 계속 진행
+      }
 
-      print('=== 메시지 전송 및 알림 완료 ===');
+      print('=== 메시지 전송 완료 ===');
       print('chatRoomId: $resolvedId');
       print('수신자: $recipientId');
       print('발신자: $senderName');
