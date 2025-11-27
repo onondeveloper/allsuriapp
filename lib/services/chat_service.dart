@@ -379,10 +379,10 @@ class ChatService extends ChangeNotifier {
   /// 사용자 프로필 정보 가져오기
   Future<Map<String, dynamic>?> _getUserProfile(String userId) async {
     try {
-      // 고객 프로필 확인
+      // 사용자 프로필 확인 (users 테이블 사용)
       final customerProfile = await _sb
-          .from('customers')
-          .select('name')
+          .from('users')
+          .select('name, businessname')
           .eq('id', userId)
           .maybeSingle();
       

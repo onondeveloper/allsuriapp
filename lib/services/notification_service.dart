@@ -163,7 +163,8 @@ class NotificationService {
         'region': region,
         'orderid': orderId,
         'estimateid': estimateId,
-        'chatroom_id': chatRoomId,
+        // chatroom_id는 선택적 (컬럼이 없을 수 있음)
+        if (chatRoomId != null && chatRoomId.isNotEmpty) 'chatroom_id': chatRoomId,
         'isread': false,
         'createdat': DateTime.now().toIso8601String(),
       });
