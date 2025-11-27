@@ -314,6 +314,24 @@ class ChatService extends ChangeNotifier {
         } else {
           room['displayName'] = room['title']?.toString() ?? '채팅';
         }
+        
+        // 오더 제목 가져오기
+        if (room['listingid'] != null) {
+          try {
+            final listing = await _sb
+                .from('marketplace_listings')
+                .select('title')
+                .eq('id', room['listingid'])
+                .maybeSingle();
+            if (listing != null) {
+              room['orderTitle'] = listing['title']?.toString() ?? '';
+              debugPrint('   오더 제목: ${room['orderTitle']}');
+            }
+          } catch (e) {
+            debugPrint('⚠️ 오더 제목 조회 실패: $e');
+          }
+        }
+        
         // 최근 메시지
         try {
           final last = await _sb

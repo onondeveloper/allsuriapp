@@ -222,6 +222,19 @@ class _ChatListPageState extends State<ChatListPage> {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  if (chatRoom['orderTitle']?.toString().isNotEmpty ?? false) ...[
+                    Text(
+                      chatRoom['orderTitle'].toString(),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: CupertinoColors.systemBlue,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                   Text(
                     (chatRoom['lastMessage']?.toString() ?? ''),
                     style: const TextStyle(
