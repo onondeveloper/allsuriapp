@@ -13,19 +13,18 @@ UPDATE public.users SET
   estimates_created_count = (
     SELECT COUNT(*) 
     FROM estimates 
-    WHERE businessid = users.id OR business_id = users.id
+    WHERE businessid = users.id
   ),
   jobs_accepted_count = (
     SELECT COUNT(*) 
     FROM jobs 
-    WHERE (assigned_business_id = users.id OR assignedbusinessid = users.id)
+    WHERE assigned_business_id = users.id
       AND status = 'completed'
   )
 WHERE role = 'business';
 
 -- 3. 인덱스 추가 (성능 향상)
 CREATE INDEX IF NOT EXISTS idx_estimates_businessid ON estimates(businessid);
-CREATE INDEX IF NOT EXISTS idx_estimates_business_id ON estimates(business_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_assigned_business ON jobs(assigned_business_id);
 
 -- 4. 확인 쿼리
@@ -47,7 +46,7 @@ RETURNS TRIGGER AS $$
 BEGIN
   UPDATE users 
   SET estimates_created_count = estimates_created_count + 1
-  WHERE id = NEW.businessid OR id = NEW.business_id;
+  WHERE id = NEW.businessid;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -65,7 +64,7 @@ BEGIN
   IF NEW.status = 'completed' AND OLD.status != 'completed' THEN
     UPDATE users 
     SET jobs_accepted_count = jobs_accepted_count + 1
-    WHERE id = NEW.assigned_business_id OR id = NEW.assignedbusinessid;
+    WHERE id = NEW.assigned_business_id;
   END IF;
   RETURN NEW;
 END;
