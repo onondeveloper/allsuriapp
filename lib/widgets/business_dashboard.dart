@@ -180,22 +180,34 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final currentUserId = authService.currentUser?.id;
       
-      if (currentUserId == null) return 0;
+      if (currentUserId == null) {
+        print('❌ [_getMyBidsCount] currentUserId가 null입니다');
+        return 0;
+      }
+      
+      print('🔍 [_getMyBidsCount] 조회 시작: currentUserId=$currentUserId');
       
       // 내가 입찰한 오더 수 (order_bids 테이블에서 직접 조회)
       final bids = await Supabase.instance.client
           .from('order_bids')
-          .select('id, status')
+          .select('id, status, listing_id')
           .eq('bidder_id', currentUserId);
+      
+      print('🔍 [_getMyBidsCount] 전체 입찰 수: ${bids.length}');
+      if (bids.isNotEmpty) {
+        print('   첫 번째 입찰: ${bids.first}');
+      }
       
       final activeBids = bids.where((bid) {
         final status = bid['status']?.toString() ?? '';
-        return status != 'withdrawn'; // 취소하지 않은 입찰만
+        return status != 'withdrawn' && status != 'rejected'; // 취소하지 않고 거절되지 않은 입찰만
       }).length;
-      print('🔍 [_getMyBidsCount] 입찰한 오더 수: $activeBids');
+      
+      print('🔍 [_getMyBidsCount] 활성 입찰 수: $activeBids');
       return activeBids;
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ [_getMyBidsCount] 에러: $e');
+      print('   StackTrace: $stackTrace');
       return 0;
     }
   }

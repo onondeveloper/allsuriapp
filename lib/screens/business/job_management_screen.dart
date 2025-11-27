@@ -26,7 +26,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   List<Job> _combinedJobs = [];
   List<Job> _completedJobs = []; // 완료된 공사 (awaiting_confirmation + completed)
   bool _isLoading = true;
-  String _filter = 'all'; // all | mine | in_progress | call | completed
+  String _filter = 'in_progress'; // in_progress | completed (내가 가져간 공사만)
   Map<String, Map<String, dynamic>> _listingByJobId = {};
   bool _isCompleting = false; // 공사 완료 중 플래그
 
@@ -49,10 +49,9 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       final allJobs = await jobService.getJobs();
       print('🔍 [JobManagement] 전체 공사: ${allJobs.length}개');
       
-      // 내가 관련된 공사 필터링
+      // 내가 가져간 공사만 필터링 (assignedBusinessId == currentUserId)
       final myJobs = allJobs.where((job) {
-        return job.ownerBusinessId == currentUserId ||
-            job.assignedBusinessId == currentUserId;
+        return job.assignedBusinessId == currentUserId;
       }).toList();
       
       // 완료된 공사 (awaiting_confirmation + completed)
@@ -232,16 +231,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildModernChip('전체', 'all', Icons.dashboard_outlined, _combinedJobs.length),
-                const SizedBox(width: 10),
-                _buildModernChip('내 공사', 'mine', Icons.person_outline, 
-                    _combinedJobs.where((j) => j.ownerBusinessId == me && j.status != 'assigned').length),
-                const SizedBox(width: 10),
-                _buildModernChip('진행 중', 'in_progress', Icons.construction_outlined, 
-                    _combinedJobs.where((j) => j.ownerBusinessId == me && j.status == 'assigned').length),
-                const SizedBox(width: 10),
-                _buildModernChip('받은 공사', 'call', Icons.campaign_outlined, 
-                    _combinedJobs.where((j) => j.assignedBusinessId == me).length),
+                _buildModernChip('진행 중', 'in_progress', Icons.construction_outlined, _combinedJobs.length),
                 const SizedBox(width: 10),
                 _buildModernChip('완료됨', 'completed', Icons.check_circle_outline, _completedJobs.length),
               ],
@@ -320,13 +310,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
 
   List<Job> _filteredByBadge(List<Job> jobs, String me) {
     if (_filter == 'completed') return _completedJobs; // 완료된 공사 별도 처리
-    if (_filter == 'all') return jobs;
-    return jobs.where((j) {
-      if (_filter == 'mine') return j.ownerBusinessId == me && j.status != 'assigned';
-      if (_filter == 'in_progress') return j.ownerBusinessId == me && j.status == 'assigned';
-      if (_filter == 'call') return j.assignedBusinessId == me;
-      return true;
-    }).toList();
+    // 기본적으로 진행 중인 공사만 표시 (내가 가져간 공사)
+    return jobs;
   }
 
   void _openBidderList(String listingId, String orderTitle) async {
@@ -949,13 +934,8 @@ class _ModernJobsList extends StatelessWidget {
       }
     }
     
-    if (job.assignedBusinessId == me) {
-      return _Badge('콜 공사', Colors.green, Icons.campaign_outlined);
-    }
-    if (job.ownerBusinessId == me) {
-      return _Badge('내 공사', const Color(0xFF1976D2), Icons.person_outline);
-    }
-    return _Badge('공사', Colors.grey, Icons.work_outline);
+    // 모든 공사는 내가 가져간 공사이므로 배지 통일
+    return _Badge('진행 중', Colors.green, Icons.construction_outlined);
   }
 }
 

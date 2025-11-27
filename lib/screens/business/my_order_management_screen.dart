@@ -88,10 +88,11 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     final currentUserId = context.read<AuthService>().currentUser?.id;
     if (currentUserId == null) return;
     
-    print('🔔 [MyOrderManagement] 입찰 실시간 알림 구독 시작');
+    print('🔔 [MyOrderManagement] 입찰 및 상태 실시간 알림 구독 시작');
     
     _channel = Supabase.instance.client
         .channel('my_order_bids_$currentUserId')
+        // 새 입찰 감지
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -113,6 +114,19 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                 ),
               );
             }
+          },
+        )
+        // marketplace_listings 상태 변경 감지 (공사 완료, 확인 대기 등)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'marketplace_listings',
+          callback: (payload) {
+            print('🔔 [MyOrderManagement] 오더 상태 변경 감지!');
+            print('   Payload: $payload');
+            
+            // 상태가 변경된 경우 목록 새로고침
+            _loadMyOrders();
           },
         )
         .subscribe();
