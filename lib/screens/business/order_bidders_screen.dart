@@ -25,6 +25,172 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
   bool _loading = true;
   String? _error;
 
+  // 사업자 평점 평균 가져오기
+  Future<Map<String, dynamic>> _getBidderRating(String bidderId) async {
+    try {
+      final reviews = await Supabase.instance.client
+          .from('order_reviews')
+          .select('rating')
+          .eq('reviewee_id', bidderId);
+      
+      if (reviews.isEmpty) {
+        return {'average': 0.0, 'count': 0};
+      }
+      
+      final ratings = reviews.map((r) => (r['rating'] ?? 0) as int).toList();
+      final average = ratings.reduce((a, b) => a + b) / ratings.length;
+      
+      return {'average': average, 'count': ratings.length};
+    } catch (e) {
+      print('⚠️ 평점 조회 실패: $e');
+      return {'average': 0.0, 'count': 0};
+    }
+  }
+
+  // 사업자 프로필 및 후기 보기
+  Future<void> _showBidderProfile(String bidderId, String bidderName) async {
+    // 후기 목록 가져오기
+    List<Map<String, dynamic>> reviews = [];
+    try {
+      reviews = await Supabase.instance.client
+          .from('order_reviews')
+          .select('rating, tags, comment, created_at, reviewer_id')
+          .eq('reviewee_id', bidderId)
+          .order('created_at', ascending: false);
+    } catch (e) {
+      print('⚠️ 후기 조회 실패: $e');
+    }
+    
+    final rating = await _getBidderRating(bidderId);
+    
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.blue, size: 28),
+            const SizedBox(width: 12),
+            Expanded(child: Text(bidderName, style: const TextStyle(fontSize: 18))),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 평점 요약
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.star, color: Colors.amber[700], size: 32),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '평균 ${rating['average'].toStringAsFixed(1)}',
+                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '${rating['count']}개의 후기',
+                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // 후기 목록
+                if (reviews.isEmpty) ...[
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('아직 작성된 후기가 없습니다.', style: TextStyle(color: Colors.grey)),
+                    ),
+                  ),
+                ] else ...[
+                  const Text('받은 후기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  ...reviews.map((review) => Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            ...List.generate(5, (i) => Icon(
+                              i < (review['rating'] ?? 0) ? Icons.star : Icons.star_border,
+                              color: Colors.amber[700],
+                              size: 16,
+                            )),
+                            const SizedBox(width: 8),
+                            Text('${review['rating']}.0', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        if (review['tags'] != null && (review['tags'] as List).isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: (review['tags'] as List).take(3).map((tag) => Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(tag.toString(), style: const TextStyle(fontSize: 11)),
+                            )).toList(),
+                          ),
+                        ],
+                        if (review['comment'] != null && review['comment'].toString().isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(review['comment'].toString(), 
+                            style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        Text(
+                          review['created_at']?.toString().substring(0, 10) ?? '',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
+                  )).toList(),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -320,6 +486,10 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
     final isPending = status == 'pending';
     final isSelected = status == 'selected';
     final isRejected = status == 'rejected';
+    
+    // 평점 평균 가져오기
+    double averageRating = 0.0;
+    int reviewCount = 0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -343,44 +513,74 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
             // 프로필 섹션
             Row(
               children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.blue[100],
-                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null
-                      ? Icon(Icons.person, size: 32, color: Colors.blue[700])
-                      : null,
+                GestureDetector(
+                  onTap: () => _showBidderProfile(bidderId, bidderName),
+                  child: CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.blue[100],
+                    backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                    child: avatarUrl == null
+                        ? Icon(Icons.person, size: 32, color: Colors.blue[700])
+                        : null,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        bidderName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                  child: GestureDetector(
+                    onTap: () => _showBidderProfile(bidderId, bidderName),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          bidderName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.star, size: 14, color: Colors.amber[700]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '견적 $estimatesCount건',
-                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(Icons.check_circle, size: 14, color: Colors.green[700]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '완료 $jobsCount건',
-                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
+                        const SizedBox(height: 4),
+                        // 평점 평균 표시
+                        FutureBuilder<Map<String, dynamic>>(
+                          future: _getBidderRating(bidderId),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              final avgRating = snapshot.data!['average'] ?? 0.0;
+                              final count = snapshot.data!['count'] ?? 0;
+                              return Row(
+                                children: [
+                                  Icon(Icons.star, size: 16, color: Colors.amber[700]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    count > 0 ? '${avgRating.toStringAsFixed(1)} ($count개 후기)' : '후기 없음',
+                                    style: TextStyle(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                Icon(Icons.star_outline, size: 16, color: Colors.grey[400]),
+                                const SizedBox(width: 4),
+                                Text('평가 중...', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.work_outline, size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              '견적 $estimatesCount건 • 완료 $jobsCount건',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                       // 활동 지역 표시
                       if (serviceAreas.isNotEmpty) ...[
                         const SizedBox(height: 6),

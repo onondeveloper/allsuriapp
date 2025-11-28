@@ -85,20 +85,39 @@ class _OrderReviewScreenState extends State<OrderReviewScreen> {
       print('   rating: $_rating');
       print('   tags: $_selectedTags');
 
-      // 리뷰 저장
-      await Supabase.instance.client.from('order_reviews').insert({
-        'listing_id': widget.listingId,
-        'job_id': widget.jobId,
-        'reviewer_id': currentUserId,
-        'reviewee_id': widget.revieweeId,
-        'rating': _rating,
-        'tags': _selectedTags.toList(),
-        'comment': _commentController.text.trim(),
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      });
-
-      print('✅ [OrderReview] 리뷰 저장 완료');
+      // 기존 리뷰 확인 (중복 방지)
+      final existingReview = await Supabase.instance.client
+          .from('order_reviews')
+          .select('id')
+          .eq('listing_id', widget.listingId)
+          .eq('reviewer_id', currentUserId)
+          .maybeSingle();
+      
+      if (existingReview != null) {
+        // 이미 리뷰가 있으면 업데이트
+        print('ℹ️ [OrderReview] 기존 리뷰 발견, 업데이트');
+        await Supabase.instance.client.from('order_reviews').update({
+          'rating': _rating,
+          'tags': _selectedTags.toList(),
+          'comment': _commentController.text.trim(),
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', existingReview['id']);
+        print('✅ [OrderReview] 리뷰 업데이트 완료');
+      } else {
+        // 새 리뷰 저장
+        await Supabase.instance.client.from('order_reviews').insert({
+          'listing_id': widget.listingId,
+          'job_id': widget.jobId,
+          'reviewer_id': currentUserId,
+          'reviewee_id': widget.revieweeId,
+          'rating': _rating,
+          'tags': _selectedTags.toList(),
+          'comment': _commentController.text.trim(),
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+        print('✅ [OrderReview] 리뷰 저장 완료');
+      }
 
       // marketplace_listings 상태를 'completed'로 업데이트
       await Supabase.instance.client

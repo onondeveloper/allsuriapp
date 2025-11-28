@@ -554,9 +554,31 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             
-            // 버튼 로직: 완료 상태면 리뷰 버튼만, 아니면 입찰자 보기 버튼
-            // 1. 리뷰 작성 버튼 (완료 확인 대기 또는 완료된 상태일 때)
-            if (status == 'awaiting_confirmation' || status == 'completed') ...[
+            // 버튼 로직: 완료 상태에 따라 다른 버튼 표시
+            // 1. 완료된 오더 (completed): 상세보기 + 작성한 후기 보기
+            if (status == 'completed') ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showCompletedOrderDetail(order),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text(
+                    '공사 상세 및 후기 보기',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ]
+            // 2. 완료 확인 대기 (awaiting_confirmation): 후기 작성
+            else if (status == 'awaiting_confirmation') ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -567,7 +589,7 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                     print('   completedBy: $completedBy');
                     print('   selectedBidderId: $selectedBidderId');
                     
-                    if (completedBy == null && selectedBidderId == null) {
+                    if (completedBy == null && selectedBidderId == null && claimedBy == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('낙찰된 사업자 정보를 찾을 수 없습니다.'),
@@ -579,9 +601,9 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                     _openReviewScreen(order);
                   },
                   icon: const Icon(Icons.star_outline, size: 18),
-                  label: Text(
-                    status == 'completed' ? '후기 작성하기' : '후기 작성하기',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  label: const Text(
+                    '후기 작성하기',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.amber,
@@ -713,6 +735,124 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     
     // 리뷰 작성 후 새로고침
     _loadMyOrders();
+  }
+
+  Future<void> _showCompletedOrderDetail(Map<String, dynamic> order) async {
+    final listingId = order['id']?.toString();
+    final title = order['title']?.toString() ?? '오더';
+    final description = order['description']?.toString() ?? '';
+    final budget = order['budget_amount'];
+    final me = context.read<AuthService>().currentUser?.id ?? '';
+    
+    if (listingId == null) return;
+    
+    // 내가 작성한 리뷰 가져오기
+    Map<String, dynamic>? myReview;
+    try {
+      final reviewData = await Supabase.instance.client
+          .from('order_reviews')
+          .select('rating, tags, comment, created_at, reviewee_id')
+          .eq('listing_id', listingId)
+          .eq('reviewer_id', me)
+          .maybeSingle();
+      myReview = reviewData;
+    } catch (e) {
+      print('⚠️ 리뷰 조회 실패: $e');
+    }
+    
+    if (!mounted) return;
+    
+    // 상세보기 다이얼로그
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 28),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('완료된 공사', style: TextStyle(fontSize: 18))),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 공사 제목
+              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              
+              // 공사 설명
+              if (description.isNotEmpty) ...[
+                Text(description, style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                const SizedBox(height: 12),
+              ],
+              
+              // 예산
+              if (budget != null) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.payments_outlined, size: 16),
+                    const SizedBox(width: 4),
+                    Text('예산: ₩${budget.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+              
+              const Divider(),
+              const SizedBox(height: 12),
+              
+              // 내가 작성한 후기
+              if (myReview != null) ...[
+                const Text('내가 작성한 후기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    ...List.generate(5, (i) => Icon(
+                      i < (myReview['rating'] ?? 0) ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 20,
+                    )),
+                    const SizedBox(width: 8),
+                    Text('${myReview['rating']}.0', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (myReview['tags'] != null && (myReview['tags'] as List).isNotEmpty) ...[
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: (myReview['tags'] as List).map((tag) => Chip(
+                      label: Text(tag.toString(), style: const TextStyle(fontSize: 11)),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    )).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (myReview['comment'] != null && myReview['comment'].toString().isNotEmpty) ...[
+                  Text(myReview['comment'].toString(), 
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                ],
+                const SizedBox(height: 8),
+                Text('작성일: ${myReview['created_at']?.toString().substring(0, 10) ?? ''}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              ] else ...[
+                const Text('작성된 후기가 없습니다.', style: TextStyle(color: Colors.grey)),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

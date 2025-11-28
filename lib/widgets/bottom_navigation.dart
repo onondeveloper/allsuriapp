@@ -38,9 +38,10 @@ class BottomNavigation extends StatelessWidget {
             ],
           ),
           child: SafeArea(
+            top: false,
             child: Container(
-              height: 65,
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              height: 60,
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -142,36 +143,38 @@ class BottomNavigation extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: EdgeInsets.all(isSelected ? 8 : 6),
+                padding: EdgeInsets.all(isSelected ? 6 : 4),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? primaryColor.withOpacity(0.15)
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   isSelected ? icon : outlinedIcon,
-                  size: isSelected ? 26 : 24,
+                  size: isSelected ? 24 : 22,
                   color: isSelected ? primaryColor : Colors.grey[600],
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: isSelected ? primaryColor : Colors.grey[700],
-                  letterSpacing: -0.2,
+                  letterSpacing: -0.3,
+                  height: 1.0,
                 ),
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                overflow: TextOverflow.clip,
               ),
             ],
           ),
