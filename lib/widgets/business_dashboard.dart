@@ -230,7 +230,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
               
           final activeListings = listings.where((l) {
             final status = l['status']?.toString();
-            // open: 입찰 진행 중인 오더만 카운트 (assigned, completed 등 제외)
+            // 낙찰을 기다리는 오더(open)만 표시 (assigned 등 제외)
             return status == 'open';
           }).length;
           
