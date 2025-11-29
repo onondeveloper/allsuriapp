@@ -811,12 +811,12 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                 Row(
                   children: [
                     ...List.generate(5, (i) => Icon(
-                      i < (myReview['rating'] ?? 0) ? Icons.star : Icons.star_border,
+                      i < (myReview!['rating'] ?? 0) ? Icons.star : Icons.star_border,
                       color: Colors.amber,
                       size: 20,
                     )),
                     const SizedBox(width: 8),
-                    Text('${myReview['rating']}.0', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('${myReview['rating'] ?? 0}.0', style: const TextStyle(fontWeight: FontWeight.bold)),
                   ],
                 ),
                 const SizedBox(height: 8),
