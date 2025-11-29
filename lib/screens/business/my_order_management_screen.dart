@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/chat_service.dart'; // 추가
 import '../../widgets/loading_indicator.dart';
 import '../business/order_bidders_screen.dart';
 import '../business/order_review_screen.dart';
 import '../../services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../chat_screen.dart'; // 추가
 
 /// 내 오더 관리 화면
 /// - 내가 생성한 오더만 표시
