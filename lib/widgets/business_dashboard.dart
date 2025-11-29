@@ -190,19 +190,26 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       // 내가 입찰한 오더 수 (order_bids 테이블에서 직접 조회)
       final bids = await Supabase.instance.client
           .from('order_bids')
-          .select('id, status, listing_id')
+          .select('*') // 모든 컬럼 조회
           .eq('bidder_id', currentUserId);
       
       print('🔍 [_getMyBidsCount] 전체 입찰 데이터: ${bids.length}개');
+      if (bids.isNotEmpty) {
+        print('   첫 번째 입찰 데이터: ${bids.first}');
+      }
       
       // 활성 입찰만 필터링 (취소/거절 제외)
+      // listing_id 컬럼이 있는지 확인 필요
       final activeBids = bids.where((bid) {
         final status = bid['status']?.toString() ?? '';
         return status != 'withdrawn' && status != 'rejected';
       }).toList();
       
-      // 중복된 listing_id 제거 (같은 오더에 여러 번 입찰한 경우 1개로 계산)
-      final uniqueListings = activeBids.map((bid) => bid['listing_id'].toString()).toSet();
+      // 중복된 listing_id 제거
+      final uniqueListings = activeBids.map((bid) {
+        // listing_id 컬럼명 확인 (listing_id 또는 listingid)
+        return (bid['listing_id'] ?? bid['listingid'])?.toString();
+      }).where((id) => id != null).toSet();
       
       print('🔍 [_getMyBidsCount] 유효한 입찰 오더 수: ${uniqueListings.length}');
       return uniqueListings.length;

@@ -167,10 +167,14 @@ class _ChatScreenState extends State<ChatScreen> {
           final m = Map<String, dynamic>.from(r);
           final created = m['createdat'] ?? m['createdAt'] ?? m['created_at'];
           final text = (m['content'] ?? m['text'] ?? '').toString();
-          final senderId = m['sender_id']?.toString() ?? m['senderid']?.toString() ?? m['senderId']?.toString() ?? '';
-          final isFromMe = senderId == me;
           
-          print('   메시지: "$text" (sender: $senderId, isFromMe: $isFromMe)');
+          // sender_id 확인 (다양한 케이스 대응)
+          final senderId = m['sender_id']?.toString() ?? m['senderid']?.toString() ?? m['senderId']?.toString() ?? '';
+          
+          // 내 아이디와 비교 (공백 제거 및 소문자 변환)
+          final isFromMe = senderId.trim().toLowerCase() == me.trim().toLowerCase();
+          
+          print('   메시지: "$text" (sender: $senderId, me: $me, isFromMe: $isFromMe)');
           
           return <String, dynamic>{
             'text': text,

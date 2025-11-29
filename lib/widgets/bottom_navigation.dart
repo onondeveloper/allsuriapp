@@ -119,7 +119,7 @@ class BottomNavigation extends StatelessWidget {
                       ? const CustomerMyEstimatesScreen()
                       : const CreateJobScreen(),
                 ),
-              );
+              ).then((_) => onTap(0)); // 돌아오면 홈으로 초기화
               break;
             case 2:
               Navigator.push(
@@ -127,7 +127,7 @@ class BottomNavigation extends StatelessWidget {
                 MaterialPageRoute(
                   builder: (context) => const ChatListPage(),
                 ),
-              );
+              ).then((_) => onTap(0)); // 돌아오면 홈으로 초기화
               break;
             case 3:
               Navigator.push(
@@ -135,7 +135,7 @@ class BottomNavigation extends StatelessWidget {
                 MaterialPageRoute(
                   builder: (context) => const ProfileScreen(),
                 ),
-              );
+              ).then((_) => onTap(0)); // 돌아오면 홈으로 초기화
               break;
           }
           onTap(index);
