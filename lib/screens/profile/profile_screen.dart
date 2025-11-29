@@ -89,7 +89,7 @@ class ProfileScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
-          _buildProfileHeader(user),
+          _buildProfileHeader(context, user),
           const SizedBox(height: 20),
           _buildProfileActions(context, user),
         ],
@@ -97,7 +97,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileHeader(User user) {
+  Widget _buildProfileHeader(BuildContext context, User user) {
     return SizedBox(
       width: double.infinity,
       child: Card(
@@ -155,7 +155,7 @@ class ProfileScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 40,
                         fontWeight: FontWeight.bold,
-                        color: Theme.of(null).primaryColor, // context가 없으므로 고정 색상 사용하거나 파라미터 추가 필요. 여기선 색상 직접 지정
+                        color: Theme.of(context).primaryColor,
                       ).copyWith(color: const Color(0xFF4F8CFF)),
                     ),
                   ),
