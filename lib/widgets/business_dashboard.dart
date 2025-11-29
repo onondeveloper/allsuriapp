@@ -577,7 +577,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                 const SizedBox(height: 24),
                 _buildAdBanner(context),
                 
-                const SizedBox(height: 100),
+                const SizedBox(height: 20), // 하단 여백 축소 (스크롤 방지)
               ],
             ),
           ),
