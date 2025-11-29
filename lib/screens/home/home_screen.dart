@@ -660,7 +660,7 @@ class _BannerSlider extends StatefulWidget {
 
 class _BannerSliderState extends State<_BannerSlider> {
   int _current = 0;
-  final PageController _controller = PageController(viewportFraction: 0.9);
+  final PageController _controller = PageController(viewportFraction: 1.0); // 1:1 비율을 위해 1.0으로 변경
 
   Future<void> _launchUrl(String urlString) async {
     try {
@@ -677,8 +677,7 @@ class _BannerSliderState extends State<_BannerSlider> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        SizedBox(
-          height: 160,
+        Expanded( // 높이를 부모에 맞춤
           child: PageView.builder(
             controller: _controller,
             onPageChanged: (idx) {
@@ -694,19 +693,19 @@ class _BannerSliderState extends State<_BannerSlider> {
                   }
                 },
                 child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                  margin: const EdgeInsets.symmetric(horizontal: 0), // 패딩 제거
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
+                        blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(24),
                     child: CachedNetworkImage(
                       imageUrl: ad.imageUrl,
                       fit: BoxFit.cover,
@@ -726,16 +725,16 @@ class _BannerSliderState extends State<_BannerSlider> {
           ),
         ),
         if (widget.ads.length > 1) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(widget.ads.length, (i) {
               final active = i == _current;
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
-                width: active ? 20 : 8,
+                width: active ? 24 : 8,
                 height: 8,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   color: active ? Theme.of(context).colorScheme.primary : Colors.grey[300],
                   borderRadius: BorderRadius.circular(4),
