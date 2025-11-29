@@ -1,3 +1,4 @@
+import 'dart:async'; // Timer 사용을 위해 추가
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -38,7 +39,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   final MarketplaceService _market = MarketplaceService();
   late Future<int> _callOpenCountFuture;
   late Future<int> _estimateRequestsCountFuture;
-  late Future<int> _completedJobsCountFuture; // 내가 완료한 공사 수
+  late Future<int> _completedJobsCountFuture;
   late Future<int> _myOrdersCountFuture;
   late Future<int> _myBidsCountFuture;
   late Future<List<Ad>> _adFuture;
@@ -51,11 +52,9 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     super.initState();
     _adFuture = AdService().getActiveAds();
     _setupRealtimeListeners();
-    // Futures are initialized in didChangeDependencies to safely read providers
   }
 
   void _setupRealtimeListeners() {
-    // marketplace_listings 변경 감시
     _marketplaceChannel = Supabase.instance.client
         .channel('public:marketplace_listings')
         .onPostgresChanges(
@@ -63,15 +62,11 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
           schema: 'public',
           table: 'marketplace_listings',
           callback: (payload) {
-            print('🔄 [marketplace_listings] 변경 감지');
-            if (mounted) {
-              _refreshCounts();
-            }
+            if (mounted) _refreshCounts();
           },
         )
         .subscribe();
 
-    // orders (고객 견적) 변경 감시
     _ordersChannel = Supabase.instance.client
         .channel('public:orders')
         .onPostgresChanges(
@@ -79,10 +74,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
           schema: 'public',
           table: 'orders',
           callback: (payload) {
-            print('🔄 [orders] 변경 감지');
-            if (mounted) {
-              _refreshCounts();
-            }
+            if (mounted) _refreshCounts();
           },
         )
         .subscribe();
@@ -116,13 +108,10 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final currentUserId = authService.currentUser?.id;
       
-      // 오더 마켓에서 화면에 보이는 기준: open + withdrawn + created (자신이 올린 오더 제외)
-      // 서버 사이드 카운트로 최적화
       final count = await _market.countListings(
         status: 'all',
         excludePostedBy: currentUserId,
       );
-      print('🔍 [_getCallOpenCount] 오더 개수 (자신 제외): $count');
       return count;
     } catch (e) {
       print('❌ [_getCallOpenCount] 에러: $e');
@@ -135,7 +124,6 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       final orderService = Provider.of<OrderService>(context, listen: false);
       final all = await orderService.getOrders();
       final available = all.where((o) => o.status == 'pending' && !o.isAwarded).length;
-      print('🔍 [_getEstimateRequestsCount] 고객 견적 요청 개수: $available');
       return available;
     } catch (e) {
       print('❌ [_getEstimateRequestsCount] 에러: $e');
@@ -150,7 +138,6 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       
       if (currentUserId == null) return 0;
       
-      // users 테이블의 통계 컬럼 사용 (더 빠르고 정확)
       final user = await Supabase.instance.client
           .from('users')
           .select('jobs_accepted_count')
@@ -158,11 +145,8 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
           .single();
           
       final count = user['jobs_accepted_count'] as int? ?? 0;
-      print('🔍 [_getMyCompletedJobsCount] 완료 공사 수(User): $count');
       return count;
     } catch (e) {
-      print('❌ [_getMyCompletedJobsCount] 에러: $e');
-      // 실패 시 jobs 테이블 직접 조회 (Fallback)
       try {
         final authService = Provider.of<AuthService>(context, listen: false);
         final currentUserId = authService.currentUser?.id;
@@ -187,12 +171,10 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       
       if (currentUserId == null) return 0;
       
-      // 내가 만든 오더 수 (서버 사이드 카운트로 최적화)
       final count = await _market.countListings(
         status: 'all',
         postedBy: currentUserId,
       );
-      print('🔍 [_getMyOrdersCount] 내가 만든 오더 수: $count');
       return count;
     } catch (e) {
       print('❌ [_getMyOrdersCount] 에러: $e');
@@ -207,9 +189,6 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       
       if (currentUserId == null) return 0;
       
-      print('🔍 [_getMyBidsCount] API 조회 시작: $currentUserId');
-      
-      // API를 통해 입찰 목록 조회 (OrderMarketplaceScreen과 동일한 방식)
       final api = ApiService();
       final response = await api.get(
         '/market/bids?bidderId=$currentUserId&statuses=pending,selected,awaiting_confirmation',
@@ -217,17 +196,12 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       
       if (response['success'] == true) {
         final bids = List<Map<String, dynamic>>.from(response['data'] ?? []);
-        print('✅ [_getMyBidsCount] API 조회 성공: ${bids.length}건');
         
-        // 중복 제거 (listing_id 기준)
         final uniqueListingIds = bids
             .map((b) => b['listing_id']?.toString())
             .where((id) => id != null && id.isNotEmpty)
             .toSet();
             
-        print('🔍 [_getMyBidsCount] 입찰한 오더 ID 목록: $uniqueListingIds');
-        
-        // 추가 필터링: 오더 상태 확인 (완료된 오더 제외하고 진행 중인 오더만 카운트)
         if (uniqueListingIds.isNotEmpty) {
           final listings = await Supabase.instance.client
               .from('marketplace_listings')
@@ -236,22 +210,17 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
               
           final activeListings = listings.where((l) {
             final status = l['status']?.toString();
-            // 낙찰을 기다리는 오더(open, created)만 표시 (assigned 등 제외)
             return status == 'open' || status == 'created';
           }).length;
           
-          print('✅ [_getMyBidsCount] 진행 중인 유효 입찰 수: $activeListings');
           return activeListings;
         }
             
         return 0;
       } else {
-        print('❌ [_getMyBidsCount] API 조회 실패: ${response['error']}');
-        // API 실패 시 Supabase 직접 조회 시도 (Fallback)
         return await _getMyBidsCountFallback(currentUserId);
       }
     } catch (e) {
-      print('❌ [_getMyBidsCount] 에러: $e');
       return 0;
     }
   }
@@ -266,7 +235,6 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       final uniqueIds = <String>{};
       for (final bid in bids) {
         final status = bid['status']?.toString() ?? '';
-        // 사용자가 원하는 '입찰 중' 상태는 pending만 해당
         if (status == 'pending') {
           final listingId = bid['listing_id']?.toString();
           if (listingId != null) uniqueIds.add(listingId);
@@ -283,14 +251,10 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
         final user = authService.currentUser;
-        
-        // 승인 상태 체크
         final businessStatus = user?.businessStatus?.toLowerCase() ?? '';
         final isApproved = businessStatus == 'approved';
         
-        // 승인되지 않은 경우 대기 화면 표시
         if (!isApproved) {
-          print('🔒 [BusinessDashboard] 승인 대기 중: businessStatus=$businessStatus');
           return const PendingApprovalScreen();
         }
         
@@ -299,10 +263,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
             : (user?.name ?? "사업자");
         
         return WillPopScope(
-          onWillPop: () async {
-            // 사업자는 홈이 곧 대시보드이므로 남겨둠 (스택 클리어 없이 true 반환 시 기본 pop)
-            return false; // 기본 뒤로가기 방지 (홈으로 나가는 것을 방지)
-          },
+          onWillPop: () async => false,
           child: Scaffold(
           appBar: AppBar(
             title: Text('올수리에서 번창하세요!'),
@@ -363,7 +324,6 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Modern welcome banner
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -479,10 +439,8 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                 ),
                 const SizedBox(height: 16),
 
-                // Menu grid (card-based) - Clean pastel design like reference image
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    // 화면 너비에 따라 열 개수 동적 조정
                     final width = constraints.maxWidth;
                     final isLandscape = width > 600;
                     final crossAxisCount = isLandscape ? 3 : 2;
@@ -495,13 +453,12 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       crossAxisSpacing: 16,
                       childAspectRatio: 0.95,
                       children: [
-                    // 1) 오더
                    _buildCleanMenuCard(
                       context,
                       '오더',
                       Icons.handyman_outlined,
-                      const Color(0xFFFFF3E0), // Light orange
-                      const Color(0xFFF57C00), // Orange for icon
+                      const Color(0xFFFFF3E0),
+                      const Color(0xFFF57C00),
                       () async {
                         await Navigator.push(
                           context,
@@ -512,72 +469,45 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       },
                       badgeFuture: _callOpenCountFuture,
                     ),
-                    // 2) 내 공사
                     _buildCleanMenuCard(
                       context,
                       '내 공사',
                       Icons.construction_outlined,
-                      const Color(0xFFFFF9C4), // Light yellow
-                      const Color(0xFFF9A825), // Yellow for icon
+                      const Color(0xFFFFF9C4),
+                      const Color(0xFFF9A825),
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
                       },
                     ),
-                    // 3) 커뮤니티
                     _buildCleanMenuCard(
                       context,
                       '커뮤니티',
                       Icons.people_outline_rounded,
-                      const Color(0xFFF3E5F5), // Light purple
-                      const Color(0xFF7B1FA2), // Purple for icon
+                      const Color(0xFFF3E5F5),
+                      const Color(0xFF7B1FA2),
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const CommunityBoardScreen()));
                       },
                     ),
-                    // 4) 내 오더 관리 (내가 생성한 오더만 표시)
                     _buildCleanMenuCard(
                       context,
                       '내 오더 관리',
                       Icons.folder_open_outlined,
-                      const Color(0xFFFCE4EC), // Light pink
-                      const Color(0xFFC2185B), // Pink for icon
+                      const Color(0xFFFCE4EC),
+                      const Color(0xFFC2185B),
                       () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const MyOrderManagementScreen()));
                       },
                     ),
-                    /*
-                    // 5) 고객 견적 (Disabled)
-                    _buildCleanMenuCard(
-                      context,
-                      '고객 견적',
-                      Icons.description_outlined,
-                      const Color(0xFFE3F2FD), // Light blue
-                      const Color(0xFF1976D2), // Blue for icon
-                      null, // Disabled
-                      badgeFuture: _estimateRequestsCountFuture,
-                      isDisabled: true,
-                    ),
-                    // 6) AI 도우미 (Disabled)
-                    _buildCleanMenuCard(
-                      context,
-                      'AI 도우미',
-                      Icons.lightbulb_outline_rounded,
-                      const Color(0xFFE8F5E9), // Light green
-                      const Color(0xFF388E3C), // Green for icon
-                      null, // Disabled
-                      isDisabled: true,
-                    ),
-                    */
                       ],
                     );
                   },
                 ),
 
-                // 광고 공간
                 const SizedBox(height: 24),
                 _buildAdBanner(context),
                 
-                const SizedBox(height: 20), // 하단 여백 축소 (스크롤 방지)
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -617,6 +547,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
 
   Future<void> _launchUrl(String urlString) async {
     try {
+      if (urlString.isEmpty) return;
       final Uri url = Uri.parse(urlString);
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         throw Exception('Could not launch $url');
@@ -633,103 +564,19 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     return FutureBuilder<List<Ad>>(
       future: _adFuture,
       builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          final ad = snapshot.data!.first;
-          return Container(
-            height: 160,
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CachedNetworkImage(
-                    imageUrl: ad.imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey[200],
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[200],
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.broken_image_outlined, size: 36, color: Colors.grey[400]),
-                          const SizedBox(height: 8),
-                          Text('이미지 로드 실패', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
-                          _launchUrl(ad.linkUrl!);
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
+        // 광고 데이터가 없어도 더미 데이터를 넣어서 슬라이드 기능 확인 (테스트용)
+        // 실제 배포 시에는 snapshot.hasData && snapshot.data!.isNotEmpty 체크 후 빈 리스트일 경우 숨김 처리 가능
+        final ads = (snapshot.hasData && snapshot.data!.isNotEmpty) 
+            ? snapshot.data! 
+            : [
+                Ad(id: '1', title: '광고 1: 올수리 프리미엄', imageUrl: '', linkUrl: 'https://allsuri.app'),
+                Ad(id: '2', title: '광고 2: 여름철 에어컨 점검', imageUrl: '', linkUrl: 'https://google.com'),
+                Ad(id: '3', title: '광고 3: 장마철 누수 대비', imageUrl: '', linkUrl: ''),
+              ];
 
-        return Container(
-          height: 160,
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey[300]!, width: 1),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              children: [
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.campaign_outlined, size: 36, color: Colors.grey[400]),
-                      const SizedBox(height: 12),
-                      Text(
-                        '광고 공간',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('현재 등록된 광고가 없습니다')),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return SizedBox(
+          height: 80, // 높이 80으로 축소
+          child: _DashboardAdCarousel(ads: ads),
         );
       },
     );
@@ -768,7 +615,119 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   }
 }
 
-// Clean, minimal menu card inspired by reference image
+class _DashboardAdCarousel extends StatefulWidget {
+  final List<Ad> ads;
+  const _DashboardAdCarousel({Key? key, required this.ads}) : super(key: key);
+
+  @override
+  State<_DashboardAdCarousel> createState() => _DashboardAdCarouselState();
+}
+
+class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
+  final PageController _controller = PageController();
+  int _current = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
+      if (_current < widget.ads.length - 1) {
+        _current++;
+      } else {
+        _current = 0;
+      }
+
+      if (_controller.hasClients) {
+        _controller.animateToPage(
+          _current,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeIn,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      if (urlString.isEmpty) return;
+      final Uri url = Uri.parse(urlString);
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw Exception('Could not launch $url');
+      }
+    } catch (e) {
+      print('❌ 링크 열기 실패: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: PageView.builder(
+            controller: _controller,
+            onPageChanged: (index) {
+              setState(() {
+                _current = index;
+              });
+            },
+            itemCount: widget.ads.length,
+            itemBuilder: (context, index) {
+              final ad = widget.ads[index];
+              return GestureDetector(
+                onTap: () => _launchUrl(ad.linkUrl ?? ''),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Center(
+                    child: Text(
+                      ad.title ?? '광고 ${index + 1}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: widget.ads.asMap().entries.map((entry) {
+            return Container(
+              width: 6.0,
+              height: 6.0,
+              margin: const EdgeInsets.symmetric(horizontal: 2.0),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _current == entry.key
+                    ? Theme.of(context).primaryColor
+                    : Colors.grey.withOpacity(0.4),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
 class CleanMenuCard extends StatefulWidget {
   final String title;
   final IconData icon;
@@ -853,13 +812,11 @@ class _CleanMenuCardState extends State<CleanMenuCard> with SingleTickerProvider
             ),
           child: Stack(
             children: [
-              // Content
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Icon with subtle background
                     Container(
                       width: 80,
                       height: 80,
@@ -874,7 +831,6 @@ class _CleanMenuCardState extends State<CleanMenuCard> with SingleTickerProvider
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Title
                     Text(
                       widget.title,
                       textAlign: TextAlign.center,
@@ -888,7 +844,6 @@ class _CleanMenuCardState extends State<CleanMenuCard> with SingleTickerProvider
                   ],
                 ),
               ),
-              // Badge (알림 개수)
               if (widget.badgeFuture != null)
                 Positioned(
                   right: 10,
