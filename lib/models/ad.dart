@@ -4,6 +4,7 @@ class Ad {
   final String imageUrl;
   final String? linkUrl;
   final bool isActive;
+  final String location;
 
   Ad({
     required this.id,
@@ -11,6 +12,7 @@ class Ad {
     required this.imageUrl,
     this.linkUrl,
     this.isActive = true,
+    this.location = 'dashboard_banner',
   });
 
   factory Ad.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class Ad {
       imageUrl: json['image_url']?.toString() ?? '',
       linkUrl: json['link_url']?.toString(),
       isActive: json['is_active'] == true,
+      location: json['location']?.toString() ?? 'dashboard_banner',
     );
   }
 }

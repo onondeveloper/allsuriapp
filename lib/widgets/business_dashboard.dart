@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../screens/business/estimate_requests_screen.dart';
 import '../screens/business/estimate_management_screen.dart';
 import '../screens/business/transfer_estimate_screen.dart';
@@ -11,6 +14,8 @@ import '../screens/business/pending_approval_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../services/ad_service.dart';
+import '../models/ad.dart';
 import '../screens/home/home_screen.dart';
 import '../widgets/bottom_navigation.dart';
 import 'interactive_card.dart';
@@ -20,7 +25,6 @@ import 'package:allsuriapp/services/marketplace_service.dart';
 import '../services/order_service.dart';
 import '../screens/community/community_board_screen.dart';
 import '../screens/labs/ai_assistant_screen.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BusinessDashboard extends StatefulWidget {
   const BusinessDashboard({Key? key}) : super(key: key);

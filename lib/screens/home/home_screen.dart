@@ -744,7 +744,7 @@ class _AdsCarouselState extends State<_AdsCarousel> {
                           size: 64,
                           color: Colors.brown.shade400,
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 60),
                         Text(
                           'Buy Me a Coffee',
                           style: TextStyle(
