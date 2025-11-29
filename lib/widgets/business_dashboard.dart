@@ -180,42 +180,37 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final currentUserId = authService.currentUser?.id;
       
-      if (currentUserId == null) {
-        print('❌ [_getMyBidsCount] currentUserId가 null입니다');
-        return 0;
-      }
+      if (currentUserId == null) return 0;
       
-      print('🔍 [_getMyBidsCount] 조회 시작: currentUserId=$currentUserId');
+      print('🔍 [_getMyBidsCount] 입찰 조회 시작 (ID: $currentUserId)');
       
-      // 내가 입찰한 오더 수 (order_bids 테이블에서 직접 조회)
-      final bids = await Supabase.instance.client
+      // order_bids 테이블에서 내 입찰 조회
+      // 컬럼명: bidder_id, listing_id, status
+      final response = await Supabase.instance.client
           .from('order_bids')
-          .select('*') // 모든 컬럼 조회
+          .select('listing_id, status')
           .eq('bidder_id', currentUserId);
+          
+      final List<dynamic> bids = response as List<dynamic>;
+      print('   조회된 원본 데이터: ${bids.length}건');
       
-      print('🔍 [_getMyBidsCount] 전체 입찰 데이터: ${bids.length}개');
-      if (bids.isNotEmpty) {
-        print('   첫 번째 입찰 데이터: ${bids.first}');
+      // 유효한 입찰 필터링 (취소/거절 제외) & 중복 제거
+      final uniqueIds = <String>{};
+      for (final bid in bids) {
+        final status = bid['status']?.toString() ?? '';
+        // 취소/거절이 아닌 경우만 카운트 (pending, accepted, selected 등)
+        if (status != 'withdrawn' && status != 'rejected') {
+          final listingId = bid['listing_id']?.toString() ?? bid['listingid']?.toString();
+          if (listingId != null) {
+            uniqueIds.add(listingId);
+          }
+        }
       }
       
-      // 활성 입찰만 필터링 (취소/거절 제외)
-      // listing_id 컬럼이 있는지 확인 필요
-      final activeBids = bids.where((bid) {
-        final status = bid['status']?.toString() ?? '';
-        return status != 'withdrawn' && status != 'rejected';
-      }).toList();
-      
-      // 중복된 listing_id 제거
-      final uniqueListings = activeBids.map((bid) {
-        // listing_id 컬럼명 확인 (listing_id 또는 listingid)
-        return (bid['listing_id'] ?? bid['listingid'])?.toString();
-      }).where((id) => id != null).toSet();
-      
-      print('🔍 [_getMyBidsCount] 유효한 입찰 오더 수: ${uniqueListings.length}');
-      return uniqueListings.length;
-    } catch (e, stackTrace) {
+      print('✅ [_getMyBidsCount] 최종 카운트: ${uniqueIds.length}');
+      return uniqueIds.length;
+    } catch (e) {
       print('❌ [_getMyBidsCount] 에러: $e');
-      print('   StackTrace: $stackTrace');
       return 0;
     }
   }
@@ -397,7 +392,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                                     const SizedBox(height: 2),
                                     _buildStatRow(
                                       context,
-                                      '입찰한 오더',
+                                      '내가 입찰한 오더',
                                       myBids,
                                       Colors.green,
                                 ),
