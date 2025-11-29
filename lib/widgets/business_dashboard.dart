@@ -34,7 +34,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   final MarketplaceService _market = MarketplaceService();
   late Future<int> _callOpenCountFuture;
   late Future<int> _estimateRequestsCountFuture;
-  late Future<int> _totalWaitingFuture;
+  late Future<int> _completedJobsCountFuture; // 내가 완료한 공사 수
   late Future<int> _myOrdersCountFuture;
   late Future<int> _myBidsCountFuture;
   
@@ -99,7 +99,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     setState(() {
       _callOpenCountFuture = _getCallOpenCount();
       _estimateRequestsCountFuture = _getEstimateRequestsCount();
-      _totalWaitingFuture = _getTotalWaitingCount();
+      _completedJobsCountFuture = _getMyCompletedJobsCount();
       _myOrdersCountFuture = _getMyOrdersCount();
       _myBidsCountFuture = _getMyBidsCount();
     });
@@ -137,17 +137,24 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     }
   }
 
-  Future<int> _getTotalWaitingCount() async {
+  Future<int> _getMyCompletedJobsCount() async {
     try {
-      final results = await Future.wait<int>([
-        _getCallOpenCount(),
-        _getEstimateRequestsCount(),
-      ]);
-      final total = results.fold<int>(0, (sum, v) => sum + v);
-      print('🔍 [_getTotalWaitingCount] 총 공사 개수: $total');
-      return total;
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      
+      if (currentUserId == null) return 0;
+      
+      // jobs 테이블에서 내가 완료한 공사 수 (assigned_business_id = 나, status = completed)
+      final count = await Supabase.instance.client
+          .from('jobs')
+          .count(CountOption.exact)
+          .eq('assigned_business_id', currentUserId)
+          .eq('status', 'completed');
+          
+      print('🔍 [_getMyCompletedJobsCount] 내가 완료한 공사 수: $count');
+      return count;
     } catch (e) {
-      print('❌ [_getTotalWaitingCount] 에러: $e');
+      print('❌ [_getMyCompletedJobsCount] 에러: $e');
       return 0;
     }
   }
@@ -198,6 +205,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
             .toSet();
             
         print('✅ [_getMyBidsCount] 유효 입찰 수: ${uniqueListingIds.length}');
+        print('🔍 [_getMyBidsCount] Listing IDs: $uniqueListingIds'); // 상세 로그 추가
         return uniqueListingIds.length;
       } else {
         print('❌ [_getMyBidsCount] API 조회 실패: ${response['error']}');
@@ -340,7 +348,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: FutureBuilder<int>(
-                          future: _totalWaitingFuture,
+                          future: _completedJobsCountFuture,
                           builder: (context, snapshot) {
                             final n = snapshot.data ?? 0;
                             return Column(
@@ -355,6 +363,14 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
+                                Text(
+                                  '완료한 공사',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
+                                  ),
+                                ),
                               ],
                             );
                           },
