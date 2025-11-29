@@ -111,14 +111,11 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       final currentUserId = authService.currentUser?.id;
       
       // 오더 마켓에서 화면에 보이는 기준: open + withdrawn + created (자신이 올린 오더 제외)
-      final items = await _market.listListings(status: 'all');
-      final count = items.where((row) {
-        final s = (row['status'] ?? '').toString();
-        final postedBy = row['posted_by']?.toString() ?? '';
-        final isValidStatus = s == 'open' || s == 'withdrawn' || s == 'created';
-        final isNotMyOrder = postedBy != currentUserId;
-        return isValidStatus && isNotMyOrder;
-      }).length;
+      // 서버 사이드 카운트로 최적화
+      final count = await _market.countListings(
+        status: 'all',
+        excludePostedBy: currentUserId,
+      );
       print('🔍 [_getCallOpenCount] 오더 개수 (자신 제외): $count');
       return count;
     } catch (e) {
@@ -162,12 +159,11 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       
       if (currentUserId == null) return 0;
       
-      // 내가 만든 오더 수
-      final items = await _market.listListings(status: 'all');
-      final count = items.where((row) {
-        final postedBy = row['posted_by']?.toString() ?? '';
-        return postedBy == currentUserId;
-      }).length;
+      // 내가 만든 오더 수 (서버 사이드 카운트로 최적화)
+      final count = await _market.countListings(
+        status: 'all',
+        postedBy: currentUserId,
+      );
       print('🔍 [_getMyOrdersCount] 내가 만든 오더 수: $count');
       return count;
     } catch (e) {

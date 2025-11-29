@@ -70,6 +70,43 @@ class MarketplaceService extends ChangeNotifier {
     }
   }
 
+  Future<int> countListings({
+    String status = 'open',
+    String? region,
+    String? category,
+    String? postedBy,
+    String? excludePostedBy,
+  }) async {
+    try {
+      var query = _sb.from('marketplace_listings').select('*', FetchOptions(count: CountOption.exact, head: true));
+      
+      if (status.isNotEmpty && status != 'all') {
+        query = query.eq('status', status);
+      } else if (status == 'all') {
+        query = query.inFilter('status', ['open', 'withdrawn', 'created']);
+      }
+      
+      if (region != null && region.isNotEmpty) {
+        query = query.eq('region', region);
+      }
+      if (category != null && category.isNotEmpty) {
+        query = query.eq('category', category);
+      }
+      if (postedBy != null && postedBy.isNotEmpty) {
+        query = query.eq('posted_by', postedBy);
+      }
+      if (excludePostedBy != null && excludePostedBy.isNotEmpty) {
+        query = query.neq('posted_by', excludePostedBy);
+      }
+      
+      final response = await query.count();
+      return response.count;
+    } catch (e) {
+      debugPrint('countListings error: $e');
+      return 0;
+    }
+  }
+
   Future<Map<String, dynamic>?> createListing({
     required String jobId,
     required String title,
