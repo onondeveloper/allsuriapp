@@ -558,83 +558,282 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
             // 1. 완료된 오더 (completed): 상세보기 + 작성한 후기 보기
             if (status == 'completed') ...[
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _showCompletedOrderDetail(order),
-                  icon: const Icon(Icons.visibility_outlined, size: 18),
-                  label: const Text(
-                    '공사 상세 및 후기 보기',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[700],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              Stack(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showCompletedOrderDetail(order),
+                      icon: const Icon(Icons.visibility_outlined, size: 18),
+                      label: const Text(
+                        '공사 상세 및 후기 보기',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[700],
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (listingId.isNotEmpty)
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      right: 0,
+                      child: Center(
+                        child: InkWell(
+                          onTap: () async {
+                            // 채팅방 이동 로직
+                            try {
+                              final chatService = ChatService();
+                              final authService = Provider.of<AuthService>(context, listen: false);
+                              final currentUserId = authService.currentUser?.id;
+                              
+                              if (currentUserId == null) return;
+                              
+                              // 상대방 ID 확인 (낙찰된 사업자)
+                              final targetUserId = completedBy ?? selectedBidderId ?? claimedBy;
+                              
+                              if (targetUserId == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('대화할 상대방 정보를 찾을 수 없습니다.')),
+                                );
+                                return;
+                              }
+                              
+                              // 채팅방 생성/조회
+                              final chatRoomId = await chatService.ensureChatRoom(
+                                customerId: currentUserId, // 나 (오더 소유자)
+                                businessId: targetUserId, // 낙찰받은 사업자
+                                listingId: listingId,
+                                title: title,
+                              );
+                              
+                              // 채팅 화면으로 이동
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChatScreen(
+                                    chatRoomId: chatRoomId,
+                                    chatRoomTitle: title,
+                                  ),
+                                ),
+                              );
+                            } catch (e) {
+                              print('❌ 채팅방 이동 실패: $e');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('채팅방을 열 수 없습니다.')),
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ]
             // 2. 완료 확인 대기 (awaiting_confirmation): 후기 작성
             else if (status == 'awaiting_confirmation') ...[
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    print('🔍 [후기 작성 버튼 클릭]');
-                    print('   status: $status');
-                    print('   completedBy: $completedBy');
-                    print('   selectedBidderId: $selectedBidderId');
-                    
-                    if (completedBy == null && selectedBidderId == null && claimedBy == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('낙찰된 사업자 정보를 찾을 수 없습니다.'),
-                          backgroundColor: Colors.red,
+              Stack(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (completedBy == null && selectedBidderId == null && claimedBy == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('낙찰된 사업자 정보를 찾을 수 없습니다.'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+                        _openReviewScreen(order);
+                      },
+                      icon: const Icon(Icons.star_outline, size: 18),
+                      label: const Text(
+                        '후기 작성하기',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      );
-                      return;
-                    }
-                    _openReviewScreen(order);
-                  },
-                  icon: const Icon(Icons.star_outline, size: 18),
-                  label: const Text(
-                    '후기 작성하기',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
-                ),
+                  if (listingId.isNotEmpty)
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      right: 0,
+                      child: Center(
+                        child: InkWell(
+                          onTap: () async {
+                            // 채팅방 이동 로직
+                            try {
+                              final chatService = ChatService();
+                              final authService = Provider.of<AuthService>(context, listen: false);
+                              final currentUserId = authService.currentUser?.id;
+                              
+                              if (currentUserId == null) return;
+                              
+                              // 상대방 ID 확인 (낙찰된 사업자)
+                              final targetUserId = completedBy ?? selectedBidderId ?? claimedBy;
+                              
+                              if (targetUserId == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('대화할 상대방 정보를 찾을 수 없습니다.')),
+                                );
+                                return;
+                              }
+                              
+                              // 채팅방 생성/조회
+                              final chatRoomId = await chatService.ensureChatRoom(
+                                customerId: currentUserId, // 나 (오더 소유자)
+                                businessId: targetUserId, // 낙찰받은 사업자
+                                listingId: listingId,
+                                title: title,
+                              );
+                              
+                              // 채팅 화면으로 이동
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChatScreen(
+                                    chatRoomId: chatRoomId,
+                                    chatRoomTitle: title,
+                                  ),
+                                ),
+                              );
+                            } catch (e) {
+                              print('❌ 채팅방 이동 실패: $e');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('채팅방을 열 수 없습니다.')),
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ]
-            // 2. 입찰자 보기 버튼 (완료 상태가 아닐 때만)
+            // 3. 입찰자 보기 버튼 (진행 중 상태 포함)
             else if (bidCount > 0) ...[
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _openBidderList(listingId, title),
-                  icon: const Icon(Icons.people_outline, size: 18),
-                  label: Text(
-                    '입찰자 보기 ($bidCount명)', 
-                    style: const TextStyle(fontWeight: FontWeight.w600)
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1976D2),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              Stack(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openBidderList(listingId, title),
+                      icon: const Icon(Icons.people_outline, size: 18),
+                      label: Text(
+                        '입찰자 보기 ($bidCount명)', 
+                        style: const TextStyle(fontWeight: FontWeight.w600)
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1976D2),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (status == 'assigned' || status == 'in_progress')
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      right: 0,
+                      child: Center(
+                        child: InkWell(
+                          onTap: () async {
+                            // 채팅방 이동 로직 (낙찰자와의 채팅)
+                            try {
+                              final chatService = ChatService();
+                              final authService = Provider.of<AuthService>(context, listen: false);
+                              final currentUserId = authService.currentUser?.id;
+                              
+                              if (currentUserId == null) return;
+                              
+                              // 상대방 ID 확인 (낙찰된 사업자)
+                              final targetUserId = completedBy ?? selectedBidderId ?? claimedBy;
+                              
+                              if (targetUserId == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('대화할 상대방 정보를 찾을 수 없습니다.')),
+                                );
+                                return;
+                              }
+                              
+                              // 채팅방 생성/조회
+                              final chatRoomId = await chatService.ensureChatRoom(
+                                customerId: currentUserId, // 나 (오더 소유자)
+                                businessId: targetUserId, // 낙찰받은 사업자
+                                listingId: listingId,
+                                title: title,
+                              );
+                              
+                              // 채팅 화면으로 이동
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChatScreen(
+                                    chatRoomId: chatRoomId,
+                                    chatRoomTitle: title,
+                                  ),
+                                ),
+                              );
+                            } catch (e) {
+                              print('❌ 채팅방 이동 실패: $e');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('채팅방을 열 수 없습니다.')),
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
           ],

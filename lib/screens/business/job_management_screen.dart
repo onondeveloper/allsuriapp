@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/shimmer_widgets.dart';
 import '../../services/auth_service.dart';
 import '../../services/job_service.dart';
+import '../../services/chat_service.dart'; // 추가
 import '../../models/job.dart';
 import '../../widgets/interactive_card.dart';
 import '../../widgets/modern_order_card.dart';
@@ -14,6 +15,7 @@ import '../../config/app_constants.dart';
 import 'order_bidders_screen.dart';
 import 'order_review_screen.dart';
 import '../../services/api_service.dart';
+import '../chat_screen.dart'; // 추가
 
 class JobManagementScreen extends StatefulWidget {
   const JobManagementScreen({super.key});
@@ -706,6 +708,79 @@ class _ModernJobsList extends StatelessWidget {
             ),
           ),
         ];
+
+        // 채팅방 바로가기 버튼 (진행 중 또는 완료된 공사일 때)
+        if (listingId != null && (job.status == 'in_progress' || job.status == 'completed' || job.status == 'awaiting_confirmation' || job.status == 'assigned')) {
+          return Stack(
+            children: [
+              ModernOrderCard(
+                title: job.title,
+                description: job.description,
+                category: job.category,
+                region: job.location,
+                budget: job.budgetAmount,
+                status: job.status,
+                bidCount: bidCount > 0 ? bidCount : null,
+                onTap: () => _showJobDetail(context, job, listing),
+                actionButton: actionButton,
+                badges: badges,
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: InkWell(
+                  onTap: () async {
+                    // 채팅방 이동 로직
+                    try {
+                      final chatService = ChatService();
+                      final authService = Provider.of<AuthService>(context, listen: false);
+                      final currentUserId = authService.currentUser?.id;
+                      
+                      if (currentUserId == null) return;
+                      
+                      // 상대방 ID 확인 (오더 소유자)
+                      final targetUserId = job.ownerBusinessId;
+                      
+                      if (targetUserId == null) return;
+                      
+                      // 채팅방 생성/조회
+                      final chatRoomId = await chatService.ensureChatRoom(
+                        customerId: targetUserId, // 오더 소유자
+                        businessId: currentUserId, // 나 (낙찰받은 사업자)
+                        listingId: listingId,
+                        title: listingTitle,
+                      );
+                      
+                      // 채팅 화면으로 이동
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            chatRoomId: chatRoomId,
+                            chatRoomTitle: listingTitle,
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      print('❌ 채팅방 이동 실패: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('채팅방을 열 수 없습니다.')),
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.chat_bubble_outline, color: Colors.blue, size: 20),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
         
         return ModernOrderCard(
           title: job.title,

@@ -144,18 +144,33 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       
       if (currentUserId == null) return 0;
       
-      // jobs 테이블에서 내가 완료한 공사 수 (assigned_business_id = 나, status = completed)
-      final count = await Supabase.instance.client
-          .from('jobs')
-          .count(CountOption.exact)
-          .eq('assigned_business_id', currentUserId)
-          .eq('status', 'completed');
+      // users 테이블의 통계 컬럼 사용 (더 빠르고 정확)
+      final user = await Supabase.instance.client
+          .from('users')
+          .select('jobs_accepted_count')
+          .eq('id', currentUserId)
+          .single();
           
-      print('🔍 [_getMyCompletedJobsCount] 내가 완료한 공사 수: $count');
+      final count = user['jobs_accepted_count'] as int? ?? 0;
+      print('🔍 [_getMyCompletedJobsCount] 완료 공사 수(User): $count');
       return count;
     } catch (e) {
       print('❌ [_getMyCompletedJobsCount] 에러: $e');
-      return 0;
+      // 실패 시 jobs 테이블 직접 조회 (Fallback)
+      try {
+        final authService = Provider.of<AuthService>(context, listen: false);
+        final currentUserId = authService.currentUser?.id;
+        if (currentUserId == null) return 0;
+        
+        final count = await Supabase.instance.client
+            .from('jobs')
+            .count(CountOption.exact)
+            .eq('assigned_business_id', currentUserId)
+            .eq('status', 'completed');
+        return count;
+      } catch (_) {
+        return 0;
+      }
     }
   }
 
