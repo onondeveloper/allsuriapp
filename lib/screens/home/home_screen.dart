@@ -650,121 +650,74 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _AdsCarousel extends StatefulWidget {
-  final List<Map<String, dynamic>> items;
-  const _AdsCarousel({required this.items});
+class _BannerSlider extends StatefulWidget {
+  final List<Ad> ads;
+  const _BannerSlider({Key? key, required this.ads}) : super(key: key);
 
   @override
-  State<_AdsCarousel> createState() => _AdsCarouselState();
+  State<_BannerSlider> createState() => _BannerSliderState();
 }
 
-class _AdsCarouselState extends State<_AdsCarousel> {
-  final PageController _pageController = PageController(viewportFraction: 0.92);
+class _BannerSliderState extends State<_BannerSlider> {
   int _current = 0;
-  final Set<String> _impressed = {};
-  late final ApiService _api;
+  final PageController _controller = PageController(viewportFraction: 0.9);
 
-  @override
-  void initState() {
-    super.initState();
-    _api = ApiService();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _sendImpressionIfNeeded(0);
-    });
-    // Auto rotate every 5s
-    _startAutoRotate();
-  }
-
-  void _startAutoRotate() {
-    Future.doWhile(() async {
-      if (!mounted) return false;
-      await Future.delayed(const Duration(seconds: 5));
-      if (!mounted) return false;
-      final next = (_current + 1) % widget.items.length;
-      _pageController.animateToPage(next, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
-      return true;
-    });
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      final Uri url = Uri.parse(urlString);
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw Exception('Could not launch $url');
+      }
+    } catch (e) {
+      print('❌ 링크 열기 실패: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.items.isEmpty) return const SizedBox.shrink();
     return Column(
       children: [
         SizedBox(
-          height: 320, // 카테고리 영역을 대체하도록 크기 확대
+          height: 160,
           child: PageView.builder(
-            controller: _pageController,
+            controller: _controller,
             onPageChanged: (idx) {
               setState(() => _current = idx);
-              _sendImpressionIfNeeded(idx);
             },
-            itemCount: widget.items.length,
+            itemCount: widget.ads.length,
             itemBuilder: (context, index) {
-              final ad = widget.items[index];
-              final adId = (ad['id']?.toString() ?? '');
-              final title = (ad['title']?.toString() ?? '광고');
-              final htmlPath = (ad['html_path']?.toString() ?? '');
+              final ad = widget.ads[index];
               return GestureDetector(
-                onTap: () async {
-                  if (adId.isNotEmpty) {
-                    await _api.trackAdClick(adId);
+                onTap: () {
+                  if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
+                    _launchUrl(ad.linkUrl!);
                   }
-                  if (!context.mounted) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => _AdFullScreenPage(title: title, htmlPath: htmlPath)),
-                  );
                 },
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 6),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.grey.shade300,
-                      width: 1,
-                    ),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 12,
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.coffee_rounded,
-                          size: 64,
-                          color: Colors.brown.shade400,
-                        ),
-                        const SizedBox(height: 60),
-                        Text(
-                          'Buy Me a Coffee',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade800,
-                            letterSpacing: -0.5,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '☕',
-                          style: const TextStyle(fontSize: 32),
-                        ),
-                      ],
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: CachedNetworkImage(
+                      imageUrl: ad.imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey[200],
+                        child: const Center(child: CircularProgressIndicator()),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.error),
+                      ),
                     ),
                   ),
                 ),
@@ -772,67 +725,28 @@ class _AdsCarouselState extends State<_AdsCarousel> {
             },
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(widget.items.length, (i) {
-            final active = i == _current;
-            return Container(
-              width: active ? 10 : 6,
-              height: active ? 10 : 6,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                color: active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline,
-                shape: BoxShape.circle,
-              ),
-            );
-          }),
-        )
+        if (widget.ads.length > 1) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(widget.ads.length, (i) {
+              final active = i == _current;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: active ? 20 : 8,
+                height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: active ? Theme.of(context).colorScheme.primary : Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              );
+            }),
+          )
+        ]
       ],
     );
   }
-
-  Future<void> _sendImpressionIfNeeded(int idx) async {
-    if (idx < 0 || idx >= widget.items.length) return;
-    final ad = widget.items[idx];
-    final adId = (ad['id']?.toString() ?? '');
-    if (adId.isEmpty) return;
-    if (_impressed.contains(adId)) return;
-    _impressed.add(adId);
-    await _api.trackAdImpression(adId);
-  }
 }
 
-class _AdFullScreenPage extends StatelessWidget {
-  final String title;
-  final String htmlPath; // e.g., /ads/summer_promo.html
-  const _AdFullScreenPage({super.key, required this.title, required this.htmlPath});
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(NavigationDelegate(
-        onNavigationRequest: (req) {
-          final url = req.url;
-          final allowed = url.startsWith('https://api.allsuriapp.com/ads') ||
-              url.startsWith('http://10.0.2.2:3001/ads');
-          return allowed ? NavigationDecision.navigate : NavigationDecision.prevent;
-        },
-      ))
-      ..loadRequest(Uri.parse(_adUrl()));
-
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: SafeArea(child: WebViewWidget(controller: controller)),
-    );
-  }
-
-  String _adUrl() {
-    // Use release vs debug base to load static ad HTML served by backend
-    if (bool.fromEnvironment('dart.vm.product')) {
-      return 'https://api.allsuriapp.com$htmlPath';
-    }
-    return 'http://10.0.2.2:3001$htmlPath';
-  }
-}
+// _AdFullScreenPage 클래스 제거 (더 이상 사용하지 않음)
