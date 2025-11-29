@@ -193,18 +193,19 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
           .select('id, status, listing_id')
           .eq('bidder_id', currentUserId);
       
-      print('🔍 [_getMyBidsCount] 전체 입찰 수: ${bids.length}');
-      if (bids.isNotEmpty) {
-        print('   첫 번째 입찰: ${bids.first}');
-      }
+      print('🔍 [_getMyBidsCount] 전체 입찰 데이터: ${bids.length}개');
       
+      // 활성 입찰만 필터링 (취소/거절 제외)
       final activeBids = bids.where((bid) {
         final status = bid['status']?.toString() ?? '';
-        return status != 'withdrawn' && status != 'rejected'; // 취소하지 않고 거절되지 않은 입찰만
-      }).length;
+        return status != 'withdrawn' && status != 'rejected';
+      }).toList();
       
-      print('🔍 [_getMyBidsCount] 활성 입찰 수: $activeBids');
-      return activeBids;
+      // 중복된 listing_id 제거 (같은 오더에 여러 번 입찰한 경우 1개로 계산)
+      final uniqueListings = activeBids.map((bid) => bid['listing_id'].toString()).toSet();
+      
+      print('🔍 [_getMyBidsCount] 유효한 입찰 오더 수: ${uniqueListings.length}');
+      return uniqueListings.length;
     } catch (e, stackTrace) {
       print('❌ [_getMyBidsCount] 에러: $e');
       print('   StackTrace: $stackTrace');

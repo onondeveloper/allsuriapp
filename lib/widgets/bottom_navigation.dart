@@ -40,8 +40,8 @@ class BottomNavigation extends StatelessWidget {
           child: SafeArea(
             top: false,
             child: Container(
-              height: 60,
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              height: 56,
+              padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -163,11 +163,11 @@ class BottomNavigation extends StatelessWidget {
                   color: isSelected ? primaryColor : Colors.grey[600],
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 9,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: isSelected ? primaryColor : Colors.grey[700],
                   letterSpacing: -0.3,

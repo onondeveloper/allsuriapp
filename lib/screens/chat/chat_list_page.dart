@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:allsuriapp/widgets/loading_indicator.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
@@ -120,7 +121,7 @@ class _ChatListPageState extends State<ChatListPage> {
 
   Widget _buildChatList(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CupertinoActivityIndicator());
+      return const Center(child: LoadingIndicator(message: '채팅방을 불러오는 중...'));
     }
 
     if (_chatRooms.isEmpty) {
