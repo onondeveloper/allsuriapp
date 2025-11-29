@@ -217,28 +217,24 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           _bidders = List<Map<String, dynamic>>.from(response['data']);
           _loading = false;
         });
-        print('✅ 입찰자 ${_bidders.length}명 로드 완료');
       } else {
-        setState(() {
-          _loading = false;
-        });
+        throw Exception('데이터 형식이 올바르지 않습니다');
       }
     } catch (e) {
-      print('❌ [OrderBiddersScreen] 에러: $e');
+      print('❌ [OrderBiddersScreen] 로드 오류: $e');
       setState(() {
-        _error = e.toString();
+        _error = '입찰자 목록을 불러오는데 실패했습니다';
         _loading = false;
       });
     }
   }
 
   Future<void> _selectBidder(String bidderId, String bidderName) async {
-    // 확인 다이얼로그
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('사업자 선택'),
-        content: Text('$bidderName 님에게 이 오더를 이관하시겠습니까?'),
+        title: const Text('입찰자 선택'),
+        content: Text('$bidderName님을 선택하시겠습니까?\n선택하면 다른 입찰은 거절되며 채팅방이 생성됩니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -246,55 +242,65 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.blue,
-              side: const BorderSide(color: Colors.blue, width: 2),
-            ),
-            child: const Text('선택하기', style: TextStyle(fontWeight: FontWeight.w600)),
+            child: const Text('선택하기'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true) return;
+
+    // 로딩 표시
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
 
     try {
-      print('🔍 [OrderBiddersScreen] 사업자 선택: $bidderId');
-      
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final currentUserId = authService.currentUser?.id;
-
-      if (currentUserId == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('로그인이 필요합니다')),
-        );
-        return;
-      }
-
+      print('🔍 [OrderBiddersScreen] 입찰자 선택 시작');
       final api = ApiService();
-      final response = await api.post(
-        '/market/listings/${widget.listingId}/select-bidder',
-        {
-          'bidderId': bidderId,
-          'ownerId': currentUserId,
-        },
-      );
-
-      print('   응답: $response');
-
-      if (!mounted) return;
+      final response = await api.post('/market/listings/${widget.listingId}/select-bidder', {
+        'bidderId': bidderId,
+      });
 
       if (response['success'] == true) {
-        print('✅ [OrderBiddersScreen] 입찰자 선택 성공');
-        
+        // 채팅방 생성 및 이동
         if (!mounted) return;
         
-        // 채팅방 생성
-        String? chatRoomId;
+        // 로딩 닫기
+        Navigator.pop(context); 
+        
+        // 성공 메시지
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$bidderName님이 선택되었습니다. 채팅방으로 이동합니다.')),
+        );
+
+        // 채팅방 생성/이동
         try {
-          print('💬 [OrderBiddersScreen] 채팅방 생성 시도...');
+          final authService = Provider.of<AuthService>(context, listen: false);
+          final currentUserId = authService.currentUser?.id ?? '';
+          
+          // 채팅방 ID 가져오기 또는 생성
+          String chatRoomId;
+          
+          // 1. order_bids 테이블에서 chat_room_id 확인 (이미 생성되었을 수 있음)
+          /*
+          final bid = await Supabase.instance.client
+              .from('order_bids')
+              .select('chat_room_id')
+              .eq('listing_id', widget.listingId)
+              .eq('bidder_id', bidderId)
+              .maybeSingle();
+              
+          if (bid != null && bid['chat_room_id'] != null) {
+            chatRoomId = bid['chat_room_id'];
+          } else {
+          */
+          
+          // 2. ChatService를 통해 채팅방 생성/조회
+          print('🔍 [OrderBiddersScreen] 채팅방 생성 시도');
           print('   Owner ID: $currentUserId');
           print('   Bidder ID: $bidderId');
           print('   Listing ID: ${widget.listingId}');
@@ -308,56 +314,37 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           );
           
           print('✅ [OrderBiddersScreen] 채팅방 생성 성공: $chatRoomId');
+          
+          // 채팅방으로 이동 (Replacement 아님, 뒤로가기 가능하게)
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatScreen(
+                  chatRoomId: chatRoomId,
+                  chatRoomTitle: bidderName,
+                ),
+              ),
+            );
+          }
         } catch (chatErr) {
           print('❌ [OrderBiddersScreen] 채팅방 생성 실패: $chatErr');
           // 채팅방 생성 실패해도 계속 진행
-        }
-        
-        if (!mounted) return;
-        
-        // 스낵바로 성공 메시지 표시 (빠른 피드백)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ $bidderName 사업자가 선택되었습니다!'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        
-        // 현재 화면 닫기
-        Navigator.pop(context, true);
-        
-        // 채팅방으로 즉시 이동 (생성에 성공한 경우)
-        if (chatRoomId != null && mounted) {
-          print('💬 [OrderBiddersScreen] 채팅방으로 즉시 이동: $chatRoomId');
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ChatScreen(
-                chatRoomId: chatRoomId!,
-                chatRoomTitle: '$bidderName 님과의 대화',
-              ),
-            ),
-          );
+          if (mounted) {
+            Navigator.pop(context); // 화면 닫기
+          }
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('선택 실패: ${response['message'] ?? '알 수 없는 오류'}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        throw Exception(response['message'] ?? '입찰자 선택 실패');
       }
     } catch (e) {
-      print('❌ [OrderBiddersScreen] 선택 에러: $e');
-      if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('선택 실패: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('❌ [OrderBiddersScreen] 선택 오류: $e');
+      if (mounted) {
+        Navigator.pop(context); // 로딩 닫기
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류가 발생했습니다: $e')),
+        );
+      }
     }
   }
 
@@ -365,58 +352,35 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.orderTitle),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: Colors.grey[300],
-            height: 1,
-          ),
-        ),
+        title: const Text('입찰자 목록'),
+        centerTitle: true,
       ),
       body: _loading
-          ? const LoadingIndicator(
-              message: '입찰자 목록을 불러오는 중...',
-              subtitle: '잠시만 기다려주세요',
-            )
+          ? const Center(child: LoadingIndicator(message: '입찰자 정보를 불러오고 있습니다...'))
           : _error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
                       const SizedBox(height: 16),
-                      Text('오류가 발생했습니다', style: TextStyle(fontSize: 18, color: Colors.grey[700])),
-                      const SizedBox(height: 8),
-                      Text(_error!, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
+                      Text(_error!),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
                         onPressed: _loadBidders,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('다시 시도'),
+                        child: const Text('다시 시도'),
                       ),
                     ],
                   ),
                 )
               : _bidders.isEmpty
-                  ? Center(
+                  ? const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.inbox, size: 64, color: Colors.grey[400]),
-                          const SizedBox(height: 16),
-                          Text(
-                            '아직 입찰한 사업자가 없습니다',
-                            style: TextStyle(fontSize: 18, color: Colors.grey[700]),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '조금만 기다려주세요!',
-                            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                          ),
+                          Icon(Icons.people_outline, size: 48, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text('아직 입찰자가 없습니다'),
                         ],
                       ),
                     )
@@ -458,8 +422,8 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                             bidderId: bid['bidder_id']?.toString() ?? '',
                             bidderName: bidderName,
                             avatarUrl: avatarUrl,
-                            estimatesCount: estimatesCount,
-                            jobsCount: jobsCount,
+                            estimatesCount: estimatesCount is int ? estimatesCount : int.tryParse(estimatesCount.toString()) ?? 0,
+                            jobsCount: jobsCount is int ? jobsCount : int.tryParse(jobsCount.toString()) ?? 0,
                             message: message,
                             createdAt: createdAt,
                             status: status,
@@ -487,10 +451,6 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
     final isPending = status == 'pending';
     final isSelected = status == 'selected';
     final isRejected = status == 'rejected';
-    
-    // 평점 평균 가져오기
-    double averageRating = 0.0;
-    int reviewCount = 0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -582,50 +542,61 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                     ),
                   ),
                 ),
-                      // 활동 지역 표시
-                      if (serviceAreas.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(Icons.location_on, size: 14, color: Colors.blue[700]),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                serviceAreas.take(2).join(', ') + (serviceAreas.length > 2 ? ' 외 ${serviceAreas.length - 2}곳' : ''),
-                                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      // 전문 분야 표시
-                      if (specialties.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.work_outline, size: 14, color: Colors.orange[700]),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                specialties.take(2).join(', ') + (specialties.length > 2 ? ' 외 ${specialties.length - 2}개' : ''),
-                                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
               ],
             ),
             
+            const SizedBox(height: 12),
+            
+            // 활동 지역 & 전문 분야
+            if (serviceAreas.isNotEmpty || specialties.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    if (serviceAreas.isNotEmpty)
+                      Row(
+                        children: [
+                          Icon(Icons.location_on, size: 14, color: Colors.blue[700]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              serviceAreas.take(2).join(', ') + (serviceAreas.length > 2 ? ' 외 ${serviceAreas.length - 2}곳' : ''),
+                              style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (serviceAreas.isNotEmpty && specialties.isNotEmpty)
+                      const SizedBox(height: 4),
+                    if (specialties.isNotEmpty)
+                      Row(
+                        children: [
+                          Icon(Icons.work, size: 14, color: Colors.orange[700]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              specialties.take(2).join(', ') + (specialties.length > 2 ? ' 외 ${specialties.length - 2}개' : ''),
+                              style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
             // 메시지
             if (message.isNotEmpty) ...[
-              const SizedBox(height: 12),
               Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.grey[50],
@@ -637,10 +608,10 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                   style: TextStyle(fontSize: 14, color: Colors.grey[800]),
                 ),
               ),
+              const SizedBox(height: 12),
             ],
 
             // 입찰 시간
-            const SizedBox(height: 12),
             Row(
               children: [
                 Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
@@ -654,7 +625,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
 
             // 선택됨 배지
             if (isSelected) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -678,7 +649,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
 
             // 미선택 배지
             if (isRejected) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -750,4 +721,3 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
     }
   }
 }
-
