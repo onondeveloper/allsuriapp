@@ -204,9 +204,26 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
             .where((id) => id != null && id.isNotEmpty)
             .toSet();
             
-        print('✅ [_getMyBidsCount] 유효 입찰 수: ${uniqueListingIds.length}');
-        print('🔍 [_getMyBidsCount] Listing IDs: $uniqueListingIds'); // 상세 로그 추가
-        return uniqueListingIds.length;
+        print('🔍 [_getMyBidsCount] 입찰한 오더 ID 목록: $uniqueListingIds');
+        
+        // 추가 필터링: 오더 상태 확인 (완료된 오더 제외하고 진행 중인 오더만 카운트)
+        if (uniqueListingIds.isNotEmpty) {
+          final listings = await Supabase.instance.client
+              .from('marketplace_listings')
+              .select('id, status')
+              .inFilter('id', uniqueListingIds.toList());
+              
+          final activeListings = listings.where((l) {
+            final status = l['status']?.toString();
+            // open: 입찰 진행 중, assigned: 낙찰되어 진행 중
+            return status == 'open' || status == 'assigned';
+          }).length;
+          
+          print('✅ [_getMyBidsCount] 진행 중인 유효 입찰 수: $activeListings');
+          return activeListings;
+        }
+            
+        return 0;
       } else {
         print('❌ [_getMyBidsCount] API 조회 실패: ${response['error']}');
         // API 실패 시 Supabase 직접 조회 시도 (Fallback)
