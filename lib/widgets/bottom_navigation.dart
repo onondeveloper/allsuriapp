@@ -40,7 +40,7 @@ class BottomNavigation extends StatelessWidget {
           child: SafeArea(
             top: false,
             child: Container(
-              height: 56,
+              height: 62,
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
