@@ -260,7 +260,8 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       final uniqueIds = <String>{};
       for (final bid in bids) {
         final status = bid['status']?.toString() ?? '';
-        if (status != 'withdrawn' && status != 'rejected') {
+        // 사용자가 원하는 '입찰 중' 상태는 pending만 해당
+        if (status == 'pending') {
           final listingId = bid['listing_id']?.toString();
           if (listingId != null) uniqueIds.add(listingId);
         }
