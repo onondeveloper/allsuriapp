@@ -98,86 +98,124 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildProfileHeader(User user) {
-    return Card(
-      child: Container(
-        padding: const EdgeInsets.all(24.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF4F8CFF),
-              Color(0xFF00C6AE),
+    return SizedBox(
+      width: double.infinity,
+      child: Card(
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        elevation: 4,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 20.0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF4F8CFF),
+                Color(0xFF00C6AE),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4F8CFF).withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
             ],
           ),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4), // 테두리 두께
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  shape: BoxShape.circle,
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              (user.role == 'business' && (user.businessName != null && user.businessName!.trim().isNotEmpty))
-                  ? user.businessName!
-                  : user.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _getRoleDisplayName(user.role),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                      style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(null).primaryColor, // context가 없으므로 고정 색상 사용하거나 파라미터 추가 필요. 여기선 색상 직접 지정
+                      ).copyWith(color: const Color(0xFF4F8CFF)),
                     ),
                   ),
-                  if (user.role == 'business' && (user.businessName == null || user.businessName!.trim().isEmpty)) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        '상호명 미입력',
-                        style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w700),
-                      ),
-                    )
-                  ]
-                ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              Text(
+                (user.role == 'business' && (user.businessName != null && user.businessName!.trim().isNotEmpty))
+                    ? user.businessName!
+                    : user.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _getRoleDisplayName(user.role),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (user.role == 'business' && (user.businessName == null || user.businessName!.trim().isEmpty)) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 1,
+                        height: 12,
+                        color: Colors.white.withOpacity(0.5),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '상호명 미입력',
+                        style: TextStyle(
+                          fontSize: 13, 
+                          color: Colors.white, 
+                          fontWeight: FontWeight.w500
+                        ),
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -186,18 +224,6 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildProfileActions(BuildContext context, User user) {
     return Column(
       children: [
-        if (user.role == 'business')
-          _buildActionTile(
-            context,
-            Icons.account_balance_wallet,
-            '계정 설정 (결제)',
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const BusinessProfileScreen()),
-              );
-            },
-          ),
         _buildActionTile(
           context,
           Icons.notifications,

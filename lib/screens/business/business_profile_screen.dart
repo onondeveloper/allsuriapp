@@ -30,11 +30,6 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   final _businessNameController = TextEditingController();
   final _businessNumberController = TextEditingController();
   final _addressController = TextEditingController();
-  // 결제/정산용 계정 설정 필드
-  final _accountHolderController = TextEditingController();
-  final _bankNameController = TextEditingController();
-  final _accountNumberController = TextEditingController();
-  final _settlementEmailController = TextEditingController();
   
   List<String> _selectedServiceAreas = [];
   List<String> _selectedSpecialties = [];
@@ -63,8 +58,6 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       _selectedSpecialties = List.from(currentUser.specialties);
       _avatarUrl = currentUser.avatarUrl;
     }
-    // 로컬 결제/정산 정보 로드
-    Future.microtask(_loadBillingInfoFromLocal);
     // 리뷰 통계 로드
     Future.microtask(_loadRatingStats);
   }
@@ -82,15 +75,6 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     } catch (_) {}
   }
 
-  Future<void> _loadBillingInfoFromLocal() async {
-    final prefs = await SharedPreferences.getInstance();
-    _accountHolderController.text = prefs.getString('billing_account_holder') ?? '';
-    _bankNameController.text = prefs.getString('billing_bank_name') ?? '';
-    _accountNumberController.text = prefs.getString('billing_account_number') ?? '';
-    _settlementEmailController.text = prefs.getString('billing_email') ?? '';
-    if (mounted) setState(() {});
-  }
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -98,10 +82,6 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     _businessNameController.dispose();
     _businessNumberController.dispose();
     _addressController.dispose();
-    _accountHolderController.dispose();
-    _bankNameController.dispose();
-    _accountNumberController.dispose();
-    _settlementEmailController.dispose();
     super.dispose();
   }
 
@@ -405,48 +385,6 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                 ],
               ),
               
-              const SizedBox(height: 24),
-
-              // 계정 설정 (결제)
-              _buildSection(
-                '계정 설정 (결제)',
-                [
-                  TextFormField(
-                    controller: _accountHolderController,
-                    decoration: const InputDecoration(
-                      labelText: '예금주',
-                      hintText: '예: 홍길동',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _bankNameController,
-                    decoration: const InputDecoration(
-                      labelText: '은행명',
-                      hintText: '예: 국민은행',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _accountNumberController,
-                    decoration: const InputDecoration(
-                      labelText: '계좌번호',
-                      hintText: '하이픈 없이 입력',
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _settlementEmailController,
-                    decoration: const InputDecoration(
-                      labelText: '정산 이메일',
-                      hintText: '정산 관련 안내를 받을 이메일',
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 24),
 
               // 알림 설정 섹션
