@@ -91,25 +91,55 @@ class HomeScreen extends StatelessWidget {
                             children: [
                               const SizedBox(height: 20),
                               
-                              // 1. 상단 텍스트 (기존 스타일로 롤백)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              // 1. 상단 환영 메시지 (디자인 개선)
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF5F7FA),
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                child: Row(
                                   children: [
-                                    Text(
-                                      '환영합니다!',
-                                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '환영합니다!',
+                                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              color: const Color(0xFF222B45),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            '전문가와 연결하여\n빠르고 안전한 서비스를\n받아보세요',
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                              color: Colors.grey[600],
+                                              height: 1.5,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      '전문가와 연결하여 빠르고 안전한\n서비스를 받아보세요',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Colors.grey[600],
-                                        height: 1.5,
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.05),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        Icons.handyman_rounded,
+                                        size: 48,
+                                        color: Theme.of(context).primaryColor,
                                       ),
                                     ),
                                   ],
@@ -128,7 +158,7 @@ class HomeScreen extends StatelessWidget {
                                 SizedBox(
                                   width: buttonWidth,
                                   child: InkWell(
-                                    onTap: () => _showBusinessLoginDialog(context),
+                                    onTap: () => _handleKakaoLogin(context), // 바로 로그인 실행
                                     borderRadius: BorderRadius.circular(12),
                                     child: Image.asset(
                                       'assets/images/kakao_login_large_narrow.png',
@@ -241,49 +271,98 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
-  void _showBusinessLoginDialog(BuildContext context) {
+  Future<void> _handleKakaoLogin(BuildContext context) async {
+    // 로딩 다이얼로그 표시
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('사업자 로그인'),
-        content: const Text('카카오 계정으로 로그인하여 사업자 기능을 이용하세요.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                // 카카오 로그인
-                await Provider.of<AuthService>(context, listen: false).signInWithKakao();
-                if (context.mounted) {
-                  // 로그인 성공 시 바로 사업자 대시보드로 이동
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const BusinessDashboard(),
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 애니메이션 효과 (아이콘 바운스 등)
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(seconds: 1),
+                    builder: (context, value, child) {
+                      return Transform.translate(
+                        offset: Offset(0, -10 * (1 - value).abs() * (value < 0.5 ? 1 : -1)), // 간단한 바운스
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE500).withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.work_outline, size: 48, color: Color(0xFFFEE500)),
+                        ),
+                      );
+                    },
+                    onEnd: () {}, // 반복하려면 StatefulWidget 필요
+                  ),
+                  const SizedBox(height: 24),
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFEE500)),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    '일감을 챙겨 오고 있어요!! 🏃',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                      height: 1.5,
                     ),
-                    (route) => false, // 모든 이전 화면 제거
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  // 로그인 실패 시 에러 메시지 표시
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('로그인에 실패했습니다: ${e.toString()}'),
-                      backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '잠시만 기다려주세요',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
                     ),
-                  );
-                }
-              }
-            },
-            child: const Text('카카오 로그인'),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
+
+    try {
+      // 카카오 로그인 실행
+      await Provider.of<AuthService>(context, listen: false).signInWithKakao();
+      
+      if (context.mounted) {
+        // 로그인 성공 시 로딩 닫기
+        Navigator.of(context, rootNavigator: true).pop();
+        
+        // 화면은 자동으로 BusinessDashboard로 전환됨 (HomeScreen 빌더에서 역할에 따라 위젯 교체)
+      }
+    } catch (e) {
+      if (context.mounted) {
+        // 로딩 닫기
+        Navigator.of(context, rootNavigator: true).pop();
+        
+        // 에러 메시지 표시
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('로그인 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
