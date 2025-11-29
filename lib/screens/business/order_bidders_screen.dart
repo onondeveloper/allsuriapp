@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/services/auth_service.dart';
 import 'package:allsuriapp/services/chat_service.dart';

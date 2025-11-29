@@ -344,12 +344,12 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
                               '$businessName 님, 번창하세요!',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                            ),
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                ),
                             const SizedBox(height: 8),
                             FutureBuilder<List<int>>(
                               future: Future.wait([
@@ -392,10 +392,10 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                                       '입찰한 오더',
                                       myBids,
                                       Colors.green,
-                                    ),
-                                  ],
-                                );
-                              },
+                                ),
+                              ],
+                            );
+                          },
                             ),
                           ],
                         ),
