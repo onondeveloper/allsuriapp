@@ -78,7 +78,7 @@ class MarketplaceService extends ChangeNotifier {
     String? excludePostedBy,
   }) async {
     try {
-      var query = _sb.from('marketplace_listings').select('*', FetchOptions(count: CountOption.exact, head: true));
+      var query = _sb.from('marketplace_listings').select('*');
       
       if (status.isNotEmpty && status != 'all') {
         query = query.eq('status', status);
@@ -99,7 +99,7 @@ class MarketplaceService extends ChangeNotifier {
         query = query.neq('posted_by', excludePostedBy);
       }
       
-      final response = await query.count();
+      final response = await query.count(CountOption.exact);
       return response.count;
     } catch (e) {
       debugPrint('countListings error: $e');
