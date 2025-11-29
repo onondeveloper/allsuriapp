@@ -37,6 +37,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   late Future<int> _completedJobsCountFuture; // 내가 완료한 공사 수
   late Future<int> _myOrdersCountFuture;
   late Future<int> _myBidsCountFuture;
+  late Future<List<Ad>> _adFuture;
   
   RealtimeChannel? _marketplaceChannel;
   RealtimeChannel? _ordersChannel;
@@ -44,6 +45,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   @override
   void initState() {
     super.initState();
+    _adFuture = AdService().getActiveAds();
     _setupRealtimeListeners();
     // Futures are initialized in didChangeDependencies to safely read providers
   }
@@ -609,52 +611,123 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
     );
   }
 
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      final Uri url = Uri.parse(urlString);
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw Exception('Could not launch $url');
+      }
+    } catch (e) {
+      print('❌ 링크 열기 실패: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('링크를 열 수 없습니다.')),
+      );
+    }
+  }
+
   Widget _buildAdBanner(BuildContext context) {
-    return Container(
-      height: 160,
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!, width: 1),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            // 광고 내용 (추후 WebView로 교체)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+    return FutureBuilder<List<Ad>>(
+      future: _adFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final ad = snapshot.data!.first;
+          return Container(
+            height: 160,
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Icon(Icons.campaign_outlined, size: 36, color: Colors.grey[400]),
-                  const SizedBox(height: 12),
-                  Text(
-                    '광고 공간',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[600],
+                  CachedNetworkImage(
+                    imageUrl: ad.imageUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey[200],
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[200],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image_outlined, size: 36, color: Colors.grey[400]),
+                          const SizedBox(height: 8),
+                          Text('이미지 로드 실패', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
+                          _launchUrl(ad.linkUrl!);
+                        }
+                      },
                     ),
                   ),
                 ],
               ),
             ),
-            // 터치 가능한 영역
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  // TODO: 광고 클릭 시 WebView로 이동
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('광고 준비 중입니다')),
-                  );
-                },
-              ),
+          );
+        }
+
+        return Container(
+          height: 160,
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[300]!, width: 1),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.campaign_outlined, size: 36, color: Colors.grey[400]),
+                      const SizedBox(height: 12),
+                      Text(
+                        '광고 공간',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('현재 등록된 광고가 없습니다')),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
