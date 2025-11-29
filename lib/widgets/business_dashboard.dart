@@ -15,6 +15,7 @@ import '../screens/home/home_screen.dart';
 import '../widgets/bottom_navigation.dart';
 import 'interactive_card.dart';
 import 'package:lottie/lottie.dart';
+import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/services/marketplace_service.dart';
 import '../services/order_service.dart';
 import '../screens/community/community_board_screen.dart';
@@ -182,35 +183,54 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
       
       if (currentUserId == null) return 0;
       
-      print('🔍 [_getMyBidsCount] 입찰 조회 시작 (ID: $currentUserId)');
+      print('🔍 [_getMyBidsCount] API 조회 시작: $currentUserId');
       
-      // order_bids 테이블에서 내 입찰 조회
-      // 컬럼명: bidder_id, listing_id, status
-      final response = await Supabase.instance.client
+      // API를 통해 입찰 목록 조회 (OrderMarketplaceScreen과 동일한 방식)
+      final api = ApiService();
+      final response = await api.get(
+        '/market/bids?bidderId=$currentUserId&statuses=pending,selected,awaiting_confirmation',
+      );
+      
+      if (response['success'] == true) {
+        final bids = List<Map<String, dynamic>>.from(response['data'] ?? []);
+        print('✅ [_getMyBidsCount] API 조회 성공: ${bids.length}건');
+        
+        // 중복 제거 (listing_id 기준)
+        final uniqueListingIds = bids
+            .map((b) => b['listing_id']?.toString())
+            .where((id) => id != null && id.isNotEmpty)
+            .toSet();
+            
+        print('✅ [_getMyBidsCount] 유효 입찰 수: ${uniqueListingIds.length}');
+        return uniqueListingIds.length;
+      } else {
+        print('❌ [_getMyBidsCount] API 조회 실패: ${response['error']}');
+        // API 실패 시 Supabase 직접 조회 시도 (Fallback)
+        return await _getMyBidsCountFallback(currentUserId);
+      }
+    } catch (e) {
+      print('❌ [_getMyBidsCount] 에러: $e');
+      return 0;
+    }
+  }
+
+  Future<int> _getMyBidsCountFallback(String currentUserId) async {
+    try {
+      final bids = await Supabase.instance.client
           .from('order_bids')
           .select('listing_id, status')
           .eq('bidder_id', currentUserId);
           
-      final List<dynamic> bids = response as List<dynamic>;
-      print('   조회된 원본 데이터: ${bids.length}건');
-      
-      // 유효한 입찰 필터링 (취소/거절 제외) & 중복 제거
       final uniqueIds = <String>{};
       for (final bid in bids) {
         final status = bid['status']?.toString() ?? '';
-        // 취소/거절이 아닌 경우만 카운트 (pending, accepted, selected 등)
         if (status != 'withdrawn' && status != 'rejected') {
-          final listingId = bid['listing_id']?.toString() ?? bid['listingid']?.toString();
-          if (listingId != null) {
-            uniqueIds.add(listingId);
-          }
+          final listingId = bid['listing_id']?.toString();
+          if (listingId != null) uniqueIds.add(listingId);
         }
       }
-      
-      print('✅ [_getMyBidsCount] 최종 카운트: ${uniqueIds.length}');
       return uniqueIds.length;
-    } catch (e) {
-      print('❌ [_getMyBidsCount] 에러: $e');
+    } catch (_) {
       return 0;
     }
   }
@@ -546,7 +566,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
 
   Widget _buildAdBanner(BuildContext context) {
     return Container(
-      height: 120,
+      height: 160,
       margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         color: Colors.grey[100],
@@ -563,7 +583,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.campaign_outlined, size: 36, color: Colors.grey[400]),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
                     '광고 공간',
                     style: TextStyle(
