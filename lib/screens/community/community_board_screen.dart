@@ -43,19 +43,26 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text('커뮤니티', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: const Text(
+          '커뮤니티',
+          style: TextStyle(
+            color: Color(0xFF1E3A8A),
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Color(0xFF1E3A8A)),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF1E3A8A)),
             onPressed: _refresh,
             tooltip: '새로고침',
           ),
@@ -97,11 +104,11 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                     onPressed: _refresh,
                     style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.zero,
-                      backgroundColor: const Color(0xFF7B1FA2),
+                      backgroundColor: const Color(0xFF1E3A8A),
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 0,
                     ),
                     child: const Text('검색', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
@@ -125,14 +132,14 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                                     Container(
                                       width: 100,
                                       height: 100,
-                                      decoration: BoxDecoration(
-                                        color: Colors.purple[50],
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFE5E9F2),
                                         shape: BoxShape.circle,
                                       ),
-                                      child: Icon(
+                                      child: const Icon(
                                         Icons.forum_outlined,
                                         size: 50,
-                                        color: Colors.purple[300],
+                                        color: Color(0xFF1E3A8A),
                                       ),
                                     ),
                                     const SizedBox(height: 20),
@@ -198,7 +205,7 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                   icon: const Icon(Icons.edit_rounded, size: 20),
                   label: const Text('새 글 작성', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7B1FA2),
+                    backgroundColor: const Color(0xFF1E3A8A),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -222,7 +229,8 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -234,7 +242,7 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           onTap: () async {
             await Navigator.push(
               context,
@@ -315,14 +323,14 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                       children: post.tags.take(3).map((t) => Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF3E5F5),
-                          borderRadius: BorderRadius.circular(8),
+                          color: const Color(0xFF1E3A8A).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           '#$t',
                           style: const TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF7B1FA2),
+                            color: Color(0xFF1E3A8A),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -333,8 +341,9 @@ class _CommunityBoardScreenState extends State<CommunityBoardScreen> {
                 Text(
                   post.title,
                   style: const TextStyle(
-                    fontSize: 17,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E3A8A),
                     height: 1.3,
                   ),
                   maxLines: 2,

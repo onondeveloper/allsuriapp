@@ -6,6 +6,7 @@ import '../../services/order_service.dart';
 import '../../widgets/customer_dashboard.dart';
 import '../../widgets/interactive_card.dart';
 import '../../widgets/business_dashboard.dart';
+import '../../widgets/professional_dashboard.dart';
 import '../business/business_profile_screen.dart';
 import '../business/business_pending_screen.dart';
 import '../role_selection_screen.dart';
@@ -13,12 +14,58 @@ import '../../models/order.dart' as app_models;
 import '../customer/create_request_screen.dart';
 import '../customer/my_estimates_screen.dart';
 import '../../services/api_service.dart';
+import '../onboarding/onboarding_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _isCheckingOnboarding = true;
+  bool _shouldShowOnboarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboarding();
+  }
+
+  Future<void> _checkOnboarding() async {
+    final completed = await OnboardingScreen.isOnboardingCompleted();
+    if (mounted) {
+      setState(() {
+        _shouldShowOnboarding = !completed;
+        _isCheckingOnboarding = false;
+      });
+    }
+  }
+
+  void _completeOnboarding() {
+    setState(() {
+      _shouldShowOnboarding = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // 온보딩 체크 중
+    if (_isCheckingOnboarding) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // 온보딩이 필요한 경우
+    if (_shouldShowOnboarding) {
+      return OnboardingScreen(onComplete: _completeOnboarding);
+    }
+
+    // 메인 화면
     return Consumer<AuthService>(
       builder: (context, authService, child) {
         // 역할 선택이 필요한 경우
@@ -37,7 +84,7 @@ class HomeScreen extends StatelessWidget {
           print('   - Business Status: $status');
           
           if (status == 'approved') {
-            return const BusinessDashboard();
+            return const ProfessionalDashboard();
           }
           
           if (!hasBusinessName) {

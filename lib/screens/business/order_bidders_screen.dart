@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/services/auth_service.dart';
 import 'package:allsuriapp/services/chat_service.dart';
+import 'package:allsuriapp/services/notification_service.dart';
 import 'package:allsuriapp/widgets/loading_indicator.dart';
 import '../chat_screen.dart';
 
@@ -260,10 +261,22 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
 
     try {
       print('🔍 [OrderBiddersScreen] 입찰자 선택 시작');
+      
+      // 현재 사용자 ID 확인
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      
+      if (currentUserId == null || currentUserId.isEmpty) {
+        throw Exception('사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.');
+      }
+      
       final api = ApiService();
       final response = await api.post('/market/listings/${widget.listingId}/select-bidder', {
         'bidderId': bidderId,
+        'ownerId': currentUserId,
       });
+
+      print('✅ [OrderBiddersScreen] API 응답: $response');
 
       if (response['success'] == true) {
         // 채팅방 생성 및 이동
@@ -277,36 +290,33 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           SnackBar(content: Text('$bidderName님이 선택되었습니다. 채팅방으로 이동합니다.')),
         );
 
-        // 채팅방 생성/이동
+        // 1️⃣ 낙찰 알림 발송
         try {
-          final authService = Provider.of<AuthService>(context, listen: false);
-          final currentUserId = authService.currentUser?.id ?? '';
-          
-          // 채팅방 ID 가져오기 또는 생성
-          String chatRoomId;
-          
-          // 1. order_bids 테이블에서 chat_room_id 확인 (이미 생성되었을 수 있음)
-          /*
-          final bid = await Supabase.instance.client
-              .from('order_bids')
-              .select('chat_room_id')
-              .eq('listing_id', widget.listingId)
-              .eq('bidder_id', bidderId)
-              .maybeSingle();
-              
-          if (bid != null && bid['chat_room_id'] != null) {
-            chatRoomId = bid['chat_room_id'];
-          } else {
-          */
-          
-          // 2. ChatService를 통해 채팅방 생성/조회
+          print('📤 [OrderBiddersScreen] 낙찰 알림 발송 중...');
+          final notificationService = NotificationService();
+          await notificationService.sendNotification(
+            userId: bidderId, // 낙찰받은 사업자에게
+            title: '🎉 낙찰 축하드립니다!',
+            body: '[${widget.orderTitle}] 오더에 낙찰되었습니다.',
+            type: 'bid_awarded',
+            orderId: widget.listingId,
+            jobTitle: widget.orderTitle,
+          );
+          print('✅ [OrderBiddersScreen] 낙찰 알림 발송 완료');
+        } catch (notiErr) {
+          print('⚠️ [OrderBiddersScreen] 낙찰 알림 발송 실패 (무시됨): $notiErr');
+        }
+
+        // 2️⃣ 채팅방 생성/이동
+        try {
+          // ChatService를 통해 채팅방 생성/조회
           print('🔍 [OrderBiddersScreen] 채팅방 생성 시도');
           print('   Owner ID: $currentUserId');
           print('   Bidder ID: $bidderId');
           print('   Listing ID: ${widget.listingId}');
           
           final chatService = ChatService();
-          chatRoomId = await chatService.ensureChatRoom(
+          final chatRoomId = await chatService.ensureChatRoom(
             customerId: currentUserId,
             businessId: bidderId,
             listingId: widget.listingId, // 오더 마켓플레이스 ID 전달
@@ -315,7 +325,44 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           
           print('✅ [OrderBiddersScreen] 채팅방 생성 성공: $chatRoomId');
           
-          // 채팅방으로 이동 (Replacement 아님, 뒤로가기 가능하게)
+          // 3️⃣ 자동 환영 메시지 발송
+          try {
+            print('📤 [OrderBiddersScreen] 자동 환영 메시지 발송 중...');
+            final welcomeMessage = '안녕하세요. [${widget.orderTitle}] 공사로 연락 드립니다.';
+            await chatService.sendMessage(
+              chatRoomId,
+              welcomeMessage,
+              currentUserId,
+            );
+            print('✅ [OrderBiddersScreen] 자동 환영 메시지 발송 완료: $welcomeMessage');
+            
+            // 4️⃣ 채팅 알림 발송
+            try {
+              print('📤 [OrderBiddersScreen] 채팅 알림 발송 중...');
+              
+              // 현재 사용자 이름 가져오기
+              final currentUserName = authService.currentUser?.businessName ?? 
+                                      authService.currentUser?.name ?? 
+                                      '오더 발주자';
+              
+              final notificationService = NotificationService();
+              await notificationService.sendNotification(
+                userId: bidderId, // 낙찰받은 사업자에게
+                title: '💬 새로운 메시지',
+                body: '[${widget.orderTitle}] - $currentUserName: $welcomeMessage',
+                type: 'chat_message',
+                chatRoomId: chatRoomId,
+              );
+              print('✅ [OrderBiddersScreen] 채팅 알림 발송 완료');
+            } catch (chatNotiErr) {
+              print('⚠️ [OrderBiddersScreen] 채팅 알림 발송 실패 (무시됨): $chatNotiErr');
+            }
+          } catch (msgErr) {
+            print('⚠️ [OrderBiddersScreen] 자동 메시지 발송 실패 (무시됨): $msgErr');
+            // 메시지 실패해도 채팅방은 열림
+          }
+          
+          // 채팅방으로 이동
           if (mounted) {
             Navigator.pushReplacement(
               context,
@@ -329,9 +376,18 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           }
         } catch (chatErr) {
           print('❌ [OrderBiddersScreen] 채팅방 생성 실패: $chatErr');
-          // 채팅방 생성 실패해도 계속 진행
+          print('   에러 타입: ${chatErr.runtimeType}');
+          print('   에러 상세: ${chatErr.toString()}');
+          
+          // 채팅방 생성 실패해도 낙찰은 성공했으므로 메시지 표시
           if (mounted) {
-            Navigator.pop(context); // 화면 닫기
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('낙찰은 완료되었으나 채팅방 생성에 실패했습니다: ${chatErr.toString()}'),
+                duration: const Duration(seconds: 5),
+              ),
+            );
+            Navigator.pop(context); // 입찰자 목록 화면 닫기
           }
         }
       } else {
@@ -339,10 +395,16 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
       }
     } catch (e) {
       print('❌ [OrderBiddersScreen] 선택 오류: $e');
+      print('   에러 타입: ${e.runtimeType}');
+      print('   에러 상세: ${e.toString()}');
+      
       if (mounted) {
         Navigator.pop(context); // 로딩 닫기
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류가 발생했습니다: $e')),
+          SnackBar(
+            content: Text('오류가 발생했습니다: ${e.toString()}'),
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }

@@ -86,15 +86,64 @@ class NotificationService {
   /// 읽지 않은 알림 개수 가져오기
   Future<int> getUnreadCount(String userId) async {
     try {
+      print('🔍 [NotificationService] 읽지 않은 알림 개수 조회 중...');
+      print('   userId: $userId');
+      
       final response = await _sb
           .from('notifications')
-          .select('id')
+          .select('id, title, type, isread')
           .eq('userid', userId)
           .eq('isread', false);
       
+      print('✅ [NotificationService] 읽지 않은 알림: ${response.length}개');
+      if (response.isNotEmpty) {
+        print('   알림 목록:');
+        for (var notif in response) {
+          print('   - ${notif['title']} (type: ${notif['type']})');
+        }
+      }
+      
       return response.length;
     } catch (e) {
-      print('읽지 않은 알림 개수 가져오기 실패: $e');
+      print('❌ [NotificationService] 읽지 않은 알림 개수 가져오기 실패: $e');
+      return 0;
+    }
+  }
+
+  /// 읽지 않은 알림 개수 실시간 스트림
+  Stream<int> getUnreadCountStream(String userId) {
+    if (userId.isEmpty) {
+      return Stream.value(0);
+    }
+    
+    return _sb
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('userid', userId)
+        .map((data) {
+          // isread가 false인 것만 필터링
+          return data.where((item) => item['isread'] == false).length;
+        });
+  }
+
+  /// 읽지 않은 채팅 알림 개수
+  Future<int> getUnreadChatCount(String userId) async {
+    try {
+      print('💬 [NotificationService] 읽지 않은 채팅 알림 조회 중...');
+      print('   userId: $userId');
+      
+      final response = await _sb
+          .from('notifications')
+          .select('id, title')
+          .eq('userid', userId)
+          .eq('type', 'chat_message')
+          .eq('isread', false);
+      
+      print('✅ [NotificationService] 읽지 않은 채팅 알림: ${response.length}개');
+      
+      return response.length;
+    } catch (e) {
+      print('❌ [NotificationService] 읽지 않은 채팅 알림 개수 가져오기 실패: $e');
       return 0;
     }
   }
@@ -152,24 +201,34 @@ class NotificationService {
     String? chatRoomId,
   }) async {
     try {
+      print('📤 [NotificationService.sendNotification] 알림 전송 시작');
+      print('   userId: $userId');
+      print('   title: $title');
+      print('   type: $type');
+      
       // 1. Supabase에 알림 저장
-      await _sb.from('notifications').insert({
+      final insertData = {
         'userid': userId,
         'title': title,
         'body': body,
         'type': type,
-        'jobid': jobId,
-        'jobtitle': jobTitle,
-        'region': region,
-        'orderid': orderId,
-        'estimateid': estimateId,
-        // chatroom_id는 선택적 (컬럼이 없을 수 있음)
-        if (chatRoomId != null && chatRoomId.isNotEmpty) 'chatroom_id': chatRoomId,
         'isread': false,
         'createdat': DateTime.now().toIso8601String(),
-      });
+        // 선택적 필드들 (null이나 빈 문자열이면 포함하지 않음)
+        if (jobId != null && jobId.isNotEmpty) 'jobid': jobId,
+        if (jobTitle != null && jobTitle.isNotEmpty) 'jobtitle': jobTitle,
+        if (region != null && region.isNotEmpty) 'region': region,
+        if (orderId != null && orderId.isNotEmpty) 'orderid': orderId,
+        if (estimateId != null && estimateId.isNotEmpty) 'estimateid': estimateId,
+        if (chatRoomId != null && chatRoomId.isNotEmpty) 'chatroom_id': chatRoomId,
+      };
       
-      print('✅ 알림 DB 저장 완료: $userId - $title');
+      print('   저장할 데이터: $insertData');
+      
+      final result = await _sb.from('notifications').insert(insertData).select();
+      
+      print('✅ [NotificationService] 알림 DB 저장 완료: $userId - $title');
+      print('   저장된 알림 ID: ${result.isNotEmpty ? result.first['id'] : 'unknown'}');
       
       // 2. 백엔드를 통해 FCM 푸시 전송 (비동기, 실패해도 무시)
       try {
@@ -209,6 +268,12 @@ class NotificationService {
     required String chatRoomId,
   }) async {
     try {
+      print('📩 [sendChatNotification] 채팅 알림 전송 시작');
+      print('   수신자: $recipientUserId');
+      print('   발신자: $senderName');
+      print('   메시지: $message');
+      print('   채팅방: $chatRoomId');
+      
       // 1. Supabase에 알림 저장
       await sendNotification(
         userId: recipientUserId,
@@ -217,6 +282,8 @@ class NotificationService {
         type: 'chat_message',
         chatRoomId: chatRoomId,
       );
+      
+      print('✅ [sendChatNotification] 채팅 알림 저장 완료');
 
       // 2. Supabase Edge Function으로 FCM 전송 시도 (일시 비활성화)
       // TODO: Edge Function 배포 후 활성화

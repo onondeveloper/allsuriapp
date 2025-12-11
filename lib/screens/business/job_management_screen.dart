@@ -154,19 +154,26 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text('내 공사', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: const Text(
+          '내 공사 관리',
+          style: TextStyle(
+            color: Color(0xFF1E3A8A),
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Color(0xFF1E3A8A)),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF1E3A8A)),
             onPressed: _loadJobs,
             tooltip: '새로고침',
           ),
@@ -246,7 +253,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
 
   Widget _buildModernChip(String label, String value, IconData icon, int count) {
     final isSelected = _filter == value;
-    final color = const Color(0xFFF9A825); // Yellow for jobs
+    final color = const Color(0xFF1E3A8A); // Navy for professional style
     
     return GestureDetector(
       onTap: () => setState(() => _filter = value),
@@ -651,130 +658,171 @@ class _ModernJobsList extends StatelessWidget {
         // 액션 버튼 빌드
         Widget? actionButton;
         if (canViewBidders) {
-          actionButton = ModernButton(
-            text: '입찰자 보기 ($bidCount명)',
-            icon: Icons.people_outline,
-            backgroundColor: AppConstants.primaryColor,
-            onPressed: () => onViewBidders(listingId!, listingTitle),
+          actionButton = SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3A8A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.people_outline),
+              label: Text(
+                '입찰자 보기 ($bidCount명)',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onPressed: () => onViewBidders(listingId!, listingTitle),
+            ),
           );
         } else if (job.assignedBusinessId == currentUserId && 
                    (job.status == 'assigned' || job.status == 'in_progress' || job.status == 'awaiting_confirmation')) {
           final canComplete = (job.status == 'assigned' || job.status == 'in_progress');
           print('🔍 [BuildButton] jobId=${job.id}, status=${job.status}, canComplete=$canComplete');
           
-          actionButton = ModernButton(
-            text: job.status == 'awaiting_confirmation' ? '확인 대기 중' : '공사 완료',
-            icon: job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline,
-            backgroundColor: job.status == 'awaiting_confirmation' ? AppConstants.greyColor : AppConstants.secondaryColor,
-            onPressed: canComplete ? () {
-              print('🔘 [Button] 공사 완료 버튼 클릭! jobId=${job.id}');
-              onCompleteJob(job);
-            } : null,
+          actionButton = SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: job.status == 'awaiting_confirmation' 
+                    ? Colors.grey[400] 
+                    : const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              icon: Icon(job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline, size: 20),
+              label: Text(
+                job.status == 'awaiting_confirmation' ? '확인 대기 중' : '공사 완료',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onPressed: canComplete ? () {
+                print('🔘 [Button] 공사 완료 버튼 클릭! jobId=${job.id}');
+                onCompleteJob(job);
+              } : null,
+            ),
           );
         } else if (job.ownerBusinessId == currentUserId && 
                    job.status == 'completed' && 
                    listing != null && 
                    listing['status'] == 'completed') {
-          actionButton = ModernButton(
-            text: '리뷰 작성',
-            icon: Icons.star_outline,
-            backgroundColor: AppConstants.warningColor,
-            onPressed: () => onReview(job),
+          actionButton = SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF59E0B),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.star_outline),
+              label: const Text(
+                '리뷰 작성',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onPressed: () => onReview(job),
+            ),
           );
         }
         
-        // 커스텀 배지 빌드
-        final badges = <Widget>[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: badge.color,
-              borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(badge.icon, size: 14, color: Colors.white),
-                const SizedBox(width: 4),
-                Text(
-                  badge.label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ];
+        // 커스텀 배지는 표시하지 않음 (견적 금액으로 대체)
+        final badges = <Widget>[];
 
         // 채팅방 바로가기 버튼 (진행 중 또는 완료된 공사일 때)
         if (listingId != null && (job.status == 'in_progress' || job.status == 'completed' || job.status == 'awaiting_confirmation' || job.status == 'assigned')) {
           return Stack(
             children: [
               ModernOrderCard(
+                orderId: job.id,
                 title: job.title,
                 description: job.description,
                 category: job.category,
                 region: job.location,
-                budget: job.budgetAmount,
+                budget: job.awardedAmount ?? job.budgetAmount, // 낙찰 금액 우선 표시
                 status: job.status,
                 bidCount: bidCount > 0 ? bidCount : null,
                 onTap: () => _showJobDetail(context, job, listing),
                 actionButton: actionButton,
                 badges: badges,
+                customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
               ),
               Positioned(
-                top: 16,
+                top: 66,
                 right: 16,
-                child: InkWell(
-                  onTap: () async {
-                    // 채팅방 이동 로직
-                    try {
-                      final chatService = ChatService();
-                      final authService = Provider.of<AuthService>(context, listen: false);
-                      final currentUserId = authService.currentUser?.id;
-                      
-                      if (currentUserId == null) return;
-                      
-                      // 상대방 ID 확인 (오더 소유자)
-                      final targetUserId = job.ownerBusinessId;
-                      
-                      if (targetUserId == null) return;
-                      
-                      // 채팅방 생성/조회
-                      final chatRoomId = await chatService.ensureChatRoom(
-                        customerId: targetUserId, // 오더 소유자
-                        businessId: currentUserId, // 나 (낙찰받은 사업자)
-                        listingId: listingId,
-                        title: listingTitle,
-                      );
-                      
-                      // 채팅 화면으로 이동
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            chatRoomId: chatRoomId,
-                            chatRoomTitle: listingTitle,
+                child: Material(
+                  elevation: 2,
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    onTap: () async {
+                      // 채팅방 이동 로직
+                      try {
+                        final chatService = ChatService();
+                        final authService = Provider.of<AuthService>(context, listen: false);
+                        final currentUserId = authService.currentUser?.id;
+                        
+                        if (currentUserId == null) return;
+                        
+                        // 상대방 ID 확인 (오더 소유자)
+                        final targetUserId = job.ownerBusinessId;
+                        
+                        if (targetUserId == null) return;
+                        
+                        // 채팅방 생성/조회
+                        final chatRoomId = await chatService.ensureChatRoom(
+                          customerId: targetUserId, // 오더 소유자
+                          businessId: currentUserId, // 나 (낙찰받은 사업자)
+                          listingId: listingId,
+                          title: listingTitle,
+                        );
+                        
+                        // 채팅 화면으로 이동
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatScreen(
+                              chatRoomId: chatRoomId,
+                              chatRoomTitle: listingTitle,
+                            ),
                           ),
-                        ),
-                      );
-                    } catch (e) {
-                      print('❌ 채팅방 이동 실패: $e');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('채팅방을 열 수 없습니다.')),
-                      );
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      shape: BoxShape.circle,
+                        );
+                      } catch (e) {
+                        print('❌ 채팅방 이동 실패: $e');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('채팅방을 열 수 없습니다.')),
+                        );
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E3A8A),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        Icons.chat_bubble_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
-                    child: const Icon(Icons.chat_bubble_outline, color: Colors.blue, size: 20),
                   ),
                 ),
               ),
@@ -783,12 +831,14 @@ class _ModernJobsList extends StatelessWidget {
         }
         
         return ModernOrderCard(
+          orderId: job.id,
           title: job.title,
           description: job.description,
           category: job.category,
           region: job.location,
-          budget: job.budgetAmount,
+          budget: job.awardedAmount ?? job.budgetAmount, // 낙찰 금액 우선 표시
           status: job.status,
+          customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
           bidCount: bidCount > 0 ? bidCount : null,
           onTap: () => _showJobDetail(context, job, listing),
           actionButton: actionButton,

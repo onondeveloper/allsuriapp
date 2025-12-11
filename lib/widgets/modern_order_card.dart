@@ -3,6 +3,7 @@ import '../config/app_constants.dart';
 
 /// Modern order card with E-commerce template styling
 class ModernOrderCard extends StatelessWidget {
+  final String? orderId; // Hero 태그용 ID
   final String title;
   final String description;
   final String? category;
@@ -13,9 +14,12 @@ class ModernOrderCard extends StatelessWidget {
   final VoidCallback? onTap;
   final Widget? actionButton;
   final List<Widget>? badges;
+  final bool enableHeroAnimation; // Hero 애니메이션 활성화 여부
+  final String? customBudgetLabel; // "견적 금액" 등 커스텀 레이블
 
   const ModernOrderCard({
     Key? key,
+    this.orderId,
     required this.title,
     required this.description,
     this.category,
@@ -26,11 +30,13 @@ class ModernOrderCard extends StatelessWidget {
     this.onTap,
     this.actionButton,
     this.badges,
+    this.enableHeroAnimation = true,
+    this.customBudgetLabel,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
+    final cardWidget = OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.all(AppConstants.defaultPadding),
@@ -71,13 +77,27 @@ class ModernOrderCard extends StatelessWidget {
               const Spacer(),
               // Budget
               if (budget != null)
-                Text(
-                  '₩${budget!.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    color: AppConstants.primaryColor,
-                    fontSize: AppConstants.titleFontSize,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (customBudgetLabel != null)
+                      Text(
+                        customBudgetLabel!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    Text(
+                      '₩${budget!.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                      style: const TextStyle(
+                        color: Color(0xFF1E3A8A),
+                        fontSize: AppConstants.titleFontSize,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -149,6 +169,19 @@ class ModernOrderCard extends StatelessWidget {
         ],
       ),
     );
+
+    // Hero 애니메이션 적용
+    if (enableHeroAnimation && orderId != null && orderId!.isNotEmpty) {
+      return Hero(
+        tag: 'order-card-$orderId',
+        child: Material(
+          type: MaterialType.transparency,
+          child: cardWidget,
+        ),
+      );
+    }
+
+    return cardWidget;
   }
 
   Widget _buildInfoChip({

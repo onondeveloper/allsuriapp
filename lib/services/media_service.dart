@@ -124,4 +124,32 @@ class MediaService {
       return null;
     }
   }
+
+  Future<String?> uploadAdImage(File file) async {
+    try {
+      debugPrint('🔍 [uploadAdImage] 시작');
+      debugPrint('   파일: ${file.path}');
+      debugPrint('   파일 크기: ${file.lengthSync()} bytes');
+      
+      final fileName = 'ad_${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
+      debugPrint('   생성된 파일명: $fileName');
+      
+      final path = 'ads/$fileName';
+      debugPrint('   경로: $path');
+      debugPrint('   버킷: public');
+      
+      debugPrint('   → Supabase에 업로드 중...');
+      await _sb.storage.from('public').upload(path, file);
+      debugPrint('   ✅ 업로드 완료');
+      
+      debugPrint('   → Public URL 생성 중...');
+      final publicUrl = _sb.storage.from('public').getPublicUrl(path);
+      debugPrint('   ✅ Public URL: $publicUrl');
+      
+      return publicUrl;
+    } catch (e) {
+      debugPrint('❌ [uploadAdImage] 실패: $e');
+      return null;
+    }
+  }
 }

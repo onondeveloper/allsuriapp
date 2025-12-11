@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'custom_painters.dart';
 import '../screens/business/estimate_requests_screen.dart';
 import '../screens/business/estimate_management_screen.dart';
 import '../screens/business/transfer_estimate_screen.dart';
@@ -34,7 +35,7 @@ class BusinessDashboard extends StatefulWidget {
   State<BusinessDashboard> createState() => _BusinessDashboardState();
 }
 
-class _BusinessDashboardState extends State<BusinessDashboard> {
+class _BusinessDashboardState extends State<BusinessDashboard> with TickerProviderStateMixin {
   int _currentIndex = 0;
   final MarketplaceService _market = MarketplaceService();
   late Future<int> _callOpenCountFuture;
@@ -46,12 +47,23 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   
   RealtimeChannel? _marketplaceChannel;
   RealtimeChannel? _ordersChannel;
+  
+  // 웨이브 애니메이션용
+  late AnimationController _waveController;
+  late Animation<double> _waveAnimation;
 
   @override
   void initState() {
     super.initState();
     _adFuture = AdService().getActiveAds();
     _setupRealtimeListeners();
+    
+    // 웨이브 애니메이션 초기화
+    _waveController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    )..repeat();
+    _waveAnimation = Tween<double>(begin: 0, end: 1).animate(_waveController);
   }
 
   void _setupRealtimeListeners() {
@@ -84,6 +96,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
   void dispose() {
     _marketplaceChannel?.unsubscribe();
     _ordersChannel?.unsubscribe();
+    _waveController.dispose();
     super.dispose();
   }
 
@@ -263,7 +276,10 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
             : (user?.name ?? "사업자");
         
         return WillPopScope(
-          onWillPop: () async => false,
+          onWillPop: () async {
+            // 뒤로가기 방지 - 대시보드가 홈이므로
+            return false;
+          },
           child: Scaffold(
           appBar: AppBar(
             title: Text('올수리에서 번창하세요!'),
@@ -324,17 +340,32 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
+                // 웨이브 배경이 있는 환영 배너
+                Stack(
+                  children: [
+                    // 웨이브 배경
+                    AnimatedBuilder(
+                      animation: _waveAnimation,
+                      builder: (context, child) {
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: SizedBox(
+                            height: 160,
+                            child: CustomPaint(
+                              painter: WavePainter(
+                                color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                                animationValue: _waveAnimation.value,
+                              ),
+                              child: Container(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    // 실제 컨텐츠
+                    Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Theme.of(context).colorScheme.primary.withOpacity(0.12),
-                        Theme.of(context).colorScheme.secondary.withOpacity(0.08),
-                      ],
-                    ),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                   ),
@@ -434,9 +465,11 @@ class _BusinessDashboardState extends State<BusinessDashboard> {
                           ],
                         ),
                       )
+                      ],
+                    ),
+                  ),
                     ],
                   ),
-                ),
                 const SizedBox(height: 16),
 
                 LayoutBuilder(

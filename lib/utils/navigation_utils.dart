@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../screens/home/home_screen.dart';
-import '../widgets/business_dashboard.dart';
+import '../widgets/professional_dashboard.dart';
 
 class NavigationUtils {
   static void navigateToRoleHome(BuildContext context) {
@@ -16,10 +16,10 @@ class NavigationUtils {
     print('============================');
     
     if (auth.isAuthenticated && auth.currentUser?.role == 'business') {
-      print('Navigating to BusinessDashboard');
+      print('Navigating to ProfessionalDashboard');
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const BusinessDashboard()),
+        MaterialPageRoute(builder: (_) => const ProfessionalDashboard()),
         (route) => false,
       );
     } else {

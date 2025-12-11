@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/customer/my_estimates_screen.dart';
 import '../screens/business/estimate_management_screen.dart';
@@ -8,7 +9,7 @@ import '../screens/business/create_job_screen.dart';
 import '../screens/chat/chat_list_page.dart';
 import '../screens/profile/profile_screen.dart';
 import '../widgets/customer_dashboard.dart';
-import '../widgets/business_dashboard.dart';
+import '../widgets/professional_dashboard.dart';
 
 class BottomNavigation extends StatelessWidget {
   final int currentIndex;
@@ -25,6 +26,7 @@ class BottomNavigation extends StatelessWidget {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
         final isCustomer = authService.currentUser?.role != 'business';
+        final userId = authService.currentUser?.id ?? '';
         
         return Container(
           decoration: BoxDecoration(
@@ -61,13 +63,23 @@ class BottomNavigation extends StatelessWidget {
                     label: isCustomer ? '내 견적' : '공사 만들기',
                     isCustomer: isCustomer,
                   ),
-                  _buildNavItem(
-                    context: context,
-                    index: 2,
-                    icon: Icons.chat_bubble_rounded,
-                    outlinedIcon: Icons.chat_bubble_outline_rounded,
-                    label: '채팅',
-                    isCustomer: isCustomer,
+                  FutureBuilder<int>(
+                    future: NotificationService().getUnreadChatCount(userId),
+                    builder: (context, snapshot) {
+                      final chatBadge = snapshot.data ?? 0;
+                      if (snapshot.connectionState == ConnectionState.done && chatBadge > 0) {
+                        print('💬 [BottomNav] 읽지 않은 채팅: $chatBadge개');
+                      }
+                      return _buildNavItem(
+                        context: context,
+                        index: 2,
+                        icon: Icons.chat_bubble_rounded,
+                        outlinedIcon: Icons.chat_bubble_outline_rounded,
+                        label: '채팅',
+                        isCustomer: isCustomer,
+                        badgeCount: chatBadge,
+                      );
+                    },
                   ),
                   _buildNavItem(
                     context: context,
@@ -93,6 +105,7 @@ class BottomNavigation extends StatelessWidget {
     required IconData outlinedIcon,
     required String label,
     required bool isCustomer,
+    int? badgeCount,
   }) {
     final isSelected = currentIndex == index;
     final primaryColor = Theme.of(context).primaryColor;
@@ -106,7 +119,7 @@ class BottomNavigation extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) =>
-                      isCustomer ? const CustomerDashboard() : const BusinessDashboard(),
+                      isCustomer ? const CustomerDashboard() : const ProfessionalDashboard(),
                 ),
                 (route) => false,
               );
@@ -148,20 +161,50 @@ class BottomNavigation extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: EdgeInsets.all(isSelected ? 6 : 4),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? primaryColor.withOpacity(0.15)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  isSelected ? icon : outlinedIcon,
-                  size: isSelected ? 24 : 22,
-                  color: isSelected ? primaryColor : Colors.grey[600],
-                ),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.all(isSelected ? 6 : 4),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? primaryColor.withOpacity(0.15)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isSelected ? icon : outlinedIcon,
+                      size: isSelected ? 24 : 22,
+                      color: isSelected ? primaryColor : Colors.grey[600],
+                    ),
+                  ),
+                  if (badgeCount != null && badgeCount > 0)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          badgeCount > 9 ? '9+' : badgeCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 2),
               Text(

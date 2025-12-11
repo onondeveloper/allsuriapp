@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
 import '../business/business_profile_screen.dart';
+import '../admin/ad_management_screen.dart';
 import 'package:app_settings/app_settings.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -17,10 +18,21 @@ class ProfileScreen extends StatelessWidget {
         // 로그인하지 않은 사용자에게 안내
         if (user == null) {
           return Scaffold(
+            backgroundColor: const Color(0xFFF8F9FA),
             appBar: AppBar(
-              title: const Text('프로필'),
+              title: const Text(
+                '프로필',
+                style: TextStyle(
+                  color: Color(0xFF1E3A8A),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+              ),
+              centerTitle: true,
+              elevation: 0,
+              backgroundColor: Colors.white,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Color(0xFF1E3A8A)),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
@@ -29,10 +41,21 @@ class ProfileScreen extends StatelessWidget {
         }
 
         return Scaffold(
+          backgroundColor: const Color(0xFFF8F9FA),
           appBar: AppBar(
-            title: const Text('프로필'),
+            title: const Text(
+              '프로필',
+              style: TextStyle(
+                color: Color(0xFF1E3A8A),
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+            centerTitle: true,
+            elevation: 0,
+            backgroundColor: Colors.white,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Color(0xFF1E3A8A)),
               onPressed: () => Navigator.pop(context),
             ),
           ),
@@ -67,12 +90,13 @@ class ProfileScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
+              backgroundColor: const Color(0xFF1E3A8A),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              elevation: 0,
             ),
             child: const Text(
               '로그인',
@@ -115,15 +139,15 @@ class ProfileScreen extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF4F8CFF),
-                Color(0xFF00C6AE),
+                Color(0xFF1E3A8A),
+                Color(0xFF3B82F6),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF4F8CFF).withOpacity(0.3),
+                color: Color(0xFF1E3A8A).withOpacity(0.3),
                 blurRadius: 12,
-                offset: const Offset(0, 6),
+                offset: Offset(0, 6),
               ),
             ],
           ),
@@ -152,11 +176,11 @@ class ProfileScreen extends StatelessWidget {
                   child: Center(
                     child: Text(
                       user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 40,
                         fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ).copyWith(color: const Color(0xFF4F8CFF)),
+                        color: Color(0xFF1E3A8A),
+                      ),
                     ),
                   ),
                 ),
@@ -241,6 +265,19 @@ class ProfileScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const BusinessProfileScreen()),
+              );
+            },
+          ),
+        // 관리자 메뉴 (관리자만 표시)
+        if (user.role == 'admin' || user.email == 'admin@allsuri.app')
+          _buildActionTile(
+            context,
+            Icons.admin_panel_settings,
+            '광고 관리 (관리자)',
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdManagementScreen()),
               );
             },
           ),

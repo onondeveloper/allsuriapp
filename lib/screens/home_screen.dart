@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/role.dart';
-import '../widgets/business_dashboard.dart';
+import '../widgets/professional_dashboard.dart';
 import '../widgets/customer_dashboard.dart';
 import '../services/auth_service.dart';
 import 'package:go_router/go_router.dart';
@@ -29,7 +29,7 @@ class HomeScreen extends StatelessWidget {
       case UserRole.admin:
         return const Center(child: Text('관리자 대시보드는 웹에서 접근하세요'));
       case UserRole.business:
-        return const BusinessDashboard();
+        return const ProfessionalDashboard();
       case UserRole.customer:
         return const CustomerDashboard();
     }

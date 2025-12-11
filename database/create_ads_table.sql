@@ -63,7 +63,7 @@ VALUES
   (
     '샘플 광고 1', 
     'https://picsum.photos/800/400', -- 임시 이미지 URL
-    'https://www.allsuri.app', 
+    'https://www.jw.org', 
     true
   ),
   (

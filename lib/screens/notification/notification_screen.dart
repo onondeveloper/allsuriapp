@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user.dart';
-import '../../providers/user_provider.dart';
+import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/common_app_bar.dart';
 import '../business/job_management_screen.dart';
@@ -35,11 +35,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
     });
 
     try {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final user = userProvider.currentUser;
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final user = authService.currentUser;
       
       print('🔍 [NotificationScreen] 알림 로드 시작');
-      print('   UserProvider currentUser: ${user?.id ?? "null"}');
+      print('   AuthService currentUser: ${user?.id ?? "null"}');
       
       if (user != null) {
         print('   사용자 ID로 알림 조회: ${user.id}');
@@ -55,7 +55,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           _isLoading = false;
         });
       } else {
-        print('❌ [NotificationScreen] UserProvider에 사용자 없음');
+        print('❌ [NotificationScreen] AuthService에 사용자 없음');
         setState(() {
           _error = '사용자 정보를 찾을 수 없습니다.';
           _isLoading = false;
@@ -112,8 +112,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Future<void> _markAllAsRead() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final user = userProvider.currentUser;
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
     
     if (user != null) {
       await _notificationService.markAllAsRead(user.id);

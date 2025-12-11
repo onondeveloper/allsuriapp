@@ -11,7 +11,7 @@ UPDATE public.ads SET location = 'dashboard_banner' WHERE location IS NULL;
 -- 3. 홈 화면용 샘플 데이터 추가
 INSERT INTO public.ads (title, image_url, link_url, is_active, location)
 VALUES 
-  ('홈 화면 배너 1', 'https://picsum.photos/800/400?random=10', 'https://blog.naver.com/jwcbsmg', true, 'home_banner'),
+  ('홈 화면 배너 1', 'https://picsum.photos/800/400?random=10', 'https://allsuri.app', true, 'home_banner'),
   ('홈 화면 배너 2', 'https://picsum.photos/800/400?random=11', 'https://google.com', true, 'home_banner');
 
 -- 4. 인덱스 추가

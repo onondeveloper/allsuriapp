@@ -5,17 +5,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../models/user.dart';
-import '../providers/user_provider.dart';
 import '../services/media_service.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/user.dart';
-import '../providers/user_provider.dart';
 import '../models/estimate.dart';
 import '../models/order.dart';
 import '../services/estimate_service.dart';
 import '../services/order_service.dart';
 import '../services/chat_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/common_app_bar.dart';
 import './estimate_detail_screen.dart';
 
@@ -68,7 +64,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadChatRoomInfo() async {
     try {
-      final myId = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+      final myId = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
       
       // 채팅방 정보 가져오기
       final chatRoom = await Supabase.instance.client
@@ -130,14 +126,45 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      final chatService = Provider.of<ChatService>(context, listen: false);
-      final messages = await chatService.getMessages(widget.chatRoomId);
-      await chatService.markChatRead(widget.chatRoomId);
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id ?? '';
+      
+      print('🔍 [_loadMessages] 메시지 로드 시작');
+      print('   현재 사용자 ID: $currentUserId');
+      
+      // chat_messages 직접 조회 (ChatService 대신)
+      final client = Supabase.instance.client;
+      final rows = await client
+          .from('chat_messages')
+          .select()
+          .eq('room_id', widget.chatRoomId)
+          .order('createdat', ascending: true);
+      
+      final messages = rows.map((r) {
+        final m = Map<String, dynamic>.from(r);
+        final created = m['createdat'] ?? m['createdAt'] ?? m['created_at'];
+        final senderId = m['sender_id']?.toString() ?? '';
+        final isFromMe = senderId == currentUserId;
+        
+        return <String, dynamic>{
+          'text': (m['content'] ?? m['text'] ?? '').toString(),
+          'timestamp': DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now(),
+          'isFromMe': isFromMe,
+          'sender_id': senderId,
+          'image_url': m['image_url'],
+        };
+      }).toList();
+      
+      print('   로드된 메시지: ${messages.length}개');
+      for (var msg in messages) {
+        print('   - sender_id: ${msg['sender_id']}, isFromMe: ${msg['isFromMe']}, text: ${msg['text']}');
+      }
+      
       setState(() {
         _messages = messages;
       });
     } catch (e) {
-      print('메시지 로드 오류: $e');
+      print('❌ [_loadMessages] 메시지 로드 오류: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -159,9 +186,10 @@ class _ChatScreenState extends State<ChatScreen> {
           .order('createdat', ascending: true)
           .listen((rows) {
         // 현재 사용자 ID를 listen 콜백 내부에서 가져오기
-        final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+        final me = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
         
-        print('🔔 [ChatScreen] 실시간 메시지 수신: ${rows.length}개, 내 ID: $me');
+        print('🔔 [_subscribeRealtime] 실시간 메시지 수신: ${rows.length}개');
+        print('   현재 사용자 ID: "$me" (길이: ${me.length})');
         
         final mapped = rows.map((r) {
           final m = Map<String, dynamic>.from(r);
@@ -171,15 +199,21 @@ class _ChatScreenState extends State<ChatScreen> {
           // sender_id 확인 (다양한 케이스 대응)
           final senderId = m['sender_id']?.toString() ?? m['senderid']?.toString() ?? m['senderId']?.toString() ?? '';
           
-          // 내 아이디와 비교 (공백 제거 및 소문자 변환)
-          final isFromMe = senderId.trim().toLowerCase() == me.trim().toLowerCase();
+          print('   메시지: "$text"');
+          print('      sender_id: "$senderId" (길이: ${senderId.length})');
+          print('      me: "$me" (길이: ${me.length})');
+          print('      같은가? ${senderId == me}');
           
-          print('   메시지: "$text" (sender: $senderId, me: $me, isFromMe: $isFromMe)');
+          // 내 아이디와 비교
+          final isFromMe = senderId == me;
+          
+          print('      isFromMe: $isFromMe');
           
           return <String, dynamic>{
             'text': text,
             'timestamp': DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now(),
             'isFromMe': isFromMe,
+            'sender_id': senderId, // 디버깅용
           };
         }).toList();
         
@@ -214,23 +248,40 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final chatService = Provider.of<ChatService>(context, listen: false);
-      final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final me = authService.currentUser?.id ?? '';
       final text = _messageController.text.trim();
       
-      print('🔵 [ChatScreen] 메시지 전송 시작');
-      print('   보내는 사람 ID: $me');
-      print('   메시지: $text');
+      print('🔵 [_sendMessage] 메시지 전송 시작');
+      print('   보내는 사람 ID: "$me" (길이: ${me.length})');
+      print('   메시지: "$text"');
       
       await chatService.sendMessage(widget.chatRoomId, text, me);
-      print('✅ [ChatScreen] 메시지 전송 완료');
+      print('✅ [_sendMessage] 메시지 전송 완료');
       
       _messageController.clear();
       
-      // Realtime 구독이 자동으로 업데이트하므로 _loadMessages() 호출 제거
-      // (Realtime이 새 메시지를 받아서 UI를 업데이트함)
+      // 메시지 전송 후 즉시 화면 업데이트
+      await _loadMessages();
+      
+      // 하단으로 스크롤
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (!_scrollController.hasClients) return;
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 100,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      });
       
     } catch (e) {
       print('❌ [ChatScreen] 메시지 전송 오류: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('메시지 전송 실패: ${e.toString()}')),
+        );
+      }
     } finally {
       setState(() {
         _isSending = false;
@@ -267,7 +318,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 await _loadMessages();
               } else if (value == 'delete') {
                 // 소프트 삭제
-                final me = Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '';
+                final me = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
                 await svc.softDeleteChatRoom(widget.chatRoomId, me);
                 if (mounted) Navigator.pop(context);
               }
@@ -521,22 +572,66 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
       if (x == null) return;
+      
+      // 로딩 표시
+      if (mounted) {
+        setState(() => _isSending = true);
+      }
+      
       final file = File(x.path);
       final media = MediaService();
-      final url = await media.uploadMessageImage(roomId: widget.chatRoomId, userId: Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '', file: file);
-      if (url == null) return;
+      final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
+      
+      print('🔵 [ChatScreen] 이미지 전송 시작');
+      
+      final url = await media.uploadMessageImage(
+        roomId: widget.chatRoomId, 
+        userId: currentUserId, 
+        file: file,
+      );
+      
+      if (url == null) {
+        throw Exception('이미지 업로드 실패');
+      }
+      
       // Save as image message
       final nowIso = DateTime.now().toIso8601String();
       final sb = Supabase.instance.client;
-      await sb.from('messages').insert({
-        'roomid': widget.chatRoomId,
-        'senderid': Provider.of<UserProvider>(context, listen: false).currentUser?.id ?? '',
-        'type': 'image',
+      await sb.from('chat_messages').insert({
+        'room_id': widget.chatRoomId,
+        'sender_id': currentUserId,
+        'content': '[이미지]',
         'image_url': url,
         'createdat': nowIso,
       });
+      
+      print('✅ [ChatScreen] 이미지 전송 완료');
+      
+      // 메시지 목록 새로고침
+      await _loadMessages();
+      
+      // 하단으로 스크롤
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (!_scrollController.hasClients) return;
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 100,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      });
+      
     } catch (e) {
-      debugPrint('이미지 전송 실패: $e');
+      print('❌ [ChatScreen] 이미지 전송 실패: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 전송 실패: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
     }
   }
 

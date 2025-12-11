@@ -256,19 +256,26 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     final me = context.read<AuthService>().currentUser?.id ?? '';
     
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text('내 오더 관리', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: const Text(
+          '내 오더 관리',
+          style: TextStyle(
+            color: Color(0xFF1E3A8A),
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Color(0xFF1E3A8A)),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF1E3A8A)),
             onPressed: _loadMyOrders,
             tooltip: '새로고침',
           ),
@@ -479,7 +486,8 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -523,11 +531,11 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                 // Budget
                 if (budget != null)
                   Text(
-                    '₩${budget.toString()}',
+                    '₩${budget.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFFF57C00),
+                      color: Color(0xFF1E3A8A),
                     ),
                   ),
               ],
@@ -538,7 +546,8 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
               title,
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
-                fontSize: 17,
+                fontSize: 16,
+                color: Color(0xFF1E3A8A),
                 height: 1.3,
               ),
             ),
@@ -572,11 +581,12 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[700],
+                        backgroundColor: const Color(0xFF64748B),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 0,
                       ),
                     ),
                   ),
@@ -673,11 +683,12 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber,
+                        backgroundColor: const Color(0xFFF59E0B),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 0,
                       ),
                     ),
                   ),
@@ -763,11 +774,12 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w600)
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1976D2),
+                        backgroundColor: const Color(0xFF1E3A8A),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 0,
                       ),
                     ),
                   ),
