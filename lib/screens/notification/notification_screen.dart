@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
-import '../../widgets/common_app_bar.dart';
 import '../business/job_management_screen.dart';
+import '../business/my_order_management_screen.dart';
 import '../business/order_marketplace_screen.dart';
 import '../business/order_bidders_screen.dart';
 import '../community/post_detail_screen.dart';
+import '../chat_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({Key? key}) : super(key: key);
@@ -94,21 +95,86 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ),
       );
     } else if (type == 'new_bid') {
-      // 새로운 입찰 - 입찰자 목록으로 이동
-      final listingId = (notification['jobid'] ?? notification['jobId'])?.toString();
-      final orderTitle = notification['title']?.toString() ?? '오더';
-      if (listingId != null && mounted) {
+      // 🎯 새로운 입찰 - 내 오더 관리 (해당 오더 포커싱)
+      final orderId = notification['orderid']?.toString() ?? notification['jobid']?.toString() ?? '';
+      if (orderId.isNotEmpty && mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => OrderBiddersScreen(
-              listingId: listingId,
-              orderTitle: orderTitle,
+            builder: (_) => MyOrderManagementScreen(highlightedOrderId: orderId),
+          ),
+        );
+      } else if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const MyOrderManagementScreen(),
+          ),
+        );
+      }
+    } else if (type == 'chat_message') {
+      // 💬 채팅 메시지 - 채팅 화면
+      final chatRoomId = notification['chatroom_id']?.toString() ?? notification['chatroomid']?.toString() ?? '';
+      if (chatRoomId.isNotEmpty && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(chatRoomId: chatRoomId),
+          ),
+        );
+      }
+    } else if (type == 'bid_selected') {
+      // 🏆 낙찰 - 내 공사 관리 (해당 공사 포커싱)
+      final jobIdValue = notification['jobid']?.toString() ?? '';
+      if (jobIdValue.isNotEmpty && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => JobManagementScreen(highlightedJobId: jobIdValue),
+          ),
+        );
+      } else if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const JobManagementScreen(),
+          ),
+        );
+      }
+    } else if (type == 'order_completed') {
+      // 📝 공사 완료 - 내 오더 관리 > 완료된 공사 (해당 오더 포커싱)
+      final orderId = notification['orderid']?.toString() ?? notification['jobid']?.toString() ?? '';
+      if (orderId.isNotEmpty && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MyOrderManagementScreen(
+              highlightedOrderId: orderId,
+              initialFilter: 'completed',
             ),
+          ),
+        );
+      } else if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const MyOrderManagementScreen(initialFilter: 'completed'),
+          ),
+        );
+      }
+    } else if (type == 'review_received') {
+      // ⭐ 리뷰 받음 - 내 공사 관리 > 완료된 공사 (해당 공사 포커싱)
+      final jobIdValue = notification['jobid']?.toString() ?? '';
+      if (jobIdValue.isNotEmpty && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => JobManagementScreen(
+              highlightedJobId: jobIdValue,
+              initialFilter: 'completed',
+            ),
+          ),
+        );
+      } else if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const JobManagementScreen(initialFilter: 'completed'),
           ),
         );
       }
     }
-    // 다른 타입들도 필요시 추가
   }
 
   Future<void> _markAllAsRead() async {
@@ -120,6 +186,91 @@ class _NotificationScreenState extends State<NotificationScreen> {
       setState(() {
         _notifications = _notifications.map((n) => {...n, 'isread': true}).toList();
       });
+    }
+  }
+
+  Future<void> _deleteAllNotifications() async {
+    if (_notifications.isEmpty) return;
+
+    // 확인 다이얼로그
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_sweep, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Text('모든 알림 삭제'),
+          ],
+        ),
+        content: Text('${_notifications.length}개의 알림을 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('모두 삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // 삭제 중 로딩 표시
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      int successCount = 0;
+      final notificationsCopy = List<Map<String, dynamic>>.from(_notifications);
+      
+      for (final notification in notificationsCopy) {
+        final notificationId = notification['id']?.toString();
+        if (notificationId != null) {
+          final success = await _notificationService.deleteNotification(notificationId);
+          if (success) successCount++;
+        }
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context); // 로딩 다이얼로그 닫기
+
+      setState(() {
+        _notifications.clear();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('$successCount개의 알림이 삭제되었습니다'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -218,16 +369,44 @@ class _NotificationScreenState extends State<NotificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CommonAppBar(
-        title: '알림',
-        showBackButton: true,
-        showHomeButton: true,
+      appBar: AppBar(
+        title: const Text(
+          '알림',
+          style: TextStyle(
+            color: Color(0xFF1E3A8A),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)),
         actions: [
           if (_notifications.any((n) => n['isread'] != true))
             IconButton(
               icon: const Icon(Icons.done_all),
               onPressed: _markAllAsRead,
               tooltip: '모두 읽음 처리',
+            ),
+          if (_notifications.isNotEmpty)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'delete_all') {
+                  _deleteAllNotifications();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'delete_all',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_sweep, color: Colors.red, size: 20),
+                      SizedBox(width: 8),
+                      Text('모두 삭제', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
             ),
         ],
       ),
@@ -274,10 +453,125 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         itemCount: _notifications.length,
                         itemBuilder: (context, index) {
                           final notification = _notifications[index];
-                          return _buildNotificationItem(notification);
+                          return _buildDismissibleNotificationItem(notification);
                         },
                       ),
                     ),
+    );
+  }
+
+  Widget _buildDismissibleNotificationItem(Map<String, dynamic> notification) {
+    final notificationId = notification['id']?.toString() ?? '';
+    
+    return Dismissible(
+      key: Key(notificationId),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.white, size: 28),
+            SizedBox(height: 4),
+            Text(
+              '삭제',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        // 스와이프만으로 삭제 확인 다이얼로그 표시
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.delete_outline, color: Colors.red, size: 28),
+                SizedBox(width: 12),
+                Text('알림 삭제'),
+              ],
+            ),
+            content: const Text('이 알림을 삭제하시겠습니까?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('취소'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('삭제'),
+              ),
+            ],
+          ),
+        );
+        
+        if (confirm == true) {
+          final success = await _notificationService.deleteNotification(notificationId);
+          
+          if (success) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text('알림이 삭제되었습니다'),
+                    ],
+                  ),
+                  backgroundColor: Colors.green,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              );
+            }
+            return true;
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text('알림 삭제에 실패했습니다'),
+                    ],
+                  ),
+                  backgroundColor: Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              );
+            }
+            return false;
+          }
+        }
+        
+        return false;
+      },
+      child: _buildNotificationItem(notification),
     );
   }
 
@@ -357,38 +651,110 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       ),
                     );
                   } else if (type == 'new_bid') {
-                    // 새로운 입찰 → 입찰자 목록 화면
-                    final listingId = notification['jobid']?.toString() ?? notification['jobId']?.toString() ?? '';
-                    final orderTitle = notification['title']?.toString() ?? '오더';
-                    if (listingId.isNotEmpty) {
+                    // 🎯 새로운 입찰 → 내 오더 관리 (해당 오더 포커싱)
+                    final orderId = notification['orderid']?.toString() ?? notification['jobid']?.toString() ?? '';
+                    print('🔔 [new_bid] 내 오더 관리로 이동: orderId=$orderId');
+                    
+                    if (orderId.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => OrderBiddersScreen(
-                            listingId: listingId,
-                            orderTitle: orderTitle,
-                          ),
+                          builder: (_) => MyOrderManagementScreen(highlightedOrderId: orderId),
+                        ),
+                      );
+                    } else {
+                      // orderId가 없으면 기본 화면
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MyOrderManagementScreen(),
+                        ),
+                      );
+                    }
+                  } else if (type == 'chat_message') {
+                    // 💬 채팅 메시지 → 채팅 화면
+                    final chatRoomId = notification['chatroom_id']?.toString() ?? notification['chatroomid']?.toString() ?? '';
+                    print('🔔 [chat_message] 채팅 화면으로 이동: chatRoomId=$chatRoomId');
+                    
+                    if (chatRoomId.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(chatRoomId: chatRoomId),
                         ),
                       );
                     }
                   } else if (type == 'bid_selected') {
-                    // 입찰 선택됨 → 내 공사 화면
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const JobManagementScreen()),
-                    );
+                    // 🏆 낙찰 → 내 공사 관리 (해당 공사 포커싱)
+                    final jobIdValue = notification['jobid']?.toString() ?? '';
+                    print('🔔 [bid_selected] 내 공사 관리로 이동: jobId=$jobIdValue');
+                    
+                    if (jobIdValue.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => JobManagementScreen(highlightedJobId: jobIdValue),
+                        ),
+                      );
+                    } else {
+                      // jobId가 없으면 기본 화면
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const JobManagementScreen()),
+                      );
+                    }
                   } else if (type == 'bid_rejected') {
                     // 입찰 거절됨 → 오더 마켓
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const OrderMarketplaceScreen()),
                     );
-                  } else if (type == 'order_completed' || type == 'review_received') {
-                    // 공사 완료 / 리뷰 받음 → 내 공사
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const JobManagementScreen()),
-                    );
+                  } else if (type == 'order_completed') {
+                    // 📝 공사 완료 → 내 오더 관리 > 완료된 공사 (해당 오더 포커싱)
+                    final orderId = notification['orderid']?.toString() ?? notification['jobid']?.toString() ?? '';
+                    print('🔔 [order_completed] 내 오더 관리로 이동 (완료됨 필터): orderId=$orderId');
+                    
+                    if (orderId.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MyOrderManagementScreen(
+                            highlightedOrderId: orderId,
+                            initialFilter: 'completed',
+                          ),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MyOrderManagementScreen(initialFilter: 'completed'),
+                        ),
+                      );
+                    }
+                  } else if (type == 'review_received') {
+                    // ⭐ 리뷰 받음 → 내 공사 관리 > 완료된 공사 (해당 공사 포커싱)
+                    final jobIdValue = notification['jobid']?.toString() ?? '';
+                    print('🔔 [review_received] 내 공사 관리로 이동 (완료됨 필터): jobId=$jobIdValue');
+                    
+                    if (jobIdValue.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => JobManagementScreen(
+                            highlightedJobId: jobIdValue,
+                            initialFilter: 'completed',
+                          ),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const JobManagementScreen(initialFilter: 'completed'),
+                        ),
+                      );
+                    }
                   } else if ((type == 'call_assigned' || type == 'call_update') && (jobId?.isNotEmpty ?? false)) {
                     Navigator.push(
                       context,

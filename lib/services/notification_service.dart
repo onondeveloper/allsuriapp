@@ -126,24 +126,53 @@ class NotificationService {
         });
   }
 
-  /// 읽지 않은 채팅 알림 개수
+  /// 읽지 않은 채팅 메시지 총 개수 (모든 채팅방의 읽지 않은 메시지 합계)
   Future<int> getUnreadChatCount(String userId) async {
     try {
-      print('💬 [NotificationService] 읽지 않은 채팅 알림 조회 중...');
+      print('💬 [NotificationService] 읽지 않은 채팅 메시지 조회 중...');
       print('   userId: $userId');
       
-      final response = await _sb
-          .from('notifications')
-          .select('id, title')
-          .eq('userid', userId)
-          .eq('type', 'chat_message')
-          .eq('isread', false);
+      // 사용자의 모든 채팅방 가져오기
+      final rooms = await _sb
+          .from('chat_rooms')
+          .select('id, participant_a, participant_b, participant_a_last_read_at, participant_b_last_read_at')
+          .or('participant_a.eq.$userId,participant_b.eq.$userId')
+          .eq('active', true);
       
-      print('✅ [NotificationService] 읽지 않은 채팅 알림: ${response.length}개');
+      int totalUnread = 0;
       
-      return response.length;
+      for (final room in rooms) {
+        // 현재 사용자가 participant_a인지 participant_b인지 확인
+        final isParticipantA = room['participant_a']?.toString() == userId;
+        final lastReadAt = isParticipantA 
+            ? room['participant_a_last_read_at'] 
+            : room['participant_b_last_read_at'];
+        
+        // 읽지 않은 메시지 수 계산
+        if (lastReadAt != null) {
+          final unreadMessages = await _sb
+              .from('chat_messages')
+              .select('id')
+              .eq('room_id', room['id'])
+              .neq('sender_id', userId)
+              .gt('createdat', lastReadAt.toString());
+          totalUnread += unreadMessages.length;
+        } else {
+          // lastReadAt이 없으면 모든 상대방 메시지를 읽지 않은 것으로 간주
+          final unreadMessages = await _sb
+              .from('chat_messages')
+              .select('id')
+              .eq('room_id', room['id'])
+              .neq('sender_id', userId);
+          totalUnread += unreadMessages.length;
+        }
+      }
+      
+      print('✅ [NotificationService] 읽지 않은 채팅 메시지 총 ${totalUnread}개');
+      
+      return totalUnread;
     } catch (e) {
-      print('❌ [NotificationService] 읽지 않은 채팅 알림 개수 가져오기 실패: $e');
+      print('❌ [NotificationService] 읽지 않은 채팅 메시지 개수 가져오기 실패: $e');
       return 0;
     }
   }
@@ -170,6 +199,22 @@ class NotificationService {
           .eq('isread', false);
     } catch (e) {
       print('모든 알림 읽음 표시 실패: $e');
+    }
+  }
+
+  /// 알림 삭제
+  Future<bool> deleteNotification(String notificationId) async {
+    try {
+      print('🗑️ [NotificationService] 알림 삭제: $notificationId');
+      await _sb
+          .from('notifications')
+          .delete()
+          .eq('id', notificationId);
+      print('✅ [NotificationService] 알림 삭제 완료');
+      return true;
+    } catch (e) {
+      print('❌ [NotificationService] 알림 삭제 실패: $e');
+      return false;
     }
   }
 
@@ -367,18 +412,6 @@ class NotificationService {
       await prefs.setBool(_notificationPermissionKey, enabled);
     } catch (e) {
       print('알림 설정 상태 저장 실패: $e');
-    }
-  }
-
-  /// 알림 삭제
-  Future<void> deleteNotification(String notificationId) async {
-    try {
-      await _sb
-          .from('notifications')
-          .delete()
-          .eq('id', notificationId);
-    } catch (e) {
-      print('알림 삭제 실패: $e');
     }
   }
 

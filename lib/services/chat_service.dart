@@ -265,31 +265,67 @@ class ChatService extends ChangeNotifier {
     }
   }
 
-  Future<void> markChatRead(String chatRoomId) async {
-    // Optional: implement unread tracking if schema supports it
-    return;
+  /// 채팅방을 읽음 처리 (현재 사용자의 last_read_at 업데이트)
+  Future<void> markChatRead(String chatRoomId, String userId) async {
+    try {
+      debugPrint('📖 [ChatService] 채팅 읽음 처리: roomId=$chatRoomId, userId=$userId');
+      
+      // 채팅방 정보 가져오기
+      final room = await _sb
+          .from('chat_rooms')
+          .select('participant_a, participant_b')
+          .eq('id', chatRoomId)
+          .maybeSingle();
+      
+      if (room == null) {
+        debugPrint('   ⚠️ 채팅방을 찾을 수 없음');
+        return;
+      }
+      
+      // 현재 사용자가 participant_a인지 participant_b인지 확인
+      final isParticipantA = room['participant_a']?.toString() == userId;
+      final fieldToUpdate = isParticipantA 
+          ? 'participant_a_last_read_at' 
+          : 'participant_b_last_read_at';
+      
+      // 현재 시간으로 업데이트
+      await _sb
+          .from('chat_rooms')
+          .update({fieldToUpdate: DateTime.now().toIso8601String()})
+          .eq('id', chatRoomId);
+      
+      debugPrint('   ✅ 읽음 처리 완료: $fieldToUpdate');
+    } catch (e) {
+      debugPrint('   ❌ 읽음 처리 실패: $e');
+    }
   }
 
-  // 채팅방 목록 가져오기
+  // 채팅방 목록 가져오기 (최적화 버전)
   Future<List<Map<String, dynamic>>> getChatRooms(String userId) async {
     try {
       debugPrint('🔍 [ChatService] 채팅방 목록 로드: userId=$userId');
+      final startTime = DateTime.now();
       
-      // participant_a, participant_b 또는 customerid, businessid 모두 지원
+      // 1. 채팅방 정보 가져오기
       final rows = await _sb
           .from('chat_rooms')
-          .select('id, title, createdat, customerid, businessid, participant_a, participant_b, estimateid, listingid, active')
+          .select('id, title, createdat, customerid, businessid, participant_a, participant_b, estimateid, listingid, active, participant_a_last_read_at, participant_b_last_read_at')
           .or('customerid.eq.$userId,businessid.eq.$userId,participant_a.eq.$userId,participant_b.eq.$userId')
           .eq('active', true)
           .order('createdat', ascending: false);
       
       debugPrint('✅ [ChatService] ${rows.length}개 채팅방 조회 완료');
       
-      final list = <Map<String, dynamic>>[];
+      if (rows.isEmpty) return [];
+      
+      // 2. 모든 상대방 ID 수집
+      final otherUserIds = <String>{};
+      final roomMap = <String, Map<String, dynamic>>{};
+      
       for (final r in rows) {
         final room = Map<String, dynamic>.from(r);
+        roomMap[room['id']] = room;
         
-        // 상대방 ID 찾기 (participant 우선, 없으면 customer/business)
         String otherId = '';
         if (room['participant_a']?.toString() == userId) {
           otherId = room['participant_b']?.toString() ?? '';
@@ -301,85 +337,119 @@ class ChatService extends ChangeNotifier {
           otherId = room['customerid']?.toString() ?? '';
         }
         
-        debugPrint('   채팅방 ${room['id']}: 상대방=$otherId');
-        
         if (otherId.isNotEmpty) {
-          try {
-            final u = await _sb.from('users').select('businessname, name').eq('id', otherId).maybeSingle();
-            final displayName = u?['businessname']?.toString() ?? u?['name']?.toString() ?? '상대방';
-            room['displayName'] = displayName;
-          } catch (_) {
-            room['displayName'] = '상대방';
-          }
+          otherUserIds.add(otherId);
+          room['_otherId'] = otherId;
+        }
+      }
+      
+      // 3. 모든 사용자 정보 병렬로 가져오기
+      final userMap = <String, Map<String, dynamic>>{};
+      if (otherUserIds.isNotEmpty) {
+        final userFutures = otherUserIds.map((id) {
+          return _sb
+              .from('users')
+              .select('id, businessname, name')
+              .eq('id', id)
+              .maybeSingle()
+              .then((user) {
+            if (user != null) {
+              userMap[user['id']] = user;
+            }
+          }).catchError((e) {
+            debugPrint('   ⚠️ 사용자 정보 조회 실패 ($id): $e');
+          });
+        }).toList();
+        
+        await Future.wait(userFutures);
+      }
+      
+      // 4. 병렬로 최근 메시지와 읽지 않은 메시지 수 가져오기
+      final futures = <Future>[];
+      
+      for (final room in roomMap.values) {
+        // 사용자 이름 설정
+        final otherId = room['_otherId'];
+        if (otherId != null && userMap.containsKey(otherId)) {
+          final user = userMap[otherId];
+          room['displayName'] = user?['businessname']?.toString() ?? user?['name']?.toString() ?? '상대방';
         } else {
           room['displayName'] = room['title']?.toString() ?? '채팅';
         }
         
-        // 오더 제목: chat_rooms.title에 저장된 값 우선 사용
-        final listingId = room['listingid']?.toString();
+        // 오더 제목 설정 (저장된 값 사용)
         final savedTitle = room['title']?.toString();
-        
-        debugPrint('   listingid: $listingId, saved title: $savedTitle');
-        
-        // 1. title에 저장된 오더 제목이 있으면 사용
         if (savedTitle != null && savedTitle.isNotEmpty && !savedTitle.startsWith('order_') && !savedTitle.startsWith('call_')) {
           room['orderTitle'] = savedTitle;
-          debugPrint('   ✅ 오더 제목 (저장됨): ${room['orderTitle']}');
-        }
-        // 2. title이 없거나 임시값이면 DB에서 조회 시도
-        else if (listingId != null && listingId.isNotEmpty) {
-          try {
-            debugPrint('   🔍 오더 제목 조회 시도: $listingId');
-            final listing = await _sb
-                .from('marketplace_listings')
-                .select('title, id, status')
-                .eq('id', listingId)
-                .maybeSingle();
-            
-            if (listing != null) {
-              room['orderTitle'] = listing['title']?.toString() ?? '';
-              debugPrint('   ✅ 오더 제목 (조회됨): ${room['orderTitle']} (status: ${listing['status']})');
-              
-              // title 업데이트 (다음번엔 조회 불필요)
-              try {
-                await _sb
-                    .from('chat_rooms')
-                    .update({'title': room['orderTitle']})
-                    .eq('id', room['id']);
-                debugPrint('   💾 오더 제목 저장 완료');
-              } catch (_) {}
-            } else {
-              debugPrint('   ⚠️ 오더를 찾을 수 없음: $listingId');
-            }
-          } catch (e) {
-            debugPrint('   ❌ 오더 제목 조회 실패 (listingid=$listingId): $e');
-          }
-        } else {
-          debugPrint('   ℹ️ listingid 없음 (견적 채팅방)');
         }
         
-        // 최근 메시지
-        try {
-          final last = await _sb
+        // 최근 메시지 가져오기 (병렬)
+        futures.add(
+          _sb
               .from('chat_messages')
               .select('content, text, createdat')
               .eq('room_id', room['id'])
               .order('createdat', ascending: false)
               .limit(1)
-              .maybeSingle();
-          if (last != null) {
-            room['lastMessage'] = (last['content']?.toString() ?? last['text']?.toString() ?? '');
-            room['lastMessageAt'] = last['createdat']?.toString();
-          } else {
+              .maybeSingle()
+              .then((last) {
+            if (last != null) {
+              room['lastMessage'] = (last['content']?.toString() ?? last['text']?.toString() ?? '');
+              room['lastMessageAt'] = last['createdat']?.toString();
+            } else {
+              room['lastMessage'] = '';
+            }
+          }).catchError((_) {
             room['lastMessage'] = '';
-          }
-        } catch (_) {
-          room['lastMessage'] = '';
+          })
+        );
+        
+        // 읽지 않은 메시지 수 계산 (병렬)
+        final isParticipantA = room['participant_a']?.toString() == userId;
+        final lastReadAt = isParticipantA 
+            ? room['participant_a_last_read_at'] 
+            : room['participant_b_last_read_at'];
+        
+        if (lastReadAt != null) {
+          futures.add(
+            _sb
+                .from('chat_messages')
+                .select('id')
+                .eq('room_id', room['id'])
+                .neq('sender_id', userId)
+                .gt('createdat', lastReadAt.toString())
+                .then((unreadMessages) {
+              room['unreadCount'] = unreadMessages.length;
+            }).catchError((_) {
+              room['unreadCount'] = 0;
+            })
+          );
+        } else {
+          futures.add(
+            _sb
+                .from('chat_messages')
+                .select('id')
+                .eq('room_id', room['id'])
+                .neq('sender_id', userId)
+                .then((unreadMessages) {
+              room['unreadCount'] = unreadMessages.length;
+            }).catchError((_) {
+              room['unreadCount'] = 0;
+            })
+          );
         }
-        list.add(room);
       }
-      return list;
+      
+      // 5. 모든 병렬 작업 완료 대기
+      await Future.wait(futures);
+      
+      final endTime = DateTime.now();
+      final duration = endTime.difference(startTime).inMilliseconds;
+      debugPrint('✅ [ChatService] 채팅방 목록 로드 완료 (${duration}ms)');
+      
+      return roomMap.values.toList();
     } catch (e) {
+      debugPrint('❌ [ChatService] 채팅방 목록 로드 실패: $e');
       return [];
     }
   }

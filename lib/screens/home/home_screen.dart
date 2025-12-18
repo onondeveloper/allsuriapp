@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/auth_service.dart';
 import '../../services/order_service.dart';
 import '../../widgets/customer_dashboard.dart';
@@ -26,11 +27,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isCheckingOnboarding = true;
   bool _shouldShowOnboarding = false;
+  int _totalCompletedJobs = 0;
+  bool _isLoadingStats = true;
 
   @override
   void initState() {
     super.initState();
     _checkOnboarding();
+    _loadStatistics();
   }
 
   Future<void> _checkOnboarding() async {
@@ -47,6 +51,31 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _shouldShowOnboarding = false;
     });
+  }
+
+  Future<void> _loadStatistics() async {
+    try {
+      // 완료된 공사 수 가져오기
+      final response = await Supabase.instance.client
+          .from('jobs')
+          .select('id')
+          .inFilter('status', ['completed', 'awaiting_confirmation'])
+          .count(CountOption.exact);
+      
+      if (mounted) {
+        setState(() {
+          _totalCompletedJobs = response.count;
+          _isLoadingStats = false;
+        });
+      }
+    } catch (e) {
+      print('❌ 통계 로드 실패: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
+      }
+    }
   }
 
   @override
@@ -138,55 +167,136 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               const SizedBox(height: 20),
                               
-                              // 1. 상단 환영 메시지 (디자인 개선)
+                              // 1. 상단 환영 메시지 (통계 정보 포함)
                               Container(
                                 padding: const EdgeInsets.all(24),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF5F7FA),
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      const Color(0xFF1E3A8A),
+                                      const Color(0xFF3B82F6),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
                                   borderRadius: BorderRadius.circular(24),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '환영합니다!',
-                                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                              fontWeight: FontWeight.w800,
-                                              color: const Color(0xFF222B45),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            '전문가와 연결하여\n빠르고 안전한 서비스를\n받아보세요',
-                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                              color: Colors.grey[600],
-                                              height: 1.5,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF1E3A8A).withOpacity(0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
                                     ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '환영합니다!',
+                                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                '올수리에서 번창하세요!',
+                                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                  color: Colors.white.withOpacity(0.9),
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Icon(
+                                            Icons.handyman_rounded,
+                                            size: 48,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    // 통계 정보
                                     Container(
-                                      padding: const EdgeInsets.all(12),
+                                      padding: const EdgeInsets.all(16),
                                       decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(20),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.05),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
+                                        color: Colors.white.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.emoji_events,
+                                            color: Colors.amber[300],
+                                            size: 28,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '올수리에서 완료된 공사',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.white.withOpacity(0.9),
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              _isLoadingStats
+                                                  ? SizedBox(
+                                                      width: 20,
+                                                      height: 20,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                      ),
+                                                    )
+                                                  : RichText(
+                                                      text: TextSpan(
+                                                        children: [
+                                                          TextSpan(
+                                                            text: '$_totalCompletedJobs',
+                                                            style: const TextStyle(
+                                                              fontSize: 24,
+                                                              fontWeight: FontWeight.w800,
+                                                              color: Colors.white,
+                                                              letterSpacing: -0.5,
+                                                            ),
+                                                          ),
+                                                          const TextSpan(
+                                                            text: ' 건',
+                                                            style: TextStyle(
+                                                              fontSize: 16,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: Colors.white,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                            ],
                                           ),
                                         ],
-                                      ),
-                                      child: Icon(
-                                        Icons.handyman_rounded,
-                                        size: 48,
-                                        color: Theme.of(context).primaryColor,
                                       ),
                                     ),
                                   ],
@@ -200,16 +310,17 @@ class _HomeScreenState extends State<HomeScreen> {
                               
                               const Spacer(),
                               
-                              // 3. 카카오 로그인 버튼 (너비 60%)
+                              // 3. 카카오 로그인 버튼 (전체 너비)
                               if (!authService.isAuthenticated)
-                                SizedBox(
-                                  width: buttonWidth,
-                                  child: InkWell(
-                                    onTap: () => _handleKakaoLogin(context), // 바로 로그인 실행
+                                InkWell(
+                                  onTap: () => _handleKakaoLogin(context), // 바로 로그인 실행
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
                                     child: Image.asset(
                                       'assets/images/kakao_login_large_narrow.png',
-                                      fit: BoxFit.fitWidth,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
                                     ),
                                   ),
                                 ),
@@ -247,9 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBuyMeCoffee(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('후원 기능 준비 중입니다! ☕')),
-        );
+        _showAdvertisingInquiry(context);
       },
       child: Container(
         width: double.infinity,
@@ -263,26 +372,121 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.coffee_rounded, size: 48, color: Colors.brown[400]),
-            const SizedBox(height: 16),
-            const Text(
-              'Buy me a coffee',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black54,
-              ),
-            ),
             const SizedBox(height: 8),
             const Text(
-              '개발자에게 커피 한 잔 후원하기',
+              '광고 문의',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showAdvertisingInquiry(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.phone_in_talk_rounded,
+                    size: 48,
+                    color: Colors.blue[600],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  '광고 문의',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF222B45),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.phone_android,
+                        color: Colors.grey[700],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '010-8345-1912',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[800],
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  '광고 문의는 위 번호로\n연락 주시기 바랍니다',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3A8A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      '확인',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

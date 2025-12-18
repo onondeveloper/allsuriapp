@@ -18,7 +18,14 @@ import '../../services/api_service.dart';
 import '../chat_screen.dart'; // 추가
 
 class JobManagementScreen extends StatefulWidget {
-  const JobManagementScreen({super.key});
+  final String? highlightedJobId; // 포커싱할 공사 ID
+  final String? initialFilter; // 초기 필터 ('in_progress', 'completed')
+  
+  const JobManagementScreen({
+    super.key, 
+    this.highlightedJobId,
+    this.initialFilter,
+  });
 
   @override
   State<JobManagementScreen> createState() => _JobManagementScreenState();
@@ -28,14 +35,23 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   List<Job> _combinedJobs = [];
   List<Job> _completedJobs = []; // 완료된 공사 (awaiting_confirmation + completed)
   bool _isLoading = true;
-  String _filter = 'in_progress'; // in_progress | completed (내가 가져간 공사만)
+  late String _filter; // in_progress | completed (내가 가져간 공사만)
   Map<String, Map<String, dynamic>> _listingByJobId = {};
   bool _isCompleting = false; // 공사 완료 중 플래그
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    // 초기 필터 설정
+    _filter = widget.initialFilter ?? 'in_progress';
     _loadJobs();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadJobs() async {
@@ -147,8 +163,55 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+        
+        // 🎯 포커싱: highlightedJobId가 있으면 해당 공사로 스크롤
+        if (widget.highlightedJobId != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToHighlightedJob();
+          });
+        }
       }
     }
+  }
+
+  void _scrollToHighlightedJob() {
+    if (widget.highlightedJobId == null || !mounted) return;
+
+    // 약간의 지연을 두어 ListView가 완전히 빌드된 후 스크롤
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted || !_scrollController.hasClients) return;
+      
+      final filteredJobs = _filteredByBadge(_combinedJobs, context.read<AuthService>().currentUser?.id ?? '');
+      final index = filteredJobs.indexWhere((job) => job.id == widget.highlightedJobId);
+
+      print('🔍 [_scrollToHighlightedJob] 찾는 중...');
+      print('   highlightedJobId: ${widget.highlightedJobId}');
+      print('   filteredJobs 개수: ${filteredJobs.length}');
+      print('   찾은 index: $index');
+
+      if (index != -1) {
+        // 대략적인 아이템 높이 (카드 높이 + spacing)
+        const double itemHeight = 220.0;
+        final double offset = index * itemHeight;
+        final double maxScroll = _scrollController.position.maxScrollExtent;
+        
+        // 스크롤 범위를 초과하지 않도록 제한
+        final double targetOffset = offset > maxScroll ? maxScroll : offset;
+        
+        _scrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeInOutCubic,
+        );
+        
+        print('✅ [JobManagement] ${widget.highlightedJobId} 공사로 스크롤 (index: $index, offset: $targetOffset)');
+      } else {
+        print('⚠️ [JobManagement] highlightedJobId를 찾을 수 없음');
+        if (filteredJobs.isNotEmpty) {
+          print('   첫 번째 공사 ID: ${filteredJobs.first.id}');
+        }
+      }
+    });
   }
 
   @override
@@ -192,6 +255,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                     onViewBidders: _openBidderList,
                     onCompleteJob: _completeJob,
                     onReview: _openReviewScreen,
+                    scrollController: _scrollController,
+                    highlightedJobId: widget.highlightedJobId,
                   ),
                 ),
               ],
@@ -586,6 +651,8 @@ class _ModernJobsList extends StatelessWidget {
   final void Function(String listingId, String orderTitle) onViewBidders;
   final Future<void> Function(Job job) onCompleteJob;
   final Future<void> Function(Job job) onReview;
+  final ScrollController? scrollController;
+  final String? highlightedJobId;
 
   const _ModernJobsList({
     required this.jobs,
@@ -594,6 +661,8 @@ class _ModernJobsList extends StatelessWidget {
     required this.onViewBidders,
     required this.onCompleteJob,
     required this.onReview,
+    this.scrollController,
+    this.highlightedJobId,
   });
 
   @override
@@ -639,11 +708,13 @@ class _ModernJobsList extends StatelessWidget {
     }
 
     return ListView.separated(
+      controller: scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       itemCount: jobs.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final job = jobs[index];
+        final isHighlighted = highlightedJobId != null && job.id == highlightedJobId;
         final listing = job.id != null ? listingsByJobId[job.id] : null;
         final badge = _badgeFor(job, currentUserId, listing);
         final listingId = listing != null ? listing['id']?.toString() : null;
@@ -750,19 +821,33 @@ class _ModernJobsList extends StatelessWidget {
         if (listingId != null && (job.status == 'in_progress' || job.status == 'completed' || job.status == 'awaiting_confirmation' || job.status == 'assigned')) {
           return Stack(
             children: [
-              ModernOrderCard(
-                orderId: job.id,
-                title: job.title,
-                description: job.description,
-                category: job.category,
-                region: job.location,
-                budget: job.awardedAmount ?? job.budgetAmount, // 낙찰 금액 우선 표시
-                status: job.status,
-                bidCount: bidCount > 0 ? bidCount : null,
-                onTap: () => _showJobDetail(context, job, listing),
-                actionButton: actionButton,
-                badges: badges,
-                customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 800),
+                decoration: BoxDecoration(
+                  border: isHighlighted ? Border.all(color: const Color(0xFF1E3A8A), width: 3) : null,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: isHighlighted ? [
+                    BoxShadow(
+                      color: const Color(0xFF1E3A8A).withOpacity(0.3),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ] : null,
+                ),
+                child: ModernOrderCard(
+                  orderId: job.id,
+                  title: job.title,
+                  description: job.description,
+                  category: job.category,
+                  region: job.location,
+                  budget: job.awardedAmount ?? job.budgetAmount, // 낙찰 금액 우선 표시
+                  status: job.status,
+                  bidCount: bidCount > 0 ? bidCount : null,
+                  onTap: () => _showJobDetail(context, job, listing),
+                  actionButton: actionButton,
+                  badges: badges,
+                  customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
+                ),
               ),
               Positioned(
                 top: 66,
@@ -830,19 +915,33 @@ class _ModernJobsList extends StatelessWidget {
           );
         }
         
-        return ModernOrderCard(
-          orderId: job.id,
-          title: job.title,
-          description: job.description,
-          category: job.category,
-          region: job.location,
-          budget: job.awardedAmount ?? job.budgetAmount, // 낙찰 금액 우선 표시
-          status: job.status,
-          customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
-          bidCount: bidCount > 0 ? bidCount : null,
-          onTap: () => _showJobDetail(context, job, listing),
-          actionButton: actionButton,
-          badges: badges,
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 800),
+          decoration: BoxDecoration(
+            border: isHighlighted ? Border.all(color: const Color(0xFF1E3A8A), width: 3) : null,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: isHighlighted ? [
+              BoxShadow(
+                color: const Color(0xFF1E3A8A).withOpacity(0.3),
+                blurRadius: 12,
+                spreadRadius: 2,
+              ),
+            ] : null,
+          ),
+          child: ModernOrderCard(
+            orderId: job.id,
+            title: job.title,
+            description: job.description,
+            category: job.category,
+            region: job.location,
+            budget: job.awardedAmount ?? job.budgetAmount, // 낙찰 금액 우선 표시
+            status: job.status,
+            customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
+            bidCount: bidCount > 0 ? bidCount : null,
+            onTap: () => _showJobDetail(context, job, listing),
+            actionButton: actionButton,
+            badges: badges,
+          ),
         );
       },
     );

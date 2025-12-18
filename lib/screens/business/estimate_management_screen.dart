@@ -797,7 +797,7 @@ class _EstimateManagementScreenState extends State<EstimateManagementScreen> {
     final currencyFormat = NumberFormat.currency(locale: 'ko_KR', symbol: '₩');
     
     // 수수료 계산 (기본 5% 가정)
-    final commissionRate = 0.05; // 5%
+    final commissionRate = 0.2; // 20%
     final commissionAmount = estimate.amount * commissionRate;
     final netAmount = estimate.amount - commissionAmount;
 

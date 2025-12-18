@@ -14,7 +14,14 @@ import '../chat_screen.dart'; // 추가
 /// - "진행 중" 필터에 걸린 공사들 (assigned 상태)
 /// - 입찰자 선택, 리뷰 작성 등 오더 소유자 기능
 class MyOrderManagementScreen extends StatefulWidget {
-  const MyOrderManagementScreen({Key? key}) : super(key: key);
+  final String? highlightedOrderId; // 포커싱할 오더 ID
+  final String? initialFilter; // 초기 필터 ('all', 'pending', 'in_progress', 'completed')
+  
+  const MyOrderManagementScreen({
+    Key? key, 
+    this.highlightedOrderId,
+    this.initialFilter,
+  }) : super(key: key);
 
   @override
   State<MyOrderManagementScreen> createState() => _MyOrderManagementScreenState();
@@ -23,12 +30,16 @@ class MyOrderManagementScreen extends StatefulWidget {
 class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
   List<Map<String, dynamic>> _myOrders = [];
   bool _isLoading = false;
-  String _filter = 'all'; // all, pending, in_progress, completed
+  late String _filter; // all, pending, in_progress, completed
   RealtimeChannel? _channel;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    
+    // 초기 필터 설정
+    _filter = widget.initialFilter ?? 'all';
     
     // 🔒 사업자 승인 상태 확인
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -82,6 +93,7 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
   @override
   void dispose() {
     _channel?.unsubscribe();
+    _scrollController.dispose();
     super.dispose();
   }
   
@@ -225,8 +237,55 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+        
+        // 🎯 포커싱: highlightedOrderId가 있으면 해당 오더로 스크롤
+        if (widget.highlightedOrderId != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToHighlightedOrder();
+          });
+        }
       }
     }
+  }
+
+  void _scrollToHighlightedOrder() {
+    if (widget.highlightedOrderId == null || !mounted) return;
+
+    // 약간의 지연을 두어 ListView가 완전히 빌드된 후 스크롤
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted || !_scrollController.hasClients) return;
+      
+      final index = _filteredOrders.indexWhere((order) => order['id']?.toString() == widget.highlightedOrderId);
+
+      print('🔍 [_scrollToHighlightedOrder] 찾는 중...');
+      print('   highlightedOrderId: ${widget.highlightedOrderId}');
+      print('   _filteredOrders 개수: ${_filteredOrders.length}');
+      print('   현재 필터: $_filter');
+      print('   찾은 index: $index');
+
+      if (index != -1) {
+        // 대략적인 아이템 높이 (카드 높이 + spacing)
+        const double itemHeight = 250.0;
+        final double offset = index * itemHeight;
+        final double maxScroll = _scrollController.position.maxScrollExtent;
+        
+        // 스크롤 범위를 초과하지 않도록 제한
+        final double targetOffset = offset > maxScroll ? maxScroll : offset;
+        
+        _scrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeInOutCubic,
+        );
+        
+        print('✅ [MyOrderManagement] ${widget.highlightedOrderId} 오더로 스크롤 (index: $index, offset: $targetOffset)');
+      } else {
+        print('⚠️ [MyOrderManagement] highlightedOrderId를 찾을 수 없음');
+        if (_filteredOrders.isNotEmpty) {
+          print('   첫 번째 오더 ID: ${_filteredOrders.first['id']}');
+        }
+      }
+    });
   }
 
   List<Map<String, dynamic>> get _filteredOrders {
@@ -293,12 +352,14 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                   child: _filteredOrders.isEmpty
                       ? _buildEmptyState()
                       : ListView.separated(
+                          controller: _scrollController,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           itemCount: _filteredOrders.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final order = _filteredOrders[index];
-                            return _buildOrderCard(order, me);
+                            final isHighlighted = widget.highlightedOrderId != null && order['id']?.toString() == widget.highlightedOrderId;
+                            return _buildOrderCard(order, me, isHighlighted);
                           },
                         ),
                 ),
@@ -460,7 +521,7 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     );
   }
 
-  Widget _buildOrderCard(Map<String, dynamic> order, String me) {
+  Widget _buildOrderCard(Map<String, dynamic> order, String me, [bool isHighlighted = false]) {
     final String title = order['title']?.toString() ?? '제목 없음';
     final String description = order['description']?.toString() ?? '';
     final String status = order['status']?.toString() ?? '';
@@ -483,12 +544,21 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
     // 상태 배지
     final badge = _getBadgeForStatus(status, bidCount, selectedBidderId, completedBy);
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 800),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
-        boxShadow: [
+        border: isHighlighted 
+            ? Border.all(color: const Color(0xFF1E3A8A), width: 3)
+            : Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: isHighlighted ? [
+          BoxShadow(
+            color: const Color(0xFF1E3A8A).withOpacity(0.3),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ] : [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
             blurRadius: 8,

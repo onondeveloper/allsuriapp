@@ -1,8 +1,7 @@
-import 'dart:async'; // Timer 사용을 위해 추가
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'custom_painters.dart';
 import '../screens/business/estimate_requests_screen.dart';
@@ -16,8 +15,6 @@ import '../screens/business/pending_approval_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
-import '../services/ad_service.dart';
-import '../models/ad.dart';
 import '../screens/home/home_screen.dart';
 import '../widgets/bottom_navigation.dart';
 import 'interactive_card.dart';
@@ -43,7 +40,6 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
   late Future<int> _completedJobsCountFuture;
   late Future<int> _myOrdersCountFuture;
   late Future<int> _myBidsCountFuture;
-  late Future<List<Ad>> _adFuture;
   
   RealtimeChannel? _marketplaceChannel;
   RealtimeChannel? _ordersChannel;
@@ -55,7 +51,6 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _adFuture = AdService().getActiveAds();
     _setupRealtimeListeners();
     
     // 웨이브 애니메이션 초기화
@@ -578,40 +573,16 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
     );
   }
 
-  Future<void> _launchUrl(String urlString) async {
-    try {
-      if (urlString.isEmpty) return;
-      final Uri url = Uri.parse(urlString);
-      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-        throw Exception('Could not launch $url');
-      }
-    } catch (e) {
-      print('❌ 링크 열기 실패: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('링크를 열 수 없습니다.')),
-      );
-    }
-  }
-
   Widget _buildAdBanner(BuildContext context) {
-    return FutureBuilder<List<Ad>>(
-      future: _adFuture,
-      builder: (context, snapshot) {
-        // 광고 데이터가 없어도 더미 데이터를 넣어서 슬라이드 기능 확인 (테스트용)
-        // 실제 배포 시에는 snapshot.hasData && snapshot.data!.isNotEmpty 체크 후 빈 리스트일 경우 숨김 처리 가능
-        final ads = (snapshot.hasData && snapshot.data!.isNotEmpty) 
-            ? snapshot.data! 
-            : [
-                Ad(id: '1', title: '광고 1: 올수리 프리미엄', imageUrl: '', linkUrl: 'https://allsuri.app'),
-                Ad(id: '2', title: '광고 2: 여름철 에어컨 점검', imageUrl: '', linkUrl: 'https://google.com'),
-                Ad(id: '3', title: '광고 3: 장마철 누수 대비', imageUrl: '', linkUrl: ''),
-              ];
+    // 2개의 광고 슬라이드
+    final ads = [
+      {'title': '광고 1'},
+      {'title': '광고 2'},
+    ];
 
-        return SizedBox(
-          height: 80, // 높이 80으로 축소
-          child: _DashboardAdCarousel(ads: ads),
-        );
-      },
+    return SizedBox(
+      height: 80,
+      child: _DashboardAdCarousel(ads: ads),
     );
   }
 
@@ -649,7 +620,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
 }
 
 class _DashboardAdCarousel extends StatefulWidget {
-  final List<Ad> ads;
+  final List<Map<String, dynamic>> ads;
   const _DashboardAdCarousel({Key? key, required this.ads}) : super(key: key);
 
   @override
@@ -688,16 +659,13 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
     super.dispose();
   }
 
-  Future<void> _launchUrl(String urlString) async {
-    try {
-      if (urlString.isEmpty) return;
-      final Uri url = Uri.parse(urlString);
-      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-        throw Exception('Could not launch $url');
-      }
-    } catch (e) {
-      print('❌ 링크 열기 실패: $e');
-    }
+  void _showAdInquiry() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('광고 문의: 010-8345-1912'),
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -716,7 +684,7 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
             itemBuilder: (context, index) {
               final ad = widget.ads[index];
               return GestureDetector(
-                onTap: () => _launchUrl(ad.linkUrl ?? ''),
+                onTap: _showAdInquiry,
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
@@ -726,7 +694,7 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
                   ),
                   child: Center(
                     child: Text(
-                      ad.title ?? '광고 ${index + 1}',
+                      ad['title'] ?? '광고 ${index + 1}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

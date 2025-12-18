@@ -279,6 +279,41 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
       print('✅ [OrderBiddersScreen] API 응답: $response');
 
       if (response['success'] == true) {
+        // 🔧 awarded_amount 업데이트 (오더 예산을 공사 금액으로 저장)
+        try {
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          print('💰 [OrderBiddersScreen] awarded_amount 업데이트 시작');
+          
+          // 1. marketplace_listings의 budget_amount 조회
+          final listingData = await Supabase.instance.client
+              .from('marketplace_listings')
+              .select('budget_amount')
+              .eq('id', widget.listingId)
+              .single();
+          
+          final budgetAmount = listingData['budget_amount'];
+          print('   오더 예산 금액: $budgetAmount');
+          
+          // 2. jobs 테이블의 awarded_amount 업데이트
+          if (budgetAmount != null && response['data']?['jobId'] != null) {
+            final jobId = response['data']['jobId'];
+            print('   Job ID: $jobId');
+            
+            await Supabase.instance.client
+                .from('jobs')
+                .update({'awarded_amount': budgetAmount})
+                .eq('id', jobId);
+            
+            print('✅ [OrderBiddersScreen] awarded_amount 업데이트 완료: $budgetAmount원');
+          } else {
+            print('⚠️ [OrderBiddersScreen] budgetAmount 또는 jobId가 없음');
+          }
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        } catch (amountErr) {
+          print('❌ [OrderBiddersScreen] awarded_amount 업데이트 실패 (무시됨): $amountErr');
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+        
         // 채팅방 생성 및 이동
         if (!mounted) return;
         
@@ -292,19 +327,26 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
 
         // 1️⃣ 낙찰 알림 발송
         try {
-          print('📤 [OrderBiddersScreen] 낙찰 알림 발송 중...');
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          print('📤 [OrderBiddersScreen] 낙찰 알림 발송 시작');
+          print('   수신자 ID: $bidderId');
+          print('   오더 제목: ${widget.orderTitle}');
+          print('   오더 ID: ${widget.listingId}');
+          
           final notificationService = NotificationService();
           await notificationService.sendNotification(
             userId: bidderId, // 낙찰받은 사업자에게
             title: '🎉 낙찰 축하드립니다!',
             body: '[${widget.orderTitle}] 오더에 낙찰되었습니다.',
-            type: 'bid_awarded',
+            type: 'bid_selected', // ⚠️ bid_awarded → bid_selected로 변경
             orderId: widget.listingId,
             jobTitle: widget.orderTitle,
           );
-          print('✅ [OrderBiddersScreen] 낙찰 알림 발송 완료');
+          print('✅ [OrderBiddersScreen] 낙찰 알림 발송 완료!');
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         } catch (notiErr) {
-          print('⚠️ [OrderBiddersScreen] 낙찰 알림 발송 실패 (무시됨): $notiErr');
+          print('❌ [OrderBiddersScreen] 낙찰 알림 발송 실패: $notiErr');
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
 
         // 2️⃣ 채팅방 생성/이동
@@ -484,7 +526,6 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                             bidderId: bid['bidder_id']?.toString() ?? '',
                             bidderName: bidderName,
                             avatarUrl: avatarUrl,
-                            estimatesCount: estimatesCount is int ? estimatesCount : int.tryParse(estimatesCount.toString()) ?? 0,
                             jobsCount: jobsCount is int ? jobsCount : int.tryParse(jobsCount.toString()) ?? 0,
                             message: message,
                             createdAt: createdAt,
@@ -502,7 +543,6 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
     required String bidderId,
     required String bidderName,
     String? avatarUrl,
-    required int estimatesCount,
     required int jobsCount,
     required String message,
     required String createdAt,
@@ -595,7 +635,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                             Icon(Icons.work_outline, size: 14, color: Colors.grey[600]),
                             const SizedBox(width: 4),
                             Text(
-                              '견적 $estimatesCount건 • 완료 $jobsCount건',
+                              '완료 $jobsCount건',
                               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                             ),
                           ],

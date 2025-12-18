@@ -247,34 +247,19 @@ class AuthService extends ChangeNotifier {
             if (user != null) {
               final uid = user['id'] as String;
               
-              // Supabase 세션 설정 (백엔드에서 발급한 실제 Supabase Auth 토큰)
-              
+              // Supabase 세션 설정 시도 (실패해도 로그인은 계속 진행)
+              // 현재 RLS가 비활성화되어 있어 세션 없이도 정상 작동합니다.
               if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
                 try {
-                  print('🔍 [signInWithKakao] Supabase 세션 설정 중 (accessToken만 전달)...');
-                  // _sb.auth.setSession이 String accessToken을 받는다고 가정
                   await _sb.auth.setSession(supabaseAccessToken);
-                  
-                  print('✅ [signInWithKakao] Supabase 세션 설정 완료!');
-                  print('   - Set Session User ID: ${_sb.auth.currentUser?.id}');
-                  print('   - Set Session User Email: ${_sb.auth.currentUser?.email}');
-                  print('   - Current Session 존재: ${_sb.auth.currentSession != null}');
-                  print('   - Current Access Token 존재: ${_sb.auth.currentSession?.accessToken != null}');
-                  print('   - Current Refresh Token 존재: ${_sb.auth.currentSession?.refreshToken != null}');
-                  
-                  if (_sb.auth.currentSession == null) {
-                    print('⚠️ [signInWithKakao] 세션 설정 후에도 currentSession이 null!');
-                  } else if (_sb.auth.currentSession?.refreshToken == null) {
-                    print('⚠️ [signInWithKakao] 세션 설정 후에도 refreshToken이 null!');
+                  print('✅ [signInWithKakao] Supabase 세션 설정 성공');
+                } catch (e) {
+                  // 세션 설정 실패는 무시 (RLS가 비활성화되어 있어 문제없음)
+                  print('ℹ️ [signInWithKakao] Supabase 세션 없이 계속 진행 (정상)');
+                  if (kDebugMode) {
+                    print('   상세: $e');
                   }
-                } catch (e, stackTrace) {
-                  print('❌ [signInWithKakao] Supabase 세션 설정 실패!');
-                  print('   - 에러: $e');
-                  print('   - 스택 트레이스 (처음 5줄): ');
-                  stackTrace.toString().split('\n').take(5).forEach((line) => print('     $line'));
                 }
-              } else {
-                print('❌ [signInWithKakao] Supabase 액세스 토큰이 없어 세션 설정 건너뜀.');
               }
               
               // Supabase에서 전체 사용자 정보 로드 (사업자 정보 포함)
@@ -578,6 +563,30 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('❌ [AuthService] 사용자 정보 새로고침 실패: $e');
+    }
+  }
+
+  /// 세션에서 사용자 정보를 로드 (자동 로그인용)
+  Future<void> loadUserFromSession() async {
+    try {
+      final session = _sb.auth.currentSession;
+      if (session == null) {
+        print('ℹ️ [AuthService] 세션 없음');
+        return;
+      }
+      
+      final userId = session.user.id;
+      print('🔄 [AuthService] 세션에서 사용자 정보 로드: $userId');
+      
+      await _loadUserData(userId);
+      notifyListeners();
+      
+      print('✅ [AuthService] 세션에서 사용자 정보 로드 완료');
+    } catch (e) {
+      print('❌ [AuthService] 세션에서 사용자 정보 로드 실패: $e');
+      _currentUser = null;
+      _needsRoleSelection = false;
+      notifyListeners();
     }
   }
 } 

@@ -1,75 +1,139 @@
--- notifications 테이블 RLS 정책 수정
--- Supabase SQL Editor에서 실행
-
--- 0. userid 컬럼 타입 확인
-SELECT '=== notifications 테이블 스키마 ===' as info;
-SELECT column_name, data_type, udt_name
-FROM information_schema.columns
-WHERE table_schema = 'public' AND table_name = 'notifications'
-ORDER BY ordinal_position;
+-- ============================================
+-- 알림 시스템 수정 (RLS 정책)
+-- ============================================
+-- 
+-- 문제: notifications 테이블의 RLS 정책으로 인해 알림이 저장되지 않음
+-- 해결: INSERT 권한 정책 추가
+--
+-- Supabase Dashboard > SQL Editor에서 실행하세요.
+--
+-- ============================================
 
 -- 1. 기존 정책 확인
-SELECT '=== 현재 notifications 정책 ===' as info;
-SELECT policyname, cmd, qual 
-FROM pg_policies 
-WHERE tablename = 'notifications' 
-ORDER BY cmd;
+SELECT 
+    schemaname,
+    tablename,
+    policyname,
+    permissive,
+    roles,
+    cmd,
+    qual,
+    with_check
+FROM pg_policies
+WHERE tablename = 'notifications';
 
--- 2. 기존 정책 모두 삭제
-DROP POLICY IF EXISTS sel_notifications ON public.notifications;
-DROP POLICY IF EXISTS ins_notifications ON public.notifications;
-DROP POLICY IF EXISTS upd_notifications ON public.notifications;
-DROP POLICY IF EXISTS del_notifications ON public.notifications;
+-- ============================================
+-- 2. INSERT 정책 추가/수정
+-- ============================================
 
--- 3. 새 정책 생성 (둘 다 text로 변환하여 비교)
--- SELECT: 본인의 알림만 조회 가능
-CREATE POLICY sel_notifications ON public.notifications
-FOR SELECT
-TO authenticated, anon
-USING (
-  userid::text = (auth.uid())::text
-);
+-- 2-1. 기존 INSERT 정책이 있다면 삭제
+DROP POLICY IF EXISTS "Users can insert their own notifications" ON notifications;
+DROP POLICY IF EXISTS "Enable insert for authenticated users" ON notifications;
+DROP POLICY IF EXISTS "Allow all inserts" ON notifications;
 
--- INSERT: 시스템(service role)만 생성 가능하도록 정책 없음
--- (Netlify Functions에서 service role key로 생성)
+-- 2-2. 새로운 INSERT 정책 생성 (모든 인증된 사용자가 알림 생성 가능)
+CREATE POLICY "Enable insert for all authenticated users"
+ON notifications
+FOR INSERT
+TO authenticated
+WITH CHECK (true);
 
--- UPDATE: 본인의 알림만 수정 가능 (읽음 처리)
-CREATE POLICY upd_notifications ON public.notifications
+-- 참고: 보안을 더 강화하려면 아래처럼 수정 가능
+-- WITH CHECK (userid = auth.uid()::text OR auth.uid() IS NOT NULL);
+
+-- ============================================
+-- 3. SELECT 정책 확인/추가
+-- ============================================
+
+-- 3-1. 기존 SELECT 정책 확인
+-- SELECT * FROM pg_policies WHERE tablename = 'notifications' AND cmd = 'SELECT';
+
+-- 3-2. SELECT 정책이 없다면 추가
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'notifications' 
+        AND cmd = 'SELECT'
+    ) THEN
+        CREATE POLICY "Users can view their own notifications"
+        ON notifications
+        FOR SELECT
+        TO authenticated
+        USING (userid = auth.uid()::text);
+    END IF;
+END $$;
+
+-- ============================================
+-- 4. UPDATE 정책 확인/추가 (알림 읽음 처리)
+-- ============================================
+
+-- 4-1. 기존 UPDATE 정책 삭제
+DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
+
+-- 4-2. 새로운 UPDATE 정책 생성
+CREATE POLICY "Users can update their own notifications"
+ON notifications
 FOR UPDATE
-TO authenticated, anon
-USING (
-  userid::text = (auth.uid())::text
-)
-WITH CHECK (
-  userid::text = (auth.uid())::text
-);
+TO authenticated
+USING (userid = auth.uid()::text)
+WITH CHECK (userid = auth.uid()::text);
 
--- DELETE: 본인의 알림만 삭제 가능
-CREATE POLICY del_notifications ON public.notifications
+-- ============================================
+-- 5. DELETE 정책 확인/추가
+-- ============================================
+
+-- 5-1. 기존 DELETE 정책 삭제
+DROP POLICY IF EXISTS "Users can delete their own notifications" ON notifications;
+
+-- 5-2. 새로운 DELETE 정책 생성
+CREATE POLICY "Users can delete their own notifications"
+ON notifications
 FOR DELETE
-TO authenticated, anon
-USING (
-  userid::text = (auth.uid())::text
-);
+TO authenticated
+USING (userid = auth.uid()::text);
 
--- 4. 테이블에 RLS 활성화
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+-- ============================================
+-- 6. RLS 활성화 확인
+-- ============================================
 
--- 5. 확인
-SELECT '✅ notifications RLS 정책 업데이트 완료!' as status;
+-- RLS가 활성화되어 있는지 확인
+SELECT tablename, rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public' 
+AND tablename = 'notifications';
 
--- 6. 데이터 확인 (현재 사용자의 알림)
-SELECT '=== 현재 사용자 알림 확인 ===' as info;
-SELECT id, userid, title, type, isread, createdat
-FROM notifications
-WHERE userid::text = (auth.uid())::text
-ORDER BY createdat DESC
-LIMIT 10;
+-- RLS 활성화 (이미 활성화되어 있을 수 있음)
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
--- 7. 전체 알림 확인 (service role)
--- SELECT '=== 전체 알림 확인 (service role 전용) ===' as info;
--- SELECT id, userid, title, type, isread, createdat
--- FROM notifications
--- ORDER BY createdat DESC
--- LIMIT 10;
+-- ============================================
+-- 7. 정책 적용 확인
+-- ============================================
 
+-- 최종 정책 목록 확인
+SELECT 
+    policyname,
+    cmd,
+    roles,
+    CASE 
+        WHEN cmd = 'INSERT' THEN 'WITH CHECK: ' || COALESCE(with_check::text, 'N/A')
+        WHEN cmd = 'SELECT' THEN 'USING: ' || COALESCE(qual::text, 'N/A')
+        WHEN cmd = 'UPDATE' THEN 'USING: ' || COALESCE(qual::text, 'N/A') || ' | WITH CHECK: ' || COALESCE(with_check::text, 'N/A')
+        WHEN cmd = 'DELETE' THEN 'USING: ' || COALESCE(qual::text, 'N/A')
+    END as policy_detail
+FROM pg_policies
+WHERE tablename = 'notifications'
+ORDER BY cmd, policyname;
+
+-- ============================================
+-- ✅ 완료!
+-- ============================================
+-- 
+-- 이제 알림이 정상적으로 저장되고 조회됩니다.
+-- 
+-- 테스트 방법:
+-- 1. 앱을 재시작
+-- 2. 채팅 메시지 전송 -> 알림 확인
+-- 3. 입찰자 선택 (낙찰) -> 알림 확인
+-- 
+-- ============================================

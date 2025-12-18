@@ -123,10 +123,10 @@ class EmptyOrdersWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return EmptyStateWidget(
-      title: '아직 입찰한 오더가 없어요',
-      message: '새로운 오더를 둘러보고\n첫 입찰을 시작해보세요!',
-      icon: Icons.work_outline,
-      actionButtonText: '오더 둘러보기',
+      title: '새로운 오더를 기다리고 있어요!',
+      message: '곧 새로운 공사 오더가 올라올 거예요.\n조금만 기다려주세요!',
+      icon: Icons.schedule_outlined,
+      actionButtonText: '새로고침',
       onActionPressed: onBrowseOrders,
     );
   }

@@ -12,8 +12,10 @@ class MarketplaceService extends ChangeNotifier {
     bool throwOnError = false,
     String? postedBy,
     String? claimedBy,
+    int? limit,
+    int? offset,
   }) async {
-    debugPrint('listListings 시작: status=$status, region=$region, category=$category');
+    debugPrint('listListings 시작: status=$status, limit=$limit, offset=$offset');
     try {
       // Join jobs to get commission_rate for display
       var query = _sb.from('marketplace_listings').select('*, jobs(commission_rate)');
@@ -45,7 +47,19 @@ class MarketplaceService extends ChangeNotifier {
       
       debugPrint('listListings: 쿼리 실행 중...');
       debugPrint('listListings: 현재 사용자 ID - ${_sb.auth.currentUser?.id}');
-      final data = await query.order('createdat', ascending: false);
+      
+      // ⚡ 성능 개선: 페이지네이션 및 정렬
+      var transformedQuery = query.order('createdat', ascending: false);
+      
+      if (limit != null && offset != null) {
+        debugPrint('listListings: range 추가 - offset: $offset, limit: $limit');
+        transformedQuery = transformedQuery.range(offset, offset + limit - 1);
+      } else if (limit != null) {
+        debugPrint('listListings: limit 추가 - $limit');
+        transformedQuery = transformedQuery.limit(limit);
+      }
+      
+      final data = await transformedQuery;
       debugPrint('listListings: 쿼리 결과 - ${data.length}개 행');
       
       // 각 레코드의 상세 정보 로깅

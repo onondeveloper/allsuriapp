@@ -24,6 +24,8 @@ class _ChatListPageState extends State<ChatListPage> {
   }
 
   Future<void> _loadChatRooms() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
     });
@@ -32,26 +34,34 @@ class _ChatListPageState extends State<ChatListPage> {
       final auth = Provider.of<AuthService>(context, listen: false);
       final chatService = Provider.of<ChatService>(context, listen: false);
       final userId = auth.currentUser?.id ?? '';
+      
       if (userId.isEmpty) {
-        setState(() {
-          _chatRooms = [];
-        });
+        if (mounted) {
+          setState(() {
+            _chatRooms = [];
+          });
+        }
       } else {
         final chatRooms = await chatService.getChatRooms(userId);
         print('📱 [ChatListPage] 로드된 채팅방: ${chatRooms.length}개');
         for (var room in chatRooms) {
           print('   - ${room['displayName']}: orderTitle=${room['orderTitle']}, listingid=${room['listingid']}');
         }
-        setState(() {
-          _chatRooms = chatRooms;
-        });
+        
+        if (mounted) {
+          setState(() {
+            _chatRooms = chatRooms;
+          });
+        }
       }
     } catch (e) {
       print('채팅방 로드 오류: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -178,13 +188,15 @@ class _ChatListPageState extends State<ChatListPage> {
   Widget _buildChatItem(BuildContext context, Map<String, dynamic> chatRoom) {
     return CupertinoButton(
       padding: EdgeInsets.zero,
-      onPressed: () {
-        Navigator.push(
+      onPressed: () async {
+        await Navigator.push(
           context,
           CupertinoPageRoute(
             builder: (context) => ChatScreen(chatRoomId: chatRoom['id']),
           ),
         );
+        // 채팅방에서 돌아온 후 리스트 새로고침 (읽음 처리 반영)
+        _loadChatRooms();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),

@@ -4,6 +4,7 @@ import '../../models/user.dart';
 import '../../services/auth_service.dart';
 import '../business/business_profile_screen.dart';
 import '../admin/ad_management_screen.dart';
+import 'my_revenue_screen.dart';
 import 'package:app_settings/app_settings.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -265,6 +266,19 @@ class ProfileScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const BusinessProfileScreen()),
+              );
+            },
+          ),
+        // 사업자 매출 메뉴 (사업자만 표시)
+        if (user.role == 'business' && user.businessStatus == 'approved')
+          _buildActionTile(
+            context,
+            Icons.analytics_outlined,
+            '내 매출',
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MyRevenueScreen()),
               );
             },
           ),

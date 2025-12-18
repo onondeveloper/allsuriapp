@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../utils/navigation_utils.dart';
-import '../screens/notification_history_screen.dart';
+import '../screens/notification/notification_screen.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -179,7 +179,7 @@ class _NotificationButtonState extends State<_NotificationButton> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const NotificationHistoryScreen(),
+            builder: (context) => const NotificationScreen(),
           ),
         );
         // 알림 화면에서 돌아오면 읽지 않은 개수 다시 로드

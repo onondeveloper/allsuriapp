@@ -17,12 +17,9 @@ import '../services/notification_service.dart';
 import '../services/marketplace_service.dart';
 import '../services/order_service.dart';
 import '../services/api_service.dart';
-import '../services/ad_service.dart';
-import '../models/ad.dart';
 import '../screens/home/home_screen.dart';
 import '../widgets/bottom_navigation.dart';
 import '../screens/community/community_board_screen.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// 프로페셔널 스타일 C - 데이터 중심 대시보드
 class ProfessionalDashboard extends StatefulWidget {
@@ -37,7 +34,6 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
   final MarketplaceService _market = MarketplaceService();
   
   late Future<Map<String, int>> _dashboardDataFuture;
-  late Future<List<Ad>> _adFuture;
   
   RealtimeChannel? _marketplaceChannel;
   RealtimeChannel? _ordersChannel;
@@ -45,7 +41,6 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
   @override
   void initState() {
     super.initState();
-    _adFuture = AdService().getAdsByLocation('dashboard_banner');
     _setupRealtimeListeners();
     _refreshData();
   }
@@ -97,12 +92,21 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
 
   Future<Map<String, int>> _loadDashboardData() async {
     try {
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🚀 [ProfessionalDashboard] 대시보드 데이터 로드 시작');
+      
       final authService = Provider.of<AuthService>(context, listen: false);
       final currentUserId = authService.currentUser?.id;
       
-      if (currentUserId == null) return {};
+      print('   userId: $currentUserId');
+      
+      if (currentUserId == null) {
+        print('❌ [ProfessionalDashboard] userId가 null');
+        return {};
+      }
       
       // 병렬로 데이터 로드
+      print('   병렬 로드 시작...');
       final results = await Future.wait([
         _getCompletedJobsCount(currentUserId),
         _getInProgressJobsCount(currentUserId),
@@ -111,13 +115,24 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
         _getMyOrdersCount(currentUserId),
       ]);
       
-      return {
+      final data = {
         'completed': results[0],
         'inProgress': results[1],
         'newOrders': results[2],
         'myBids': results[3],
         'myOrders': results[4],
       };
+      
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('✅ [ProfessionalDashboard] 로드 완료:');
+      print('   완료한 공사: ${data['completed']}');
+      print('   진행 중: ${data['inProgress']}');
+      print('   새 오더: ${data['newOrders']}');
+      print('   입찰 대기 중: ${data['myBids']}');
+      print('   내 오더: ${data['myOrders']}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      return data;
     } catch (e) {
       print('❌ [_loadDashboardData] 에러: $e');
       return {};
@@ -126,111 +141,95 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
 
   Future<int> _getCompletedJobsCount(String userId) async {
     try {
-      final user = await Supabase.instance.client
-          .from('users')
-          .select('jobs_accepted_count')
-          .eq('id', userId)
-          .single();
-      return user['jobs_accepted_count'] as int? ?? 0;
-    } catch (_) {
+      // 실제 완료된 공사 카운트 (매출 페이지와 동일한 로직)
+      final response = await Supabase.instance.client
+          .from('jobs')
+          .select('id')
+          .eq('assigned_business_id', userId)
+          .inFilter('status', ['completed', 'awaiting_confirmation'])
+          .count(CountOption.exact);
+      
+      print('🔍 [_getCompletedJobsCount] 완료한 공사: ${response.count}개');
+      return response.count;
+    } catch (e) {
+      print('❌ [_getCompletedJobsCount] 에러: $e');
       return 0;
     }
   }
 
+  // ⚡ 성능 개선: count 쿼리 최적화
   Future<int> _getInProgressJobsCount(String userId) async {
     try {
       final response = await Supabase.instance.client
           .from('jobs')
-          .select('*')
+          .select('id')
           .eq('assigned_business_id', userId)
           .eq('status', 'in_progress')
           .count(CountOption.exact);
       return response.count;
-    } catch (_) {
+    } catch (e) {
+      print('❌ [_getInProgressJobsCount] 에러: $e');
       return 0;
     }
   }
 
+  // ⚡ 성능 개선: 서버사이드 필터링 및 count 쿼리 최적화
   Future<int> _getNewOrdersCount(String userId) async {
     try {
-      return await _market.countListings(
-        status: 'all',
-        excludePostedBy: userId,
-      );
-    } catch (_) {
+      final response = await Supabase.instance.client
+          .from('marketplace_listings')
+          .select('id')
+          .inFilter('status', ['open', 'created'])
+          .neq('posted_by', userId)
+          .count(CountOption.exact);
+      
+      return response.count;
+    } catch (e) {
+      print('❌ [_getNewOrdersCount] 에러: $e');
       return 0;
     }
   }
 
+  // ⚡ 성능 개선: 이중 쿼리 제거, 서버에서 직접 count
   Future<int> _getMyBidsCount(String userId) async {
     try {
-      final api = ApiService();
-      final response = await api.get(
-        '/market/bids?bidderId=$userId&statuses=pending,selected,awaiting_confirmation',
-      );
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🔍 [_getMyBidsCount] 입찰 대기 중 카운트 시작');
+      print('   userId: $userId');
+      print('   현재 시각: ${DateTime.now()}');
       
-      if (response['success'] == true) {
-        final bids = List<Map<String, dynamic>>.from(response['data'] ?? []);
-        
-        final uniqueListingIds = bids
-            .map((b) => b['listing_id']?.toString())
-            .where((id) => id != null && id.isNotEmpty)
-            .toSet();
-            
-        if (uniqueListingIds.isNotEmpty) {
-          final listings = await Supabase.instance.client
-              .from('marketplace_listings')
-              .select('id, status')
-              .inFilter('id', uniqueListingIds.toList());
-              
-          final activeListings = listings.where((l) {
-            final status = l['status']?.toString();
-            return status == 'open' || status == 'created';
-          }).length;
-          
-          return activeListings;
-        }
-            
-        return 0;
+      // 디버그: 모든 입찰 먼저 확인 (더 상세한 정보)
+      final allBids = await Supabase.instance.client
+          .from('order_bids')
+          .select('id, listing_id, bidder_id, status, created_at')
+          .eq('bidder_id', userId)
+          .order('created_at', ascending: false);
+      
+      print('   전체 입찰: ${allBids.length}개');
+      if (allBids.isEmpty) {
+        print('   ⚠️ 이 사용자의 입찰이 order_bids 테이블에 없습니다!');
       } else {
-        return await _getMyBidsCountFallback(userId);
+        for (var bid in allBids) {
+          print('      입찰 ID: ${bid['id']}');
+          print('         listing_id: ${bid['listing_id']}');
+          print('         status: ${bid['status']}');
+          print('         created_at: ${bid['created_at']}');
+        }
       }
+      
+      // pending 상태만 카운트
+      final response = await Supabase.instance.client
+          .from('order_bids')
+          .select('listing_id')
+          .eq('bidder_id', userId)
+          .eq('status', 'pending')
+          .count(CountOption.exact);
+      
+      print('   ✅ pending 상태 입찰: ${response.count}개');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      return response.count;
     } catch (e) {
       print('❌ [_getMyBidsCount] 에러: $e');
-      return await _getMyBidsCountFallback(userId);
-    }
-  }
-
-  Future<int> _getMyBidsCountFallback(String userId) async {
-    try {
-      final bids = await Supabase.instance.client
-          .from('order_bids')
-          .select('listing_id, status')
-          .eq('bidder_id', userId);
-          
-      final uniqueIds = <String>{};
-      for (final bid in bids) {
-        final status = bid['status']?.toString() ?? '';
-        if (status == 'pending') {
-          final listingId = bid['listing_id']?.toString();
-          if (listingId != null) uniqueIds.add(listingId);
-        }
-      }
-      
-      if (uniqueIds.isEmpty) return 0;
-      
-      final listings = await Supabase.instance.client
-          .from('marketplace_listings')
-          .select('id, status')
-          .inFilter('id', uniqueIds.toList());
-          
-      final activeListings = listings.where((l) {
-        final status = l['status']?.toString();
-        return status == 'open' || status == 'created';
-      }).length;
-      
-      return activeListings;
-    } catch (_) {
       return 0;
     }
   }
@@ -413,9 +412,9 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
           child: _buildKPICard(
             '완료한 공사',
             data['completed'] ?? 0,
-            Icons.check_circle_outline,
-            const Color(0xFF10B981),
-            '+12%',
+            Icons.check_circle,
+            const Color(0xFFCCF5F5), // 아주 연한 민트 (초연한 파스텔)
+            null, // trend
             () {
               // 완료된 공사 필터로 내 공사 관리 화면 열기
               Navigator.push(context, MaterialPageRoute(builder: (context) => const JobManagementScreen()));
@@ -427,8 +426,8 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
           child: _buildKPICard(
             '진행 중',
             data['inProgress'] ?? 0,
-            Icons.hourglass_empty,
-            const Color(0xFFF59E0B),
+            Icons.construction,
+            const Color(0xFFEDE9FE), // 아주 연한 라벤더 (초연한 파스텔)
             null,
             () {
               // 진행 중 필터로 내 공사 관리 화면 열기
@@ -439,10 +438,10 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
         const SizedBox(width: 12),
         Expanded(
           child: _buildKPICard(
-            '입찰 대기',
+            '낙찰 대기',
             data['myBids'] ?? 0,
-            Icons.timer_outlined,
-            const Color(0xFF3B82F6),
+            Icons.access_time,
+            const Color(0xFFFEE2E2), // 아주 연한 핑크 (초연한 파스텔)
             null,
             () {
               // 오더 마켓플레이스로 이동 (내가 입찰한 오더들)
@@ -455,51 +454,98 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
   }
 
   Widget _buildKPICard(String title, int value, IconData icon, Color color, String? trend, VoidCallback onTap) {
+    // 색상에 따라 그라데이션 및 텍스트 색상 결정 (초연한 파스텔 톤)
+    List<Color> gradientColors;
+    Color textColor;
+    Color iconColor;
+    
+    if (color == const Color(0xFFCCF5F5)) {
+      // 완료한 공사 - 아주 연한 민트
+      gradientColors = [const Color(0xFFCCF5F5), const Color(0xFFB2F5EA)];
+      textColor = const Color(0xFF0D9488); // 진한 민트 (가독성)
+      iconColor = const Color(0xFF14B8A6);
+    } else if (color == const Color(0xFFEDE9FE)) {
+      // 진행 중 - 아주 연한 라벤더
+      gradientColors = [const Color(0xFFEDE9FE), const Color(0xFFDDD6FE)];
+      textColor = const Color(0xFF7C3AED); // 진한 보라 (가독성)
+      iconColor = const Color(0xFF8B5CF6);
+    } else if (color == const Color(0xFFFEE2E2)) {
+      // 낙찰 대기 - 아주 연한 핑크
+      gradientColors = [const Color(0xFFFEE2E2), const Color(0xFFFECACA)];
+      textColor = const Color(0xFFDC2626); // 진한 핑크/레드 (가독성)
+      iconColor = const Color(0xFFEF4444);
+    } else {
+      gradientColors = [color, color];
+      textColor = Colors.white;
+      iconColor = Colors.white;
+    }
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08), // 초연한 파스텔 톤에 맞게 그림자 더 연하게
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.15), // 아이콘 색상 톤의 연한 배경
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
+            const SizedBox(height: 16),
             Text(
               value.toString(),
-              style: const TextStyle(
-                fontSize: 28,
+              style: TextStyle(
+                fontSize: 32,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF1E3A8A),
+                color: textColor,
+                height: 1.0,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               title,
               style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
+                fontSize: 12,
+                color: textColor.withOpacity(0.7),
+                fontWeight: FontWeight.w600,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             if (trend != null) ...[
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  color: textColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   trend,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
-                    color: Color(0xFF10B981),
+                    color: textColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -516,14 +562,6 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '주요 메뉴',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1E3A8A),
-          ),
-        ),
         const SizedBox(height: 12),
         _buildMenuItem(
           context,
@@ -660,30 +698,22 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
   }
 
   Widget _buildAdBanner(BuildContext context) {
-    return FutureBuilder<List<Ad>>(
-      future: _adFuture,
-      builder: (context, snapshot) {
-        // 광고 데이터가 없어도 더미 데이터를 넣어서 슬라이드 기능 확인 (테스트용)
-        final ads = (snapshot.hasData && snapshot.data!.isNotEmpty) 
-            ? snapshot.data! 
-            : [
-                Ad(id: '1', title: '광고 1: 올수리 프리미엄', imageUrl: '', linkUrl: 'https://allsuri.app', location: 'dashboard_banner'),
-                Ad(id: '2', title: '광고 2: 여름철 에어컨 점검', imageUrl: '', linkUrl: 'https://google.com', location: 'dashboard_banner'),
-                Ad(id: '3', title: '광고 3: 장마철 누수 대비', imageUrl: '', linkUrl: '', location: 'dashboard_banner'),
-              ];
+    // 2개의 광고 슬라이드
+    final ads = [
+      {'title': '광고 1'},
+      {'title': '광고 2'},
+    ];
 
-        return SizedBox(
-          height: 80,
-          child: _DashboardAdCarousel(ads: ads),
-        );
-      },
+    return SizedBox(
+      height: 80,
+      child: _DashboardAdCarousel(ads: ads),
     );
   }
 
 }
 
 class _DashboardAdCarousel extends StatefulWidget {
-  final List<Ad> ads;
+  final List<Map<String, dynamic>> ads;
   const _DashboardAdCarousel({Key? key, required this.ads}) : super(key: key);
 
   @override
@@ -722,16 +752,13 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
     super.dispose();
   }
 
-  Future<void> _launchUrl(String urlString) async {
-    try {
-      if (urlString.isEmpty) return;
-      final Uri url = Uri.parse(urlString);
-      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-        throw Exception('Could not launch $url');
-      }
-    } catch (e) {
-      print('❌ 링크 열기 실패: $e');
-    }
+  void _showAdInquiry() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('광고 문의: 010-8345-1912'),
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -750,7 +777,7 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
             itemBuilder: (context, index) {
               final ad = widget.ads[index];
               return GestureDetector(
-                onTap: () => _launchUrl(ad.linkUrl ?? ''),
+                onTap: _showAdInquiry,
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
@@ -760,7 +787,7 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
                   ),
                   child: Center(
                     child: Text(
-                      ad.title ?? '광고 ${index + 1}',
+                      ad['title'] ?? '광고 ${index + 1}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -794,4 +821,5 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
     );
   }
 }
+
 
