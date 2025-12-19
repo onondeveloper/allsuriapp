@@ -56,10 +56,26 @@ async function apiCall(endpoint, options = {}) {
     try {
         const response = await fetch(url, config);
         if (!response.ok) {
+            let errorMessage = `HTTP error! status: ${response.status}`;
+            try {
+                const errorData = await response.json();
+                console.error('[API CALL] Error response:', errorData);
+                if (errorData.error) {
+                    errorMessage += `\n에러: ${errorData.error}`;
+                }
+                if (errorData.details) {
+                    errorMessage += `\n상세: ${errorData.details}`;
+                }
+                if (errorData.message) {
+                    errorMessage += `\n메시지: ${errorData.message}`;
+                }
+            } catch (e) {
+                console.error('[API CALL] Could not parse error response');
+            }
             if (response.status === 401) {
                 throw new Error('관리자 권한이 필요합니다. ADMIN_TOKEN을 확인해주세요.');
             }
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(errorMessage);
         }
         return await response.json();
     } catch (error) {

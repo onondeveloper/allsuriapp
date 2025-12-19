@@ -86,33 +86,64 @@ router.get('/ads', requireRole('developer', 'staff'), async (req, res) => {
 
 router.post('/ads', requireRole('developer', 'staff'), async (req, res) => {
   try {
+    console.log('[ADMIN] POST /ads - Received payload:', req.body);
     const payload = req.body || {};
     payload.createdat = new Date().toISOString();
+    console.log('[ADMIN] POST /ads - Inserting payload:', payload);
     const { data, error } = await supabase.from('ads').insert(payload).select('*').single();
-    if (error) throw error;
+    if (error) {
+      console.error('[ADMIN] POST /ads - Supabase error:', error);
+      throw error;
+    }
+    console.log('[ADMIN] POST /ads - Success:', data);
     res.status(201).json(data);
   } catch (e) {
-    res.status(500).json({ message: '광고 생성 실패' });
+    console.error('[ADMIN] POST /ads - Error:', e);
+    res.status(500).json({ 
+      message: '광고 생성 실패', 
+      error: e.message || e.toString(),
+      details: e.details || e.hint || null
+    });
   }
 });
 
 router.put('/ads/:id', requireRole('developer', 'staff'), async (req, res) => {
   try {
+    console.log('[ADMIN] PUT /ads/:id - ID:', req.params.id, 'Payload:', req.body);
     const { data, error } = await supabase.from('ads').update(req.body || {}).eq('id', req.params.id).select('*').maybeSingle();
-    if (error) throw error;
+    if (error) {
+      console.error('[ADMIN] PUT /ads/:id - Supabase error:', error);
+      throw error;
+    }
+    console.log('[ADMIN] PUT /ads/:id - Success:', data);
     res.json(data);
   } catch (e) {
-    res.status(500).json({ message: '광고 업데이트 실패' });
+    console.error('[ADMIN] PUT /ads/:id - Error:', e);
+    res.status(500).json({ 
+      message: '광고 업데이트 실패',
+      error: e.message || e.toString(),
+      details: e.details || e.hint || null
+    });
   }
 });
 
 router.delete('/ads/:id', requireRole('developer'), async (req, res) => {
   try {
+    console.log('[ADMIN] DELETE /ads/:id - ID:', req.params.id);
     const { error } = await supabase.from('ads').delete().eq('id', req.params.id);
-    if (error) throw error;
+    if (error) {
+      console.error('[ADMIN] DELETE /ads/:id - Supabase error:', error);
+      throw error;
+    }
+    console.log('[ADMIN] DELETE /ads/:id - Success');
     res.json({ message: '광고 삭제 완료' });
   } catch (e) {
-    res.status(500).json({ message: '광고 삭제 실패' });
+    console.error('[ADMIN] DELETE /ads/:id - Error:', e);
+    res.status(500).json({ 
+      message: '광고 삭제 실패',
+      error: e.message || e.toString(),
+      details: e.details || e.hint || null
+    });
   }
 });
 
