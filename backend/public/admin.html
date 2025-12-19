@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>올수리 관리자 대시보드</title>
+    <!-- Version: 3.0 - 2024-12-19 UPDATE -->
     <!-- Google Material Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -906,7 +910,7 @@
                                 <span class="material-icons">campaign</span>
                                 광고 관리
                             </h2>
-                            <button class="btn btn-primary btn-sm" id="btnNewAd" onclick="showAdModal()">
+                            <button class="btn btn-primary btn-sm" id="btnNewAd">
                                 <span class="material-icons">add</span>
                                 새 광고
                             </button>
@@ -973,7 +977,7 @@
 
     <!-- Ad Modal -->
     <div id="adModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
                 <h3 class="modal-title" id="adModalTitle">새 광고</h3>
                 <button class="modal-close" onclick="closeAdModal()">
@@ -983,35 +987,104 @@
             <div class="modal-body">
                 <form id="adForm">
                     <input type="hidden" id="adId">
+                    
+                    <!-- 제목 -->
                     <div style="margin-bottom: 1rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">제목</label>
-                        <input type="text" id="adTitle" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300); border-radius: 6px;" required>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                            광고 제목 <span style="color: var(--danger);">*</span>
+                        </label>
+                        <input type="text" id="adTitle" 
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 1rem;" 
+                            placeholder="예: 여름철 에어컨 점검" required>
                     </div>
+                    
+                    <!-- 광고 위치 -->
                     <div style="margin-bottom: 1rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">링크 URL</label>
-                        <input type="url" id="adLink" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300); border-radius: 6px;" required>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                            광고 위치 <span style="color: var(--danger);">*</span>
+                        </label>
+                        <select id="adLocation" 
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 1rem;"
+                            onchange="updateLocationGuide(this.value)">
+                            <option value="home_banner">📱 홈 화면 배너</option>
+                            <option value="dashboard_ad_1">🎯 대시보드 광고 1</option>
+                            <option value="dashboard_ad_2">🎯 대시보드 광고 2</option>
+                        </select>
+                        <div id="locationGuide" style="margin-top: 0.5rem; padding: 0.75rem; background: var(--info-light); border-radius: 6px; font-size: 0.875rem; color: var(--gray-700);">
+                            📱 홈 화면 상단 배너 (권장: 1200×400px, 3:1 비율)
+                        </div>
                     </div>
+                    
+                    <!-- 링크 URL -->
                     <div style="margin-bottom: 1rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">이미지 URL</label>
-                        <input type="url" id="adImage" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300); border-radius: 6px;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                            링크 URL <span style="color: var(--gray-500); font-size: 0.875rem;">(선택)</span>
+                        </label>
+                        <input type="url" id="adLink" 
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 1rem;"
+                            placeholder="https://example.com">
+                        <small style="color: var(--gray-500); font-size: 0.75rem;">클릭 시 이동할 URL (비워두면 광고 문의 메시지 표시)</small>
                     </div>
+                    
+                    <!-- 이미지 규격 안내 -->
+                    <div style="margin-bottom: 1rem; padding: 1rem; background: var(--warning-light); border-left: 4px solid var(--warning); border-radius: 6px;">
+                        <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--gray-800); display: flex; align-items: center; gap: 0.5rem;">
+                            <span class="material-icons" style="font-size: 1.25rem;">info</span>
+                            📐 이미지 규격 안내
+                        </div>
+                        <ul style="margin: 0; padding-left: 1.5rem; font-size: 0.875rem; color: var(--gray-700); line-height: 1.6;">
+                            <li><strong>홈 화면 배너:</strong> 1200 × 400px (3:1 비율)</li>
+                            <li><strong>대시보드 광고:</strong> 800 × 200px (4:1 비율)</li>
+                            <li><strong>파일 형식:</strong> JPG, PNG 권장</li>
+                            <li><strong>최대 크기:</strong> 2MB 이하</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- 이미지 URL -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                            이미지 URL <span style="color: var(--gray-500); font-size: 0.875rem;">(Supabase Storage URL)</span>
+                        </label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="url" id="adImageUrl" 
+                                style="flex: 1; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 1rem;"
+                                placeholder="https://..."
+                                onchange="previewAdImage()">
+                            <button type="button" class="btn btn-secondary" onclick="previewAdImage()">
+                                <span class="material-icons" style="font-size: 1rem;">visibility</span>
+                                미리보기
+                            </button>
+                        </div>
+                        <small style="color: var(--gray-500); font-size: 0.75rem;">
+                            💡 Supabase Storage의 public 버킷에 이미지를 업로드하고 Public URL을 붙여넣으세요
+                        </small>
+                    </div>
+                    
+                    <!-- 이미지 미리보기 -->
+                    <div id="adImagePreview" style="margin-bottom: 1rem;"></div>
+                    
+                    <!-- 활성 상태 -->
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">활성 상태</label>
-                        <select id="adActive" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300); border-radius: 6px;">
-                            <option value="true">활성</option>
-                            <option value="false">비활성</option>
+                        <select id="adActive" 
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 1rem;">
+                            <option value="true">✅ 활성 (앱에 표시됨)</option>
+                            <option value="false">❌ 비활성 (숨김)</option>
                         </select>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeAdModal()">취소</button>
-                <button class="btn btn-primary" onclick="saveAd()">저장</button>
+                <button class="btn btn-primary" onclick="saveAd()">
+                    <span class="material-icons" style="font-size: 1rem;">save</span>
+                    저장
+                </button>
             </div>
         </div>
     </div>
 
-    <script src="admin.js"></script>
+    <script src="admin.js?v=3&t=20241219"></script>
     <script>
         // Section Navigation
         function showSection(sectionName) {

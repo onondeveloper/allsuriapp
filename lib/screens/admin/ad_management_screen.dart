@@ -31,6 +31,32 @@ class _AdManagementScreenState extends State<AdManagementScreen> {
     });
   }
 
+  String _getLocationGuide(String location) {
+    switch (location) {
+      case 'home_banner':
+        return '📱 홈 화면 상단에 표시되는 메인 배너\n권장 크기: 1200×400px (3:1 비율)';
+      case 'dashboard_ad_1':
+        return '🎯 대시보드 광고 슬라이드 1번\n권장 크기: 800×200px (4:1 비율)';
+      case 'dashboard_ad_2':
+        return '🎯 대시보드 광고 슬라이드 2번\n권장 크기: 800×200px (4:1 비율)';
+      default:
+        return '광고 위치를 선택해주세요';
+    }
+  }
+
+  String _getLocationLabel(String location) {
+    switch (location) {
+      case 'home_banner':
+        return '📱 홈 화면 배너';
+      case 'dashboard_ad_1':
+        return '🎯 대시보드 광고 1';
+      case 'dashboard_ad_2':
+        return '🎯 대시보드 광고 2';
+      default:
+        return location;
+    }
+  }
+
   Future<void> _showAddEditDialog({Ad? ad}) async {
     final titleController = TextEditingController(text: ad?.title ?? '');
     final linkController = TextEditingController(text: ad?.linkUrl ?? '');
@@ -73,8 +99,9 @@ class _AdManagementScreenState extends State<AdManagementScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'home_banner', child: Text('홈 배너')),
-                      DropdownMenuItem(value: 'dashboard_banner', child: Text('대시보드 배너')),
+                      DropdownMenuItem(value: 'home_banner', child: Text('📱 홈 화면 배너')),
+                      DropdownMenuItem(value: 'dashboard_ad_1', child: Text('🎯 대시보드 광고 1')),
+                      DropdownMenuItem(value: 'dashboard_ad_2', child: Text('🎯 대시보드 광고 2')),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -83,6 +110,26 @@ class _AdManagementScreenState extends State<AdManagementScreen> {
                         });
                       }
                     },
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _getLocationGuide(location),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -100,6 +147,40 @@ class _AdManagementScreenState extends State<AdManagementScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text('광고 이미지', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '📐 이미지 규격 안내',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          '• 홈 화면: 1200 x 400px (3:1 비율)\n'
+                          '• 대시보드: 800 x 200px (4:1 비율)\n'
+                          '• 파일 형식: JPG, PNG\n'
+                          '• 최대 크기: 2MB',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.black87,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   if (imageUrl != null && imageFile == null)
                     Container(
@@ -386,7 +467,13 @@ class _AdManagementScreenState extends State<AdManagementScreen> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('위치: ${ad.location == 'home_banner' ? '홈 배너' : '대시보드 배너'}'),
+                      Text('위치: ${_getLocationLabel(ad.location)}'),
+                      if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty)
+                        Text('🔗 ${ad.linkUrl}', 
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       Text('상태: ${ad.isActive ? '✅ 활성' : '❌ 비활성'}'),
                     ],
                   ),

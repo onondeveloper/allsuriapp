@@ -124,13 +124,75 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
         specialties: _selectedSpecialties,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('프로필이 성공적으로 저장되었습니다.'),
-          backgroundColor: Colors.green,
+      
+      // 🎉 환영 메시지 표시 (다이얼로그)
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.celebration, color: Theme.of(context).primaryColor, size: 28),
+              const SizedBox(width: 12),
+              const Text('환영합니다!'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${bizName} 님의 가입을 진심으로 환영합니다!',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '이제 올수리의 모든 기능을 사용하실 수 있습니다.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '💡 시작하기',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '• 견적 요청 확인하기\n'
+                      '• 오더 마켓플레이스에서 입찰하기\n'
+                      '• 고객과 채팅으로 소통하기',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // 다이얼로그 닫기
+                context.pop(); // 프로필 화면 닫기
+              },
+              child: const Text('시작하기', style: TextStyle(fontSize: 16)),
+            ),
+          ],
         ),
       );
-      context.pop();
     } catch (e) {
       if (mounted) {
         final msg = e.toString();

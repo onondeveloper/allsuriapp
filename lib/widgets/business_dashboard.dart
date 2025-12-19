@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 import 'custom_painters.dart';
+import '../services/ad_service.dart';
+import '../models/ad.dart';
 import '../screens/business/estimate_requests_screen.dart';
 import '../screens/business/estimate_management_screen.dart';
 import '../screens/business/transfer_estimate_screen.dart';
@@ -574,15 +577,53 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
   }
 
   Widget _buildAdBanner(BuildContext context) {
-    // 2개의 광고 슬라이드
-    final ads = [
-      {'title': '광고 1'},
-      {'title': '광고 2'},
-    ];
-
-    return SizedBox(
-      height: 80,
-      child: _DashboardAdCarousel(ads: ads),
+    return FutureBuilder<List<Ad>>(
+      future: Future.wait([
+        AdService().getAdsByLocation('dashboard_ad_1'),
+        AdService().getAdsByLocation('dashboard_ad_2'),
+      ]).then((results) => [...results[0], ...results[1]]),
+      builder: (context, snapshot) {
+        // 광고 데이터 로드
+        final ads = snapshot.data ?? [];
+        
+        // 광고가 없으면 기본 메시지 표시
+        if (ads.isEmpty) {
+          return GestureDetector(
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('광고 문의: 010-8345-1912'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            },
+            child: Container(
+              height: 80,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: const Center(
+                child: Text(
+                  '광고 문의: 010-8345-1912',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+        
+        return SizedBox(
+          height: 80,
+          child: _DashboardAdCarousel(ads: ads),
+        );
+      },
     );
   }
 
@@ -620,7 +661,7 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
 }
 
 class _DashboardAdCarousel extends StatefulWidget {
-  final List<Map<String, dynamic>> ads;
+  final List<Ad> ads;
   const _DashboardAdCarousel({Key? key, required this.ads}) : super(key: key);
 
   @override
@@ -635,21 +676,23 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
-      if (_current < widget.ads.length - 1) {
-        _current++;
-      } else {
-        _current = 0;
-      }
+    if (widget.ads.length > 1) {
+      _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
+        if (_current < widget.ads.length - 1) {
+          _current++;
+        } else {
+          _current = 0;
+        }
 
-      if (_controller.hasClients) {
-        _controller.animateToPage(
-          _current,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeIn,
-        );
-      }
-    });
+        if (_controller.hasClients) {
+          _controller.animateToPage(
+            _current,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeIn,
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -659,13 +702,32 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
     super.dispose();
   }
 
-  void _showAdInquiry() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('광고 문의: 010-8345-1912'),
-        duration: Duration(seconds: 3),
-      ),
-    );
+  void _handleAdTap(Ad ad) {
+    // 링크가 있으면 열기, 없으면 광고 문의 메시지 표시
+    if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
+      _launchUrl(ad.linkUrl!);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('광고 문의: 010-8345-1912'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      final Uri url = Uri.parse(urlString);
+      if (!await url_launcher.launchUrl(url, mode: url_launcher.LaunchMode.externalApplication)) {
+        throw Exception('Could not launch $url');
+      }
+    } catch (e) {
+      print('❌ 링크 열기 실패: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('링크를 열 수 없습니다.')),
+      );
+    }
   }
 
   @override
@@ -684,7 +746,7 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
             itemBuilder: (context, index) {
               final ad = widget.ads[index];
               return GestureDetector(
-                onTap: _showAdInquiry,
+                onTap: () => _handleAdTap(ad),
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
@@ -692,38 +754,59 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey[300]!),
                   ),
-                  child: Center(
-                    child: Text(
-                      ad['title'] ?? '광고 ${index + 1}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
+                  child: ad.imageUrl.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            ad.imageUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            errorBuilder: (_, __, ___) => Center(
+                              child: Text(
+                                ad.title ?? '광고 ${index + 1}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            ad.title ?? '광고 ${index + 1}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
                 ),
               );
             },
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: widget.ads.asMap().entries.map((entry) {
-            return Container(
-              width: 6.0,
-              height: 6.0,
-              margin: const EdgeInsets.symmetric(horizontal: 2.0),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _current == entry.key
-                    ? Theme.of(context).primaryColor
-                    : Colors.grey.withOpacity(0.4),
-              ),
-            );
-          }).toList(),
-        ),
+        if (widget.ads.length > 1) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: widget.ads.asMap().entries.map((entry) {
+              return Container(
+                width: 6.0,
+                height: 6.0,
+                margin: const EdgeInsets.symmetric(horizontal: 2.0),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _current == entry.key
+                      ? Theme.of(context).primaryColor
+                      : Colors.grey.withOpacity(0.4),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ],
     );
   }

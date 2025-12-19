@@ -501,7 +501,7 @@ class AuthService extends ChangeNotifier {
         if (serviceAreas != null) 'serviceareas': serviceAreas,  // 소문자
         if (specialties != null) 'specialties': specialties,
         'role': 'business',
-        'businessstatus': _currentUser!.businessStatus ?? 'pending',  // 소문자
+        'businessstatus': 'approved',  // 🎉 자동 승인으로 변경
       };
       
       // Only sync to Supabase if project is configured and user id looks like UUID
@@ -539,10 +539,10 @@ class AuthService extends ChangeNotifier {
         address: address,
         serviceAreas: serviceAreas,
         specialties: specialties,
-        businessStatus: _currentUser!.businessStatus ?? 'pending',
+        businessStatus: 'approved',  // 🎉 자동 승인으로 변경
       );
       _needsRoleSelection = false; // 사업자 프로필 설정이 완료되었으므로 플래그 초기화
-      print('사업자 프로필이 업데이트되었습니다');
+      print('🎉 사업자 프로필이 업데이트되었습니다 (자동 승인)');
     } catch (e) {
       // 변환/검증 예외는 상위에서 안내 메시지로 처리될 수 있도록 메시지만 남김
       print('사업자 프로필 업데이트 오류(로컬 유지): $e');

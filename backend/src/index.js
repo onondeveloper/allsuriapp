@@ -53,8 +53,14 @@ const basicAuth = (req, res, next) => {
   return res.status(401).send('Invalid credentials');
 };
 
-// 정적 파일 제공 (관리자 대시보드) - 보호 적용
-app.use('/admin', basicAuth, express.static(path.join(__dirname, '..', 'public')));
+// 정적 파일 제공 (관리자 대시보드) - 보호 적용 + 캐시 비활성화
+app.use('/admin', basicAuth, express.static(path.join(__dirname, '..', 'public'), {
+  setHeaders: (res, path) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
+}));
 // 광고 정적 파일 제공 (광고 전용 경로)
 app.use('/ads', express.static(path.join(__dirname, '..', 'public', 'ads')));
 

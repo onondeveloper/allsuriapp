@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 import '../../services/auth_service.dart';
 import '../../services/order_service.dart';
+import '../../services/ad_service.dart';
+import '../../models/ad.dart';
 import '../../widgets/customer_dashboard.dart';
 import '../../widgets/interactive_card.dart';
 import '../../widgets/business_dashboard.dart';
@@ -305,8 +308,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               
                               const Spacer(),
                               
-                              // 2. 광고 대체 ("Buy me a coffee")
-                              _buildBuyMeCoffee(context),
+                              // 2. 홈 화면 광고 배너
+                              _buildHomeBanner(context),
                               
                               const Spacer(),
                               
@@ -355,36 +358,124 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBuyMeCoffee(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        _showAdvertisingInquiry(context);
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.coffee_rounded, size: 48, color: Colors.brown[400]),
-            const SizedBox(height: 8),
-            const Text(
-              '광고 문의',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-                fontWeight: FontWeight.w600,
+  Widget _buildHomeBanner(BuildContext context) {
+    return FutureBuilder<List<Ad>>(
+      future: AdService().getAdsByLocation('home_banner'),
+      builder: (context, snapshot) {
+        final ads = snapshot.data ?? [];
+        
+        // 광고가 없으면 광고 문의 표시
+        if (ads.isEmpty) {
+          return GestureDetector(
+            onTap: () {
+              _showAdvertisingInquiry(context);
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.campaign_rounded, size: 48, color: Colors.blue[400]),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '광고 문의: 010-8345-1912',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+          );
+        }
+        
+        // 광고가 있으면 첫 번째 광고 표시
+        final ad = ads.first;
+        return GestureDetector(
+          onTap: () {
+            if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
+              _launchAdUrl(ad.linkUrl!);
+            } else {
+              _showAdvertisingInquiry(context);
+            }
+          },
+          child: Container(
+            width: double.infinity,
+            height: 150,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.grey[300]!),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: ad.imageUrl.isNotEmpty
+                  ? Image.network(
+                      ad.imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[100],
+                        child: Center(
+                          child: Text(
+                            ad.title ?? '광고',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.grey[100],
+                      child: Center(
+                        child: Text(
+                          ad.title ?? '광고',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
     );
+  }
+
+  Future<void> _launchAdUrl(String urlString) async {
+    try {
+      final Uri url = Uri.parse(urlString);
+      if (!await url_launcher.launchUrl(url, mode: url_launcher.LaunchMode.externalApplication)) {
+        throw Exception('Could not launch $url');
+      }
+    } catch (e) {
+      print('❌ 링크 열기 실패: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('링크를 열 수 없습니다.')),
+        );
+      }
+    }
   }
 
   void _showAdvertisingInquiry(BuildContext context) {

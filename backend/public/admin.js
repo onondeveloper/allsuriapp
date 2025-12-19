@@ -702,7 +702,7 @@ async function toggleAdmin(userId) {
             const reloadAdsBtn = document.getElementById('btnReloadAds');
             if (reloadAdsBtn) reloadAdsBtn.addEventListener('click', loadAds);
             const newAdBtn = document.getElementById('btnNewAd');
-            if (newAdBtn) newAdBtn.addEventListener('click', openAdCreateModal);
+            if (newAdBtn) newAdBtn.addEventListener('click', showAdModal);
             const statsAdBtn = document.getElementById('btnAdsStats');
             if (statsAdBtn) statsAdBtn.addEventListener('click', showAdsStats);
         });
@@ -991,6 +991,7 @@ async function toggleAdmin(userId) {
             const estimateModal = document.getElementById('estimateModal');
             const userModal = document.getElementById('userModal');
             const statsModal = document.getElementById('statsModal');
+            const adModal = document.getElementById('adModal');
             
             if (event.target === estimateModal) {
                 closeEstimateModal();
@@ -1000,6 +1001,9 @@ async function toggleAdmin(userId) {
             }
             if (event.target === statsModal) {
                 closeStatsModal();
+            }
+            if (event.target === adModal) {
+                closeAdModal();
             }
         }
 
@@ -1692,6 +1696,8 @@ function closeEstimateModal() {
 }
 
 // ===== 광고 관리 =====
+let currentEditingAd = null;
+
 async function loadAds() {
     try {
         const ads = await apiCall('/ads');
@@ -1703,87 +1709,252 @@ async function loadAds() {
     }
 }
 
+function getLocationLabel(location) {
+    const labels = {
+        'home_banner': '📱 홈 화면 배너',
+        'dashboard_ad_1': '🎯 대시보드 광고 1',
+        'dashboard_ad_2': '🎯 대시보드 광고 2',
+    };
+    return labels[location] || location;
+}
+
 function displayAds(items) {
     const c = document.getElementById('adsTableContainer');
     if (!c) return;
     if (!items || items.length === 0) {
-        c.innerHTML = '<div class="loading">등록된 광고가 없습니다.</div>';
+        c.innerHTML = `
+            <div class="empty-state">
+                <span class="material-icons">campaign</span>
+                <p>등록된 광고가 없습니다</p>
+                <button class="btn btn-primary" id="firstAdBtn">
+                    <span class="material-icons">add</span>
+                    첫 광고 추가하기
+                </button>
+            </div>
+        `;
+        // 이벤트 리스너 추가
+        const firstAdBtn = document.getElementById('firstAdBtn');
+        if (firstAdBtn) {
+            firstAdBtn.addEventListener('click', () => showAdModal());
+        }
         return;
     }
-    const table = `
-      <table class="table">
-        <thead>
-          <tr>
-            <th>제목</th>
-            <th>슬러그</th>
-            <th>HTML 경로</th>
-            <th>상태</th>
-            <th>우선순위</th>
-            <th>작업</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${items.map(ad => `
-            <tr>
-              <td>${ad.title || '-'}</td>
-              <td>${ad.slug || '-'}</td>
-              <td>${ad.html_path || '-'}</td>
-              <td>${ad.status || '-'}</td>
-              <td>${ad.priority ?? 0}</td>
-              <td>
-                <button class="btn btn-primary" onclick='openAdEditModal(${JSON.stringify(ad)})'>수정</button>
-                <button class="btn btn-danger" onclick='deleteAd("${ad.id}")'>삭제</button>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-    c.innerHTML = table;
+    
+    // 위치별로 그룹화
+    const byLocation = {
+        'home_banner': [],
+        'dashboard_ad_1': [],
+        'dashboard_ad_2': []
+    };
+    
+    items.forEach(ad => {
+        if (byLocation[ad.location]) {
+            byLocation[ad.location].push(ad);
+        }
+    });
+    
+    let html = '';
+    
+    // 각 위치별로 표시
+    Object.entries(byLocation).forEach(([location, ads]) => {
+        html += `
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 1rem; color: var(--gray-700); display: flex; align-items: center; gap: 0.5rem;">
+                    ${getLocationLabel(location)}
+                    ${ads.length === 0 ? '<span style="font-size: 0.875rem; color: var(--gray-500);">(광고 없음)</span>' : ''}
+                </h3>
+                ${ads.length > 0 ? `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                        ${ads.map(ad => `
+                            <div style="border: 1px solid var(--gray-200); border-radius: 12px; padding: 1rem; background: white;">
+                                ${ad.image_url ? `
+                                    <img src="${ad.image_url}" alt="${ad.title}" 
+                                        style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 0.75rem;"
+                                        onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E이미지 없음%3C/text%3E%3C/svg%3E'">
+                                ` : `
+                                    <div style="width: 100%; height: 120px; background: var(--gray-100); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; color: var(--gray-400);">
+                                        <span class="material-icons" style="font-size: 3rem;">image</span>
+                                    </div>
+                                `}
+                                <h4 style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--gray-900);">${ad.title || '제목 없음'}</h4>
+                                ${ad.link_url ? `
+                                    <p style="font-size: 0.75rem; color: var(--info); margin-bottom: 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        🔗 ${ad.link_url}
+                                    </p>
+                                ` : ''}
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+                                    <span class="status-badge ${ad.is_active ? 'approved' : 'rejected'}">
+                                        ${ad.is_active ? '✅ 활성' : '❌ 비활성'}
+                                    </span>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <button class="btn btn-secondary btn-sm edit-ad-btn" data-ad='${JSON.stringify(ad).replace(/'/g, "&apos;")}'>
+                                            <span class="material-icons" style="font-size: 1rem;">edit</span>
+                                        </button>
+                                        <button class="btn btn-danger btn-sm delete-ad-btn" data-ad-id="${ad.id}">
+                                            <span class="material-icons" style="font-size: 1rem;">delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div style="padding: 2rem; text-align: center; background: var(--gray-50); border-radius: 8px; color: var(--gray-500);">
+                        이 위치에 광고가 없습니다. 
+                        <button class="btn btn-primary btn-sm add-ad-btn" data-location="${location}" style="margin-left: 0.5rem;">
+                            추가하기
+                        </button>
+                    </div>
+                `}
+            </div>
+        `;
+    });
+    
+    c.innerHTML = html;
+    
+    // "추가하기" 버튼들에 이벤트 리스너 추가
+    const addBtns = c.querySelectorAll('.add-ad-btn');
+    addBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const location = this.getAttribute('data-location');
+            showAdModal(location);
+        });
+    });
+    
+    // "수정" 버튼들에 이벤트 리스너 추가
+    const editBtns = c.querySelectorAll('.edit-ad-btn');
+    editBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const adData = this.getAttribute('data-ad');
+            try {
+                const ad = JSON.parse(adData.replace(/&apos;/g, "'"));
+                editAd(ad);
+            } catch (e) {
+                console.error('광고 데이터 파싱 실패:', e);
+                alert('광고 정보를 불러올 수 없습니다.');
+            }
+        });
+    });
+    
+    // "삭제" 버튼들에 이벤트 리스너 추가
+    const deleteBtns = c.querySelectorAll('.delete-ad-btn');
+    deleteBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const adId = this.getAttribute('data-ad-id');
+            deleteAd(adId);
+        });
+    });
 }
 
-function openAdCreateModal() {
-    const title = prompt('광고 제목');
-    if (title == null) return;
-    const slug = prompt('슬러그(영문 소문자, 식별자)');
-    if (slug == null) return;
-    const html_path = prompt('HTML 파일 경로(/ads/경로.html)');
-    if (html_path == null) return;
-    const priority = parseInt(prompt('우선순위(숫자, 높을수록 먼저)') || '0', 10);
-    const status = prompt('상태(active/inactive)', 'active');
-    createAd({ title, slug, html_path, priority, status });
+function showAdModal(defaultLocation = 'home_banner') {
+    currentEditingAd = null;
+    document.getElementById('adModalTitle').textContent = '새 광고 추가';
+    document.getElementById('adId').value = '';
+    document.getElementById('adTitle').value = '';
+    document.getElementById('adLink').value = '';
+    document.getElementById('adLocation').value = defaultLocation;
+    document.getElementById('adActive').value = 'true';
+    document.getElementById('adImageUrl').value = '';
+    document.getElementById('adImagePreview').innerHTML = '';
+    updateLocationGuide(defaultLocation);
+    document.getElementById('adModal').style.display = 'block';
 }
 
-function openAdEditModal(ad) {
-    try { ad = (typeof ad === 'string') ? JSON.parse(ad) : ad; } catch(_) {}
-    const title = prompt('광고 제목', ad.title || '');
-    if (title == null) return;
-    const slug = prompt('슬러그', ad.slug || '');
-    if (slug == null) return;
-    const html_path = prompt('HTML 파일 경로', ad.html_path || '');
-    if (html_path == null) return;
-    const priority = parseInt(prompt('우선순위', String(ad.priority ?? 0)) || '0', 10);
-    const status = prompt('상태(active/inactive)', ad.status || 'active');
-    updateAd(ad.id, { title, slug, html_path, priority, status });
+function editAd(ad) {
+    try { 
+        ad = (typeof ad === 'string') ? JSON.parse(ad) : ad; 
+    } catch(_) {}
+    
+    currentEditingAd = ad;
+    document.getElementById('adModalTitle').textContent = '광고 수정';
+    document.getElementById('adId').value = ad.id || '';
+    document.getElementById('adTitle').value = ad.title || '';
+    document.getElementById('adLink').value = ad.link_url || '';
+    document.getElementById('adLocation').value = ad.location || 'home_banner';
+    document.getElementById('adActive').value = ad.is_active ? 'true' : 'false';
+    document.getElementById('adImageUrl').value = ad.image_url || '';
+    
+    // 이미지 미리보기
+    if (ad.image_url) {
+        document.getElementById('adImagePreview').innerHTML = `
+            <img src="${ad.image_url}" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; margin-top: 0.5rem;">
+        `;
+    }
+    
+    updateLocationGuide(ad.location || 'home_banner');
+    document.getElementById('adModal').style.display = 'block';
 }
 
-async function createAd(payload) {
-    try {
-        const res = await apiCall('/ads', { method: 'POST', body: JSON.stringify(payload) });
-        alert('광고가 생성되었습니다.');
-        loadAds();
-    } catch (e) {
-        alert('광고 생성 실패');
+function updateLocationGuide(location) {
+    const guides = {
+        'home_banner': '📱 홈 화면 상단 배너 (권장: 1200×400px, 3:1 비율)',
+        'dashboard_ad_1': '🎯 대시보드 광고 슬라이드 1번 (권장: 800×200px, 4:1 비율)',
+        'dashboard_ad_2': '🎯 대시보드 광고 슬라이드 2번 (권장: 800×200px, 4:1 비율)'
+    };
+    const guideEl = document.getElementById('locationGuide');
+    if (guideEl) {
+        guideEl.textContent = guides[location] || '';
     }
 }
 
-async function updateAd(id, payload) {
+function previewAdImage() {
+    const url = document.getElementById('adImageUrl').value;
+    const preview = document.getElementById('adImagePreview');
+    
+    if (url) {
+        preview.innerHTML = `
+            <img src="${url}" 
+                style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; margin-top: 0.5rem;"
+                onerror="this.parentElement.innerHTML='<p style=\\'color: var(--danger);\\'>이미지를 불러올 수 없습니다</p>'">
+        `;
+    } else {
+        preview.innerHTML = '';
+    }
+}
+
+async function saveAd() {
+    const id = document.getElementById('adId').value;
+    const title = document.getElementById('adTitle').value.trim();
+    const link = document.getElementById('adLink').value.trim();
+    const location = document.getElementById('adLocation').value;
+    const isActive = document.getElementById('adActive').value === 'true';
+    const imageUrl = document.getElementById('adImageUrl').value.trim();
+    
+    if (!title) {
+        alert('제목을 입력해주세요');
+        return;
+    }
+    
+    const payload = {
+        title,
+        link_url: link || null,
+        location,
+        is_active: isActive,
+        image_url: imageUrl || '',
+    };
+    
     try {
-        const res = await apiCall(`/ads/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-        alert('광고가 업데이트되었습니다.');
+        if (id) {
+            // 수정
+            await apiCall(`/ads/${id}`, { 
+                method: 'PUT', 
+                body: JSON.stringify(payload) 
+            });
+            alert('광고가 수정되었습니다');
+        } else {
+            // 신규 생성
+            payload.created_at = new Date().toISOString();
+            await apiCall('/ads', { 
+                method: 'POST', 
+                body: JSON.stringify(payload) 
+            });
+            alert('광고가 추가되었습니다');
+        }
+        closeAdModal();
         loadAds();
     } catch (e) {
-        alert('광고 업데이트 실패');
+        console.error('광고 저장 실패:', e);
+        alert('광고 저장에 실패했습니다: ' + e.message);
     }
 }
 
@@ -1791,35 +1962,17 @@ async function deleteAd(id) {
     if (!confirm('정말로 이 광고를 삭제하시겠습니까?')) return;
     try {
         await apiCall(`/ads/${id}`, { method: 'DELETE' });
+        alert('광고가 삭제되었습니다');
         loadAds();
     } catch (e) {
-        alert('광고 삭제 실패');
+        console.error('광고 삭제 실패:', e);
+        alert('광고 삭제에 실패했습니다');
     }
 }
 
-async function showAdsStats() {
-    try {
-        const stats = await apiCall('/ads/stats');
-        const byAd = {};
-        for (const row of stats) {
-            const id = row.ad_id;
-            if (!byAd[id]) byAd[id] = { impressions: 0, clicks: 0 };
-            if (row.type === 'impression') byAd[id].impressions = row.count || 0;
-            if (row.type === 'click') byAd[id].clicks = row.count || 0;
-        }
-        let html = '<h3>광고 통계</h3><table class="table"><thead><tr><th>Ad ID</th><th>노출</th><th>클릭</th><th>CTR</th></tr></thead><tbody>';
-        for (const [id, m] of Object.entries(byAd)) {
-            const ctr = m.impressions > 0 ? ((m.clicks / m.impressions) * 100).toFixed(2) + '%' : '-';
-            html += `<tr><td>${id}</td><td>${m.impressions}</td><td>${m.clicks}</td><td>${ctr}</td></tr>`;
-        }
-        html += '</tbody></table>';
-        const modal = document.getElementById('statsModal');
-        document.getElementById('statsModalTitle').textContent = '광고 통계';
-        document.getElementById('statsModalBody').innerHTML = html;
-        modal.style.display = 'block';
-    } catch (e) {
-        alert('광고 통계 조회 실패');
-    }
+function closeAdModal() {
+    document.getElementById('adModal').style.display = 'none';
+    currentEditingAd = null;
 }
 
 // ===== 초기화 및 전체 로드 =====
