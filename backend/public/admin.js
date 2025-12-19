@@ -1942,8 +1942,7 @@ async function saveAd() {
             });
             alert('광고가 수정되었습니다');
         } else {
-            // 신규 생성
-            payload.created_at = new Date().toISOString();
+            // 신규 생성 - 서버에서 createdat을 자동으로 추가하므로 제거
             await apiCall('/ads', { 
                 method: 'POST', 
                 body: JSON.stringify(payload) 
