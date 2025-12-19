@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>올수리 관리자 대시보드</title>
-    <!-- Version: 3.0 - 2024-12-19 UPDATE -->
+    <!-- Version: 3.1 - 2024-12-19 SCROLL FIX -->
     <!-- Google Material Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -170,6 +170,7 @@
         .content-area {
             padding: 2rem;
             max-width: 1400px;
+            overflow-y: auto;
         }
 
         /* Dashboard Cards */
@@ -301,7 +302,9 @@
         /* Table */
         .table-container {
             overflow-x: auto;
+            overflow-y: auto;
             margin-top: 1rem;
+            max-height: 70vh;
         }
 
         .table {
@@ -479,6 +482,8 @@
             background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             animation: fadeIn 0.2s;
+            overflow-y: auto;
+            padding: 20px 0;
         }
 
         @keyframes fadeIn {
@@ -489,10 +494,14 @@
         .modal-content {
             background: white;
             max-width: 600px;
+            max-height: 90vh;
             margin: 5% auto;
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             animation: slideDown 0.3s;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         @keyframes slideDown {
@@ -543,6 +552,9 @@
 
         .modal-body {
             padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+            max-height: calc(90vh - 140px);
         }
 
         .modal-footer {
@@ -635,6 +647,27 @@
         .clickable:hover {
             color: var(--primary);
             text-decoration: underline;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--gray-100);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--gray-400);
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--gray-500);
         }
     </style>
 </head>
@@ -977,7 +1010,7 @@
 
     <!-- Ad Modal -->
     <div id="adModal" class="modal">
-        <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh;">
             <div class="modal-header">
                 <h3 class="modal-title" id="adModalTitle">새 광고</h3>
                 <button class="modal-close" onclick="closeAdModal()">
@@ -1084,7 +1117,7 @@
         </div>
     </div>
 
-    <script src="admin.js?v=3&t=20241219"></script>
+    <script src="admin.js?v=4&t=20241219002"></script>
     <script>
         // Section Navigation
         function showSection(sectionName) {
