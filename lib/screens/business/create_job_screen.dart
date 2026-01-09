@@ -7,6 +7,7 @@ import '../../services/job_service.dart';
 import '../../services/marketplace_service.dart';
 import '../../services/media_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/kakao_share_service.dart';
 import 'transfer_job_screen.dart';
 import 'order_marketplace_screen.dart';
 import '../../widgets/interactive_card.dart';
@@ -318,9 +319,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
           region: _locationController.text.trim(),
           category: _selectedCategory);
       
-      // 선택 후 홈 화면으로 이동
-      if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+      // ✅ 강제 홈 이동 코드 제거 (바텀시트 내부 로직에서 처리됨)
       
     } catch (e) {
       print('❌ [_submitJob] 실패: $e');
@@ -714,6 +713,11 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                       try {
                         print('오더 등록 시작: jobId=$jobId, title=$title');
                         
+                        // 현재 사용자 ID 가져오기
+                        final auth = context.read<AuthService>();
+                        final currentUserId = auth.currentUser?.id;
+                        print('   현재 사용자 ID: $currentUserId');
+                        
                         final result = await _marketplaceService.createListing(
                           jobId: jobId,
                           title: title,
@@ -721,6 +725,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                           region: (region ?? '').isEmpty ? null : region,
                           category: category,
                           budgetAmount: budget,
+                          postedBy: currentUserId, // 사용자 ID 명시적 전달
                         );
                         
                         print('오더 등록 결과: $result');
@@ -766,18 +771,34 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                               print('⚠️ 알림 전송 중 오류 (무시됨): $e');
                             }
                             
-                            // 즉시 OrderMarketplaceScreen으로 이동 (모든 이전 화면 제거)
+                            // 1. 카카오톡 공유 트리거 (비동기로 실행하여 화면 전환을 방해하지 않음)
+                            // ※ 카카오톡 앱이 뜨는 동안 앱은 리스트 화면으로 넘어갑니다.
+                            print('🔍 [CreateJobScreen] 카카오톡 공유 실행 (배경)');
+                            KakaoShareService().shareOrder(
+                              orderId: result['id']?.toString() ?? '',
+                              title: title,
+                              region: region ?? '',
+                              category: category,
+                              budgetAmount: budget,
+                              commissionRate: double.tryParse(_feeRateController.text) ?? 5.0,
+                              imageUrl: _uploadedImageUrls.isNotEmpty ? _uploadedImageUrls.first : null,
+                              description: description,
+                            );
+                            
+                            // 2. 오더 리스트 화면으로 즉시 이동
+                            if (!mounted) return;
+                            print('🔍 [CreateJobScreen] 오더 리스트 화면으로 즉시 이동');
+                            
                             Navigator.pushAndRemoveUntil(
-                              parentContext,
+                              context,
                               MaterialPageRoute(
                                 builder: (_) => OrderMarketplaceScreen(
-                                  showSuccessMessage: true, // 성공 메시지 표시 플래그
-                                  createdByUserId: Supabase.instance.client.auth.currentUser?.id,
+                                  showSuccessMessage: true,
+                                  createdByUserId: currentUserId,
                                 ),
                               ),
-                              (route) => false, // 모든 이전 화면 제거
+                              (route) => route.isFirst,
                             );
-                            print('OrderMarketplaceScreen으로 네비게이션 완료');
                           } else {
                             ScaffoldMessenger.of(parentContext).showSnackBar(
                               const SnackBar(content: Text('Call 등록에 실패했습니다. 다시 시도해주세요.')),

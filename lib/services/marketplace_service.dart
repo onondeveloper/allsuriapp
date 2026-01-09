@@ -4,6 +4,7 @@ import 'package:allsuriapp/services/api_service.dart';
 
 class MarketplaceService extends ChangeNotifier {
   final SupabaseClient _sb = Supabase.instance.client;
+  final ApiService _api = ApiService();
 
   Future<List<Map<String, dynamic>>> listListings({
     String status = 'open',
@@ -129,10 +130,12 @@ class MarketplaceService extends ChangeNotifier {
     String? category,
     double? budgetAmount,
     DateTime? expiresAt,
+    String? postedBy, // 사용자 ID를 직접 전달받도록 추가
   }) async {
     debugPrint('createListing 시작: jobId=$jobId, title=$title');
     
-    final userId = _sb.auth.currentUser?.id;
+    // postedBy가 전달되면 사용, 없으면 Supabase auth 확인
+    final userId = postedBy ?? _sb.auth.currentUser?.id;
     if (userId == null) {
       debugPrint('createListing 에러: 사용자 ID가 null');
       throw StateError('로그인이 필요합니다');
@@ -140,6 +143,7 @@ class MarketplaceService extends ChangeNotifier {
     
     debugPrint('createListing: userId=$userId');
     
+    // Supabase에 직접 INSERT (service_role을 사용하면 RLS 우회)
     final payload = {
       'jobid': jobId,
       'title': title,
@@ -148,13 +152,14 @@ class MarketplaceService extends ChangeNotifier {
       'category': category,
       'budget_amount': budgetAmount,
       'posted_by': userId,
-      'status': 'open',
+      'status': 'created', // 'created' 상태로 시작
       if (expiresAt != null) 'expires_at': expiresAt.toIso8601String(),
     };
     
     debugPrint('createListing payload: $payload');
     
     try {
+      // Supabase 직접 INSERT (anon 키 사용, RLS 정책 통과 필요)
       final rows = await _sb.from('marketplace_listings').insert(payload).select().limit(1);
       debugPrint('createListing DB 결과: $rows');
       
@@ -168,6 +173,12 @@ class MarketplaceService extends ChangeNotifier {
       return result;
     } catch (e) {
       debugPrint('createListing DB 에러: $e');
+      // RLS 에러인 경우 상세 정보 출력
+      if (e.toString().contains('row-level security')) {
+        debugPrint('⚠️ RLS 정책 위반: Supabase Auth 세션이 필요합니다');
+        debugPrint('   현재 auth.uid(): ${_sb.auth.currentUser?.id}');
+        debugPrint('   전달된 postedBy: $userId');
+      }
       rethrow;
     }
   }

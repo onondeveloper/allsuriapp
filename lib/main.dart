@@ -37,8 +37,13 @@ void main() async {
   };
   // Kakao SDK 초기화 (dart-define)
   final kakaoKey = const String.fromEnvironment('KAKAO_NATIVE_APP_KEY', defaultValue: '');
+  print('🔍 [Main] KAKAO_NATIVE_APP_KEY: ${kakaoKey.isNotEmpty ? "로드됨(***)" : "❌ 비어있음"}');
+  
   if (kakaoKey.isNotEmpty) {
     kakao.KakaoSdk.init(nativeAppKey: kakaoKey);
+    print('✅ [Main] Kakao SDK 초기화 완료');
+  } else {
+    print('⚠️ [Main] Kakao SDK 키가 없어 초기화를 건너뜁니다.');
   }
   // Supabase 초기화 (Auth 포함)
   print('🔍 Supabase URL: ${SupabaseConfig.url}');

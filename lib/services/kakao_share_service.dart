@@ -1,19 +1,13 @@
 import 'package:kakao_flutter_sdk_share/kakao_flutter_sdk_share.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 
 /// 카카오톡 공유 서비스
-/// 견적 요청을 카카오톡 메시지로 공유하는 기능 제공
 class KakaoShareService {
-  // 올수리 오픈채팅방 URL (실제 오픈채팅방 URL로 교체 필요)
-  static const String openChatUrl = 'https://open.kakao.com/o/gv9woeWh';
+  /// 오더방 오픈채팅방 URL
+  static const String orderChatUrl = 'https://open.kakao.com/o/gv9woeWh';
   
-  /// 견적 요청을 카카오톡으로 공유
-  /// 
-  /// [estimateId] 견적 요청 ID
-  /// [title] 견적 요청 제목
-  /// [category] 카테고리 (예: 누수, 보일러 등)
-  /// [address] 주소
-  /// [description] 설명 (선택)
+  /// 견적 요청을 카카오톡으로 공유 (일반 고객용)
   Future<bool> shareEstimate({
     required String estimateId,
     required String title,
@@ -22,35 +16,21 @@ class KakaoShareService {
     String? description,
   }) async {
     try {
-      // 카카오톡 공유 템플릿 생성
+      print('🔍 [KakaoShare] shareEstimate 시작: $estimateId');
+      
       final template = FeedTemplate(
         content: Content(
-          title: '🔧 $title',
-          description: '''
-카테고리: $category
-주소: $address
-${description != null && description.isNotEmpty ? '\n$description' : ''}
-
-올수리 오픈채팅방에서 더 많은 사업자와 상담하세요!
-''',
+          title: '🔧 견적 요청: $title',
+          description: '🏷️ 카테고리: $category\n📍 주소: $address${description != null ? "\n\n$description" : ""}',
           imageUrl: Uri.parse('https://allsuri.app/assets/images/logo.png'),
           link: Link(
-            // 앱 딥링크 (앱이 설치된 경우)
             androidExecutionParams: {'estimateId': estimateId},
             iosExecutionParams: {'estimateId': estimateId},
-            // 웹 URL (앱 미설치 시)
             webUrl: Uri.parse('https://allsuri.app/estimate/$estimateId'),
             mobileWebUrl: Uri.parse('https://allsuri.app/estimate/$estimateId'),
           ),
         ),
         buttons: [
-          Button(
-            title: '오픈채팅방 참여하기',
-            link: Link(
-              webUrl: Uri.parse(openChatUrl),
-              mobileWebUrl: Uri.parse(openChatUrl),
-            ),
-          ),
           Button(
             title: '앱에서 보기',
             link: Link(
@@ -63,57 +43,112 @@ ${description != null && description.isNotEmpty ? '\n$description' : ''}
         ],
       );
 
-      // 카카오톡 설치 여부 확인
       if (await ShareClient.instance.isKakaoTalkSharingAvailable()) {
-        // 카카오톡으로 공유
-        await ShareClient.instance.shareDefault(template: template);
-        print('✅ 카카오톡 공유 성공');
+        final uri = await ShareClient.instance.shareDefault(template: template);
+        if (uri != null) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
         return true;
       } else {
-        // 카카오톡 미설치 시 웹 공유 URL로 브라우저 열기
         final url = await WebSharerClient.instance.makeDefaultUrl(template: template);
         await launchUrl(url, mode: LaunchMode.externalApplication);
-        print('✅ 웹 공유 URL 열기 성공');
         return true;
       }
     } catch (e) {
-      print('❌ 카카오톡 공유 실패: $e');
+      print('❌ [KakaoShare] 견적 공유 실패: $e');
       return false;
     }
   }
 
-  /// 간단한 텍스트 메시지 공유 (오픈채팅방 링크만)
-  Future<bool> shareOpenChatLink() async {
+  /// 오더(공사)를 카카오톡으로 공유 (사업자용)
+  /// ※ 주의: 카카오 SDK 정책상 사용자가 직접 채팅방을 선택하는 화면이 반드시 뜹니다.
+  Future<bool> shareOrder({
+    required String orderId,
+    required String title,
+    required String region,
+    required String category,
+    double? budgetAmount,
+    double? commissionRate,
+    String? imageUrl,
+    String? description,
+  }) async {
     try {
-      final template = TextTemplate(
-        text: '올수리 오픈채팅방에 참여하세요!\n집수리/인테리어 전문가들과 상담할 수 있습니다.',
-        link: Link(
-          webUrl: Uri.parse(openChatUrl),
-          mobileWebUrl: Uri.parse(openChatUrl),
+      print('🔍 [KakaoShare] shareOrder 시작');
+      
+      // 예산 및 수수료 포맷팅
+      String budgetText = '';
+      if (budgetAmount != null && budgetAmount > 0) {
+        final formatter = NumberFormat('#,###');
+        budgetText = '\n💰 견적 금액: ${formatter.format(budgetAmount)}원';
+      }
+      
+      String feeText = '';
+      if (commissionRate != null) {
+        feeText = '\n💳 수수료: ${commissionRate.toStringAsFixed(0)}%';
+      }
+
+      // 이미지 URL
+      final String finalImageUrl = (imageUrl != null && imageUrl.startsWith('http'))
+          ? imageUrl
+          : 'https://allsuri.app/assets/images/logo.png';
+
+      // 1. 카카오톡 공유 템플릿 (Feed) 생성
+      final template = FeedTemplate(
+        content: Content(
+          title: '🔨 오더: $title',
+          description: '📍 지역: $region$budgetText$feeText$descText',
+          imageUrl: Uri.parse(finalImageUrl),
+          link: Link(
+            androidExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
+            iosExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
+            webUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'),
+            mobileWebUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'),
+          ),
         ),
         buttons: [
           Button(
-            title: '오픈채팅방 참여',
+            title: '앱에서 오더 확인',
             link: Link(
-              webUrl: Uri.parse(openChatUrl),
-              mobileWebUrl: Uri.parse(openChatUrl),
+              androidExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
+              iosExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
+              webUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'),
+              mobileWebUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'),
             ),
           ),
         ],
       );
 
+      // 2. 카카오톡 설치 여부 확인 후 실행
       if (await ShareClient.instance.isKakaoTalkSharingAvailable()) {
-        await ShareClient.instance.shareDefault(template: template);
+        print('🔍 [KakaoShare] 카카오톡 앱으로 공유 시도...');
+        final uri = await ShareClient.instance.shareDefault(template: template);
+        
+        // URI가 반환되면 직접 실행 (더 확실한 인텐트 전달)
+        if (uri != null) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
         return true;
       } else {
+        // 카카오톡 미설치 시 웹 브라우저 공유
+        print('🔍 [KakaoShare] 카카오톡 미설치, 웹 공유 실행');
         final url = await WebSharerClient.instance.makeDefaultUrl(template: template);
         await launchUrl(url, mode: LaunchMode.externalApplication);
         return true;
       }
     } catch (e) {
-      print('❌ 오픈채팅 링크 공유 실패: $e');
+      print('❌ [KakaoShare] 오더 공유 실패: $e');
+      return false;
+    }
+  }
+
+  /// 오픈채팅방 링크 직접 열기
+  Future<bool> openOrderChatRoom() async {
+    try {
+      final Uri url = Uri.parse(orderChatUrl);
+      return await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      print('❌ [KakaoShare] 오픈채팅방 열기 실패: $e');
       return false;
     }
   }
 }
-
