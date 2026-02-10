@@ -910,4 +910,120 @@ router.delete('/comments/:commentId', requireRole('developer', 'staff'), async (
   }
 });
 
+// 오더에 대해 사업자들에게 알림 발송 (카카오톡 대신 푸시 알림)
+router.post('/orders/:orderId/notify', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { message, targetRegion, targetCategory } = req.body;
+    
+    console.log(`[ADMIN] 오더 알림 발송: orderId=${orderId}`);
+    
+    // 1. 오더 정보 조회
+    const { data: order, error: orderError } = await supabase
+      .from('marketplace_listings')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+    
+    if (orderError) throw orderError;
+    if (!order) {
+      return res.status(404).json({ success: false, message: '오더를 찾을 수 없습니다' });
+    }
+    
+    // 2. 알림 받을 사업자 조회 (승인된 사업자만)
+    let usersQuery = supabase
+      .from('users')
+      .select('id, businessname, name, fcm_token')
+      .eq('role', 'business')
+      .eq('businessstatus', 'approved');
+    
+    // 지역 필터
+    if (targetRegion && order.region) {
+      usersQuery = usersQuery.contains('serviceareas', [order.region]);
+    }
+    
+    // 카테고리 필터 (전문 분야)
+    if (targetCategory && order.category) {
+      usersQuery = usersQuery.contains('specialties', [order.category]);
+    }
+    
+    const { data: users, error: usersError } = await usersQuery;
+    
+    if (usersError) throw usersError;
+    
+    if (!users || users.length === 0) {
+      return res.json({ 
+        success: true, 
+        message: '알림을 받을 사업자가 없습니다',
+        sent: 0
+      });
+    }
+    
+    console.log(`[ADMIN] ${users.length}명의 사업자에게 알림 전송 중...`);
+    
+    // 3. 각 사업자에게 DB 알림 + FCM 푸시 발송
+    const notificationData = {
+      title: '🔔 새로운 오더 안내',
+      body: message || `새로운 오더가 등록되었습니다: ${order.title}`,
+      type: 'admin_order_notification',
+      orderid: orderId,
+      isread: false,
+      createdat: new Date().toISOString(),
+    };
+    
+    let sentCount = 0;
+    let failCount = 0;
+    
+    for (const user of users) {
+      try {
+        // DB에 알림 저장
+        await supabase
+          .from('notifications')
+          .insert({
+            ...notificationData,
+            userid: user.id,
+          });
+        
+        // FCM 푸시 알림 전송
+        if (user.fcm_token) {
+          await sendPushNotification(
+            user.id,
+            {
+              title: notificationData.title,
+              body: notificationData.body,
+            },
+            {
+              type: 'admin_order_notification',
+              orderId: orderId,
+              orderTitle: order.title || '',
+            }
+          );
+        }
+        
+        sentCount++;
+      } catch (err) {
+        console.error(`[ADMIN] 사용자 ${user.id}에게 알림 전송 실패:`, err);
+        failCount++;
+      }
+    }
+    
+    console.log(`[ADMIN] 알림 발송 완료: 성공 ${sentCount}개, 실패 ${failCount}개`);
+    
+    res.json({
+      success: true,
+      message: `${sentCount}명의 사업자에게 알림을 전송했습니다`,
+      sent: sentCount,
+      failed: failCount,
+      total: users.length,
+    });
+  } catch (error) {
+    console.error('[ADMIN] 오더 알림 발송 실패:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: '알림 발송에 실패했습니다',
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router; 

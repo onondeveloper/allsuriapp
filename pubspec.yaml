@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+18
+version: 1.0.0+32
 
 
 environment:
@@ -35,38 +35,38 @@ dependencies:
   provider: ^6.1.1
   # google_sign_in: ^6.2.1  # 제거(카카오 로그인으로 전환)
   image_picker: ^1.0.4
-  intl: ^0.18.1
+  intl: ^0.20.2
   path_provider: ^2.1.1
-  go_router: ^14.2.7
+  go_router: ^17.0.0
   http: ^1.1.0
   google_fonts: ^6.1.0
   dynamic_color: ^1.7.0
   supabase_flutter: ^2.6.0
   shared_preferences: ^2.3.2
-  kakao_flutter_sdk_user: ^1.8.0
-  kakao_flutter_sdk_share: ^1.8.0
+  kakao_flutter_sdk_user: 1.9.5
+  kakao_flutter_sdk_share: 1.9.5
   uuid: ^4.4.2
-  app_settings: ^6.1.1
+  app_settings: 6.1.1
   shimmer: ^3.0.0
   lottie: ^3.3.1
   webview_flutter: ^4.8.0
   url_launcher: ^6.3.0
   cached_network_image: ^3.3.1
-  firebase_core: ^3.3.0
-  firebase_messaging: ^15.0.4
+  firebase_core: 3.4.0
+  firebase_messaging: 15.1.0
   flutter_local_notifications: ^19.5.0
   timezone: ^0.10.1
   flutter_staggered_animations: ^1.1.1
-  smooth_page_indicator: ^1.2.0+3
-  fl_chart: ^0.68.0
+  smooth_page_indicator: 1.2.0+3
+  fl_chart: 0.68.0
   percent_indicator: ^4.2.3
   video_player: ^2.8.6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter_launcher_icons:
   android: "launcher_icon"

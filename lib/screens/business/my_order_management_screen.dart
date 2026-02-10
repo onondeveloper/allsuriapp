@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart'; // 추가
+import '../../services/marketplace_service.dart'; // 추가
 import '../../widgets/loading_indicator.dart';
 import '../business/order_bidders_screen.dart';
 import '../business/order_review_screen.dart';
@@ -529,6 +530,7 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
         ? order['bid_count'] as int 
         : int.tryParse(order['bid_count']?.toString() ?? '0') ?? 0;
     final String listingId = order['id']?.toString() ?? '';
+    final String jobId = order['jobid']?.toString() ?? ''; // 추가
     final budget = order['budget_amount'];
     final selectedBidderId = order['selected_bidder_id']?.toString();
     final completedBy = order['completed_by']?.toString();
@@ -536,6 +538,7 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
 
     print('📋 [_buildOrderCard] 오더: $title');
     print('   status: $status');
+    print('   jobId: $jobId');
     print('   completedBy: $completedBy');
     print('   selectedBidderId: $selectedBidderId');
     print('   claimedBy: $claimedBy');
@@ -543,6 +546,9 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
 
     // 상태 배지
     final badge = _getBadgeForStatus(status, bidCount, selectedBidderId, completedBy);
+
+    // 삭제 가능 여부 (낙찰 전 상태 + 생성자)
+    final bool canDelete = (status == 'created' || status == 'open') && selectedBidderId == null;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 800),
@@ -598,6 +604,17 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                   ),
                 ),
                 const Spacer(),
+                // 삭제 버튼 (추가)
+                if (canDelete)
+                  IconButton(
+                    onPressed: () => _deleteOrder(listingId, jobId, title),
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 22),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '오더 삭제',
+                  ),
+                const SizedBox(width: 8),
                 // Budget
                 if (budget != null)
                   Text(
@@ -955,6 +972,58 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
         ),
       ),
     ).then((_) => _loadMyOrders());
+  }
+
+  /// 오더 삭제 처리
+  Future<void> _deleteOrder(String listingId, String jobId, String title) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('오더 삭제'),
+        content: Text('[$title] 오더를 정말 삭제하시겠습니까?\n삭제된 오더는 복구할 수 없으며 모든 입찰 내역도 함께 삭제됩니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final marketplaceService = MarketplaceService();
+      final success = await marketplaceService.deleteListing(listingId, jobId);
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('오더가 삭제되었습니다.'), backgroundColor: Colors.green),
+          );
+          _loadMyOrders(); // 목록 새로고침
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('오더 삭제에 실패했습니다.'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ [MyOrderManagement] 오더 삭제 에러: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('에러 발생: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _openReviewScreen(Map<String, dynamic> order) async {

@@ -32,17 +32,17 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.ononcompany.allsuri"
-    compileSdk 35
-    ndkVersion flutter.ndkVersion
+    compileSdk 36 // ✅ 36으로 명시적 설정
+    ndkVersion "27.0.12077973" // ✅ 16KB를 완전 지원하는 최신 NDK로 명시적 설정
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17 // ✅ 최신 코틀린 대응을 위해 Java 17 권장
+        targetCompatibility JavaVersion.VERSION_17
         coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '17'
     }
 
     sourceSets {
@@ -51,14 +51,31 @@ android {
 
     defaultConfig {
         applicationId "com.ononcompany.allsuri"
-        minSdkVersion 23
+        minSdkVersion flutter.minSdkVersion  // ✅ 명시적으로 23 설정
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
-        multiDexEnabled true  // Add this line to support multidex
+        multiDexEnabled true
         manifestPlaceholders = [
             'kakaoCustomSchemePrefix': 'kakao'
         ]
+        
+        // ✅ 16KB 페이지 크기 강제 정렬 설정 (핵심!)
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+        }
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_MAX_PAGE_SIZE=16384"
+                cppFlags "-Wl,-z,max-page-size=16384"
+            }
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += ['/META-INF/{AL2.0,LGPL2.1}']
+        }
     }
 
     signingConfigs {

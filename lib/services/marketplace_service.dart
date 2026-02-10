@@ -72,6 +72,79 @@ class MarketplaceService extends ChangeNotifier {
       final result = data.map((e) => Map<String, dynamic>.from(e)).toList();
       debugPrint('listListings: 변환 완료 - ${result.length}개 항목');
       
+      // 오더 생성자 정보 가져오기 (사업자 상호명, 평점)
+      final postedByIds = result
+          .map((e) => e['posted_by']?.toString())
+          .where((id) => id != null && id.isNotEmpty)
+          .toSet()
+          .toList();
+      
+      if (postedByIds.isNotEmpty) {
+        debugPrint('listListings: ${postedByIds.length}명의 사업자 정보 조회 중...');
+        
+        // 병렬로 사업자 정보와 평점 조회
+        final usersFutures = postedByIds.map((userId) async {
+          try {
+            // 사업자 정보 조회
+            final user = await _sb
+                .from('users')
+                .select('id, businessname, name')
+                .eq('id', userId)
+                .maybeSingle();
+            
+            if (user == null) return null;
+            
+            // 평점 조회
+            final reviews = await _sb
+                .from('reviews')
+                .select('rating')
+                .eq('businessid', userId);
+            
+            double avgRating = 0.0;
+            int reviewCount = reviews.length;
+            
+            if (reviewCount > 0) {
+              final totalRating = reviews.fold<double>(
+                0.0, 
+                (sum, review) => sum + (review['rating'] as num?)?.toDouble() ?? 0.0
+              );
+              avgRating = totalRating / reviewCount;
+            }
+            
+            return {
+              'id': userId,
+              'businessName': user['businessname'] ?? user['name'] ?? '알 수 없음',
+              'avgRating': avgRating,
+              'reviewCount': reviewCount,
+            };
+          } catch (e) {
+            debugPrint('사업자 정보 조회 실패 ($userId): $e');
+            return null;
+          }
+        }).toList();
+        
+        final usersData = await Future.wait(usersFutures);
+        final usersMap = <String, Map<String, dynamic>>{};
+        
+        for (final userData in usersData) {
+          if (userData != null) {
+            usersMap[userData['id']] = userData;
+          }
+        }
+        
+        // 각 오더에 사업자 정보 추가
+        for (final listing in result) {
+          final postedById = listing['posted_by']?.toString();
+          if (postedById != null && usersMap.containsKey(postedById)) {
+            listing['owner_business_name'] = usersMap[postedById]!['businessName'];
+            listing['owner_avg_rating'] = usersMap[postedById]!['avgRating'];
+            listing['owner_review_count'] = usersMap[postedById]!['reviewCount'];
+          }
+        }
+        
+        debugPrint('✅ listListings: 사업자 정보 추가 완료');
+      }
+      
       // 첫 번째 항목의 키들을 로그로 출력
       if (result.isNotEmpty) {
         debugPrint('listListings: 첫 번째 항목 키들 - ${result.first.keys.toList()}');
@@ -238,6 +311,30 @@ class MarketplaceService extends ChangeNotifier {
       return true;
     } catch (e) {
       debugPrint('withdrawClaimForJob error: $e');
+      return false;
+    }
+  }
+
+  /// 오더 삭제 (공사 및 마켓플레이스 리스팅 삭제)
+  /// - 낙찰 전 상태여야 함 (status: created, open)
+  Future<bool> deleteListing(String listingId, String jobId) async {
+    try {
+      debugPrint('🔍 [MarketplaceService.deleteListing] 시작: listingId=$listingId, jobId=$jobId');
+      
+      // 1. 입찰 내역 삭제 (있을 경우)
+      await _sb.from('order_bids').delete().eq('listing_id', listingId);
+      
+      // 2. 마켓플레이스 리스팅 삭제
+      // jobid cascade가 걸려있으므로 job만 삭제해도 되지만, 명시적으로 listing 먼저 삭제 시도
+      await _sb.from('marketplace_listings').delete().eq('id', listingId);
+      
+      // 3. 원본 공사 삭제
+      await _sb.from('jobs').delete().eq('id', jobId);
+      
+      debugPrint('✅ [MarketplaceService.deleteListing] 삭제 성공');
+      return true;
+    } catch (e) {
+      debugPrint('❌ [MarketplaceService.deleteListing] 삭제 실패: $e');
       return false;
     }
   }

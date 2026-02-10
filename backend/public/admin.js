@@ -1551,11 +1551,15 @@ async function showCallDetail(jobId) {
         
         modalBody.innerHTML = detailHtml;
         
-        // 모달 footer에 삭제 버튼 추가
+        // 모달 footer에 버튼들 추가
         const modalFooter = document.querySelector('#callModal .modal-footer');
         if (modalFooter) {
             modalFooter.innerHTML = `
                 <button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>
+                <button class="btn btn-success" onclick="sendOrderNotification('${jobId}')">
+                    <span class="material-icons" style="font-size: 1rem;">send</span>
+                    사업자들에게 알림 발송
+                </button>
                 <button class="btn btn-danger" onclick="deleteCall('${jobId}')">
                     <span class="material-icons" style="font-size: 1rem;">delete</span>
                     오더 삭제
@@ -1602,6 +1606,62 @@ async function deleteCall(listingId) {
 function closeCallModal() {
     document.getElementById('callModal').style.display = 'none';
 }
+
+// 오더에 대해 사업자들에게 알림 발송
+async function sendOrderNotification(orderId) {
+    const customMessage = prompt(
+        '사업자들에게 보낼 메시지를 입력하세요:\n\n' +
+        '(비워두면 기본 메시지가 전송됩니다)'
+    );
+    
+    // 취소 버튼을 누른 경우
+    if (customMessage === null) {
+        return;
+    }
+    
+    try {
+        console.log('[sendOrderNotification] 알림 발송 시작:', orderId);
+        
+        // 로딩 표시
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'notification-loading';
+        loadingDiv.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                        background: rgba(0,0,0,0.5); display: flex; align-items: center; 
+                        justify-content: center; z-index: 10000;">
+                <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center;">
+                    <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                    <div>사업자들에게 알림을 발송하는 중...</div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loadingDiv);
+        
+        const response = await apiCall(`/orders/${orderId}/notify`, {
+            method: 'POST',
+            body: JSON.stringify({
+                message: customMessage?.trim() || null,
+                targetRegion: true,  // 오더의 지역에 해당하는 사업자
+                targetCategory: true, // 오더의 카테고리에 해당하는 사업자
+            })
+        });
+        
+        // 로딩 제거
+        document.getElementById('notification-loading')?.remove();
+        
+        if (response.success) {
+            alert(`✅ 성공!\n\n${response.message}\n\n성공: ${response.sent}명\n실패: ${response.failed}명\n전체: ${response.total}명`);
+        } else {
+            alert('❌ 알림 발송에 실패했습니다');
+        }
+    } catch (error) {
+        console.error('[sendOrderNotification] 에러:', error);
+        document.getElementById('notification-loading')?.remove();
+        alert('알림 발송에 실패했습니다: ' + error.message);
+    }
+}
+
+module.exports = router;
 
 // 견적 상세 보기 함수
 async function showEstimateDetail(estimateId) {

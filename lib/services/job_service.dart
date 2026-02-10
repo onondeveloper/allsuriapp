@@ -195,13 +195,16 @@ class JobService extends ChangeNotifier {
           .from('jobs')
           .update({'status': status})
           .eq('id', jobId)
-          .select('owner_business_id, transfer_to_business_id, assigned_business_id')
+          .select('owner_business_id, transfer_to_business_id, assigned_business_id, title')
           .single();
 
       final ownerId = row['owner_business_id'] as String?;
       final receiverId = row['transfer_to_business_id'] as String?;
       final assigneeId = row['assigned_business_id'] as String?;
+      final jobTitle = row['title'] as String? ?? '공사';
+      
       final notif = NotificationService();
+      
       if (status == 'transfer_rejected') {
         if (ownerId != null && ownerId.isNotEmpty) {
           await notif.sendNotification(
@@ -210,10 +213,54 @@ class JobService extends ChangeNotifier {
             body: '이관 요청이 거절되었습니다.',
           );
         }
+      } else if (status == 'cancelled') {
+        // 공사가 취소된 경우 관련 당사자들에게 알림
+        if (ownerId != null && ownerId.isNotEmpty) {
+          await notif.sendNotification(
+            userId: ownerId,
+            title: '공사 취소됨',
+            body: '[$jobTitle] 공사가 취소되었습니다.',
+          );
+        }
+        if (assigneeId != null && assigneeId.isNotEmpty) {
+          await notif.sendNotification(
+            userId: assigneeId,
+            title: '공사 취소됨',
+            body: '[$jobTitle] 공사가 취소되었습니다.',
+          );
+        }
       }
     } catch (e) {
       if (kDebugMode) {
         print('Error updating job status: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// 공사 취소 처리 (사업자용)
+  /// - 마켓플레이스 리스팅도 함께 취소 처리
+  Future<void> cancelJobByAssignee(String jobId, String listingId) async {
+    try {
+      // 1. 공사 상태 취소로 변경
+      await _supabase
+          .from('jobs')
+          .update({'status': 'cancelled'})
+          .eq('id', jobId);
+
+      // 2. 마켓플레이스 리스팅 상태 취소로 변경
+      await _supabase
+          .from('marketplace_listings')
+          .update({'status': 'cancelled'})
+          .eq('id', listingId);
+
+      // 3. 알림 전송은 updateJobStatus 내부 로직 활용을 위해 재호출하거나 직접 구현
+      // 여기서는 명시적으로 호출
+      await updateJobStatus(jobId: jobId, status: 'cancelled');
+      
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ [JobService] 공사 취소 실패: $e');
       }
       rethrow;
     }

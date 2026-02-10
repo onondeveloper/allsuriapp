@@ -21,13 +21,13 @@ class KakaoShareService {
       final template = FeedTemplate(
         content: Content(
           title: '🔧 견적 요청: $title',
-          description: '🏷️ 카테고리: $category\n📍 주소: $address${description != null ? "\n\n$description" : ""}',
-          imageUrl: Uri.parse('https://allsuri.app/assets/images/logo.png'),
+          description: '카테고리: $category\n주소: $address${description != null ? "\n\n$description" : ""}',
+          imageUrl: Uri.parse('https://iiunvogtqssxaxdnhqaj.supabase.co/storage/v1/object/public/attachments_estimates/logo.png'), // ✅ 변경
           link: Link(
             androidExecutionParams: {'estimateId': estimateId},
             iosExecutionParams: {'estimateId': estimateId},
-            webUrl: Uri.parse('https://allsuri.app/estimate/$estimateId'),
-            mobileWebUrl: Uri.parse('https://allsuri.app/estimate/$estimateId'),
+            webUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'), // ✅ 변경
+            mobileWebUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'), // ✅ 변경
           ),
         ),
         buttons: [
@@ -36,8 +36,8 @@ class KakaoShareService {
             link: Link(
               androidExecutionParams: {'estimateId': estimateId},
               iosExecutionParams: {'estimateId': estimateId},
-              webUrl: Uri.parse('https://allsuri.app/estimate/$estimateId'),
-              mobileWebUrl: Uri.parse('https://allsuri.app/estimate/$estimateId'),
+              webUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'), // ✅ 변경
+              mobileWebUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'), // ✅ 변경
             ),
           ),
         ],
@@ -87,17 +87,30 @@ class KakaoShareService {
         feeText = '\n💳 수수료: ${commissionRate.toStringAsFixed(0)}%';
       }
 
+      // 설명 추가
+      String descText = '';
+      if (description != null && description.isNotEmpty) {
+        final shortDesc = description.length > 100 
+            ? '${description.substring(0, 100)}...' 
+            : description;
+        descText = '\n\n📝 $shortDesc';
+      }
+
       // 이미지 URL
       final String finalImageUrl = (imageUrl != null && imageUrl.startsWith('http'))
           ? imageUrl
           : 'https://allsuri.app/assets/images/logo.png';
 
+      print('   [KakaoShare] 최종 공유 이미지 URL: $finalImageUrl');
+
       // 1. 카카오톡 공유 템플릿 (Feed) 생성
       final template = FeedTemplate(
         content: Content(
-          title: '🔨 오더: $title',
-          description: '📍 지역: $region$budgetText$feeText$descText',
+          title: '오더: $title',
+          description: '지역: $region$budgetText$feeText$descText',
           imageUrl: Uri.parse(finalImageUrl),
+          imageWidth: 400,
+          imageHeight: 400,
           link: Link(
             androidExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
             iosExecutionParams: {'orderId': orderId, 'path': 'order_detail'},

@@ -583,6 +583,59 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              
+                              // 오더 생성자 정보 (사업자 상호명, 평점)
+                              if (e['owner_business_name'] != null) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.orange.shade200, width: 1),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.business, size: 14, color: Colors.orange[700]),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          e['owner_business_name'] ?? '알 수 없음',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.orange[900],
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (e['owner_review_count'] != null && e['owner_review_count'] > 0) ...[
+                                        const SizedBox(width: 8),
+                                        Icon(Icons.star, size: 14, color: Colors.amber[700]),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          '${(e['owner_avg_rating'] as num).toStringAsFixed(1)} (${e['owner_review_count']})',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[800],
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ] else ...[
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '평가 없음',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              
                               const SizedBox(height: 12),
                               // Info row
                               Row(

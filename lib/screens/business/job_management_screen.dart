@@ -254,6 +254,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                     listingsByJobId: _listingByJobId,
                     onViewBidders: _openBidderList,
                     onCompleteJob: _completeJob,
+                    onCancelJob: _cancelJob, // 추가
                     onReview: _openReviewScreen,
                     scrollController: _scrollController,
                     highlightedJobId: widget.highlightedJobId,
@@ -403,6 +404,57 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     if (result == true) {
       print('🔄 [JobManagement] 입찰자 선택 완료, 목록 새로고침');
       await _loadJobs();
+    }
+  }
+
+  /// 공사 취소 처리
+  Future<void> _cancelJob(Job job) async {
+    final listing = _listingByJobId[job.id];
+    if (listing == null) return;
+    
+    final listingId = listing['id']?.toString() ?? '';
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('공사 취소'),
+        content: Text('[${job.title}] 공사를 취소하시겠습니까?\n취소 시 오더 소유자에게 알림이 전송됩니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('아니오', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('취소하기', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final jobService = context.read<JobService>();
+      await jobService.cancelJobByAssignee(job.id!, listingId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('공사가 취소되었습니다.'), backgroundColor: Colors.orange),
+        );
+        await _loadJobs(); // 목록 새로고침
+      }
+    } catch (e) {
+      print('❌ [JobManagement] 공사 취소 에러: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('취소 실패: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -650,6 +702,7 @@ class _ModernJobsList extends StatelessWidget {
   final Map<String, Map<String, dynamic>> listingsByJobId;
   final void Function(String listingId, String orderTitle) onViewBidders;
   final Future<void> Function(Job job) onCompleteJob;
+  final Future<void> Function(Job job) onCancelJob; // 추가
   final Future<void> Function(Job job) onReview;
   final ScrollController? scrollController;
   final String? highlightedJobId;
@@ -660,6 +713,7 @@ class _ModernJobsList extends StatelessWidget {
     required this.listingsByJobId,
     required this.onViewBidders,
     required this.onCompleteJob,
+    required this.onCancelJob, // 추가
     required this.onReview,
     this.scrollController,
     this.highlightedJobId,
@@ -757,33 +811,53 @@ class _ModernJobsList extends StatelessWidget {
           final canComplete = (job.status == 'assigned' || job.status == 'in_progress');
           print('🔍 [BuildButton] jobId=${job.id}, status=${job.status}, canComplete=$canComplete');
           
-          actionButton = SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: job.status == 'awaiting_confirmation' 
-                    ? Colors.grey[400] 
-                    : const Color(0xFF10B981),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+          actionButton = Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: job.status == 'awaiting_confirmation' 
+                        ? Colors.grey[400] 
+                        : const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: Icon(job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline, size: 18),
+                  label: Text(
+                    job.status == 'awaiting_confirmation' ? '확인 대기 중' : '공사 완료',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  onPressed: canComplete ? () => onCompleteJob(job) : null,
                 ),
-                elevation: 0,
               ),
-              icon: Icon(job.status == 'awaiting_confirmation' ? Icons.check_circle : Icons.check_circle_outline, size: 20),
-              label: Text(
-                job.status == 'awaiting_confirmation' ? '확인 대기 중' : '공사 완료',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+              if (canComplete) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    label: const Text(
+                      '공사 취소',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    onPressed: () => onCancelJob(job),
+                  ),
                 ),
-              ),
-              onPressed: canComplete ? () {
-                print('🔘 [Button] 공사 완료 버튼 클릭! jobId=${job.id}');
-                onCompleteJob(job);
-              } : null,
-            ),
+              ],
+            ],
           );
         } else if (job.ownerBusinessId == currentUserId && 
                    job.status == 'completed' && 
