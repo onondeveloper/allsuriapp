@@ -40,6 +40,12 @@
   force = true
 
 [[redirects]]
+  from = "/order/*"
+  to = "/order.html"
+  status = 200
+  force = false
+
+[[redirects]]
   from = "/"
   to = "/admin.html"
   status = 200

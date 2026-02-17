@@ -1744,16 +1744,16 @@ async function copyOrderShareText(orderId) {
             ? `\n💰 예산: ${order.budget_amount.toLocaleString('ko-KR')}원`
             : '';
         
-        // 딥링크 생성
-        const deepLink = `allsuri://order/${orderId}`;
+        // HTTPS 링크 생성 (카카오톡이 자동으로 링크 버튼 생성)
+        const webLink = `https://allsuri.app/order/${orderId}`;
         
-        // 공유 텍스트 생성 (딥링크 포함, 카카오톡이 자동으로 링크로 인식)
+        // 공유 텍스트 생성 (HTTPS 링크 포함)
         const shareText = `🔧 새로운 오더 등록!\n\n` +
             `📌 ${order.title || '오더'}\n` +
             `📍 지역: ${order.location || order.region || '지역 미지정'}\n` +
             `🏷️ 카테고리: ${order.category || '일반'}${budgetText}\n\n` +
             `${order.description || ''}\n\n` +
-            `${deepLink}`;
+            `${webLink}`;
         
         // 클립보드에 복사
         await navigator.clipboard.writeText(shareText);
