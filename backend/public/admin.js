@@ -1728,7 +1728,7 @@ async function shareOrderToKakao(orderId) {
     }
 }
 
-// 오더 공유 텍스트 복사 (링크 미포함)
+// 오더 공유 텍스트 복사 (딥링크 포함, 카카오톡이 자동으로 링크 버튼 생성)
 async function copyOrderShareText(orderId) {
     try {
         const calls = await apiCall('/calls');
@@ -1744,18 +1744,21 @@ async function copyOrderShareText(orderId) {
             ? `\n💰 예산: ${order.budget_amount.toLocaleString('ko-KR')}원`
             : '';
         
-        // 공유 텍스트 생성 (링크 미포함)
+        // 딥링크 생성
+        const deepLink = `allsuri://order/${orderId}`;
+        
+        // 공유 텍스트 생성 (딥링크 포함, 카카오톡이 자동으로 링크로 인식)
         const shareText = `🔧 새로운 오더 등록!\n\n` +
             `📌 ${order.title || '오더'}\n` +
             `📍 지역: ${order.location || order.region || '지역 미지정'}\n` +
             `🏷️ 카테고리: ${order.category || '일반'}${budgetText}\n\n` +
             `${order.description || ''}\n\n` +
-            `👉 올수리 앱에서 확인하세요!`;
+            `${deepLink}`;
         
         // 클립보드에 복사
         await navigator.clipboard.writeText(shareText);
         
-        alert('✅ 공유 텍스트가 클립보드에 복사되었습니다!\n\n카카오톡에 붙여넣기 하세요.');
+        alert('✅ 공유 텍스트가 클립보드에 복사되었습니다!\n\n카카오톡에 붙여넣으면 링크가 버튼으로 표시됩니다.');
     } catch (error) {
         console.error('[copyOrderShareText] 에러:', error);
         alert('텍스트 복사에 실패했습니다: ' + error.message);
