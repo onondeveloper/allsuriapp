@@ -85,6 +85,8 @@ class MarketplaceService extends ChangeNotifier {
         // 병렬로 사업자 정보와 평점 조회
         final usersFutures = postedByIds.map((userId) async {
           try {
+            if (userId == null) return null;
+            
             // 사업자 정보 조회
             final user = await _sb
                 .from('users')
@@ -106,7 +108,13 @@ class MarketplaceService extends ChangeNotifier {
             if (reviewCount > 0) {
               final totalRating = reviews.fold<double>(
                 0.0, 
-                (sum, review) => sum + (review['rating'] as num?)?.toDouble() ?? 0.0
+                (sum, review) {
+                  final rating = review['rating'];
+                  if (rating is num) {
+                    return sum + rating.toDouble();
+                  }
+                  return sum;
+                }
               );
               avgRating = totalRating / reviewCount;
             }

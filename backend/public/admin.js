@@ -1556,17 +1556,21 @@ async function showCallDetail(jobId) {
         if (modalFooter) {
             modalFooter.innerHTML = `
                 <button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>
-                <button class="btn btn-primary" onclick="copyOrderShareLink('${jobId}')">
+                <button class="btn btn-primary" onclick="copyOrderShareText('${jobId}')">
                     <span class="material-icons" style="font-size: 1rem;">content_copy</span>
-                    카카오톡 공유 링크 복사
+                    카카오톡 공유
+                </button>
+                <button class="btn btn-info" onclick="copyOrderDeepLink('${jobId}')" style="background: var(--info);">
+                    <span class="material-icons" style="font-size: 1rem;">link</span>
+                    딥링크 복사
                 </button>
                 <button class="btn btn-success" onclick="sendOrderNotification('${jobId}')">
                     <span class="material-icons" style="font-size: 1rem;">send</span>
-                    사업자들에게 알림 발송
+                    알림 발송
                 </button>
                 <button class="btn btn-danger" onclick="deleteCall('${jobId}')">
                     <span class="material-icons" style="font-size: 1rem;">delete</span>
-                    오더 삭제
+                    삭제
                 </button>
             `;
         }
@@ -1724,8 +1728,8 @@ async function shareOrderToKakao(orderId) {
     }
 }
 
-// 오더 공유 URL 생성 및 복사
-async function copyOrderShareLink(orderId) {
+// 오더 공유 텍스트 복사 (링크 미포함)
+async function copyOrderShareText(orderId) {
     try {
         const calls = await apiCall('/calls');
         const order = calls.find(c => c.id === orderId);
@@ -1740,27 +1744,35 @@ async function copyOrderShareLink(orderId) {
             ? `\n💰 예산: ${order.budget_amount.toLocaleString('ko-KR')}원`
             : '';
         
-        // 딥링크 생성 (앱이 설치되어 있으면 앱 내부 오더로 바로 이동)
-        const deepLink = `allsuri://order/${orderId}`;
-        const webLink = `https://allsuri.app/order/${orderId}`;
-        
-        // 공유 텍스트 생성
+        // 공유 텍스트 생성 (링크 미포함)
         const shareText = `🔧 새로운 오더 등록!\n\n` +
             `📌 ${order.title || '오더'}\n` +
             `📍 지역: ${order.location || order.region || '지역 미지정'}\n` +
             `🏷️ 카테고리: ${order.category || '일반'}${budgetText}\n\n` +
             `${order.description || ''}\n\n` +
-            `👉 앱에서 바로 확인하기:\n` +
-            `${deepLink}\n\n` +
-            `또는 웹에서 확인:\n` +
-            `${webLink}`;
+            `👉 올수리 앱에서 확인하세요!`;
         
         // 클립보드에 복사
         await navigator.clipboard.writeText(shareText);
         
-        alert('✅ 공유 텍스트가 클립보드에 복사되었습니다!\n\n카카오톡에 붙여넣기 하세요.\n\n딥링크를 클릭하면 앱이 열리고 해당 오더로 바로 이동합니다.');
+        alert('✅ 공유 텍스트가 클립보드에 복사되었습니다!\n\n카카오톡에 붙여넣기 하세요.');
     } catch (error) {
-        console.error('[copyOrderShareLink] 에러:', error);
+        console.error('[copyOrderShareText] 에러:', error);
+        alert('텍스트 복사에 실패했습니다: ' + error.message);
+    }
+}
+
+// 오더 딥링크 복사 (관리자 전용)
+async function copyOrderDeepLink(orderId) {
+    try {
+        const deepLink = `allsuri://order/${orderId}`;
+        
+        // 클립보드에 복사
+        await navigator.clipboard.writeText(deepLink);
+        
+        alert('✅ 딥링크가 클립보드에 복사되었습니다!\n\n' + deepLink + '\n\n이 링크를 공유하면 앱이 설치된 사용자는 해당 오더로 바로 이동합니다.');
+    } catch (error) {
+        console.error('[copyOrderDeepLink] 에러:', error);
         alert('링크 복사에 실패했습니다: ' + error.message);
     }
 }
