@@ -1740,19 +1740,25 @@ async function copyOrderShareLink(orderId) {
             ? `\n💰 예산: ${order.budget_amount.toLocaleString('ko-KR')}원`
             : '';
         
+        // 딥링크 생성 (앱이 설치되어 있으면 앱 내부 오더로 바로 이동)
+        const deepLink = `allsuri://order/${orderId}`;
+        const webLink = `https://allsuri.app/order/${orderId}`;
+        
         // 공유 텍스트 생성
         const shareText = `🔧 새로운 오더 등록!\n\n` +
             `📌 ${order.title || '오더'}\n` +
             `📍 지역: ${order.location || order.region || '지역 미지정'}\n` +
             `🏷️ 카테고리: ${order.category || '일반'}${budgetText}\n\n` +
             `${order.description || ''}\n\n` +
-            `👉 앱에서 확인하기:\n` +
-            `https://play.google.com/store/apps/details?id=com.ononcompany.allsuri`;
+            `👉 앱에서 바로 확인하기:\n` +
+            `${deepLink}\n\n` +
+            `또는 웹에서 확인:\n` +
+            `${webLink}`;
         
         // 클립보드에 복사
         await navigator.clipboard.writeText(shareText);
         
-        alert('✅ 공유 텍스트가 클립보드에 복사되었습니다!\n\n카카오톡에 붙여넣기 하세요.');
+        alert('✅ 공유 텍스트가 클립보드에 복사되었습니다!\n\n카카오톡에 붙여넣기 하세요.\n\n딥링크를 클릭하면 앱이 열리고 해당 오더로 바로 이동합니다.');
     } catch (error) {
         console.error('[copyOrderShareLink] 에러:', error);
         alert('링크 복사에 실패했습니다: ' + error.message);

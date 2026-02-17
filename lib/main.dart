@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uni_links/uni_links.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
 import 'services/order_service.dart';
@@ -25,9 +26,13 @@ import 'providers/order_provider.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/role_selection_screen.dart';
+import 'screens/business/order_marketplace_screen.dart';
 import 'widgets/professional_dashboard.dart';
 import 'widgets/customer_dashboard.dart';
 import 'utils/navigation_utils.dart';
+
+// 전역 네비게이터 키 (딥링크 처리용)
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 //126e5d87-94e0-4ad2-94ba-51b9c2454a4a
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -325,6 +330,7 @@ class MyApp extends StatelessWidget {
 
            return MaterialApp(
             title: 'Allsuri',
+            navigatorKey: navigatorKey, // 딥링크 처리용 네비게이터 키
              theme: buildTheme(lightScheme.copyWith(
                surface: Colors.white,
                background: Colors.white,
@@ -352,10 +358,79 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  StreamSubscription? _deepLinkSub;
+  
   @override
   void initState() {
     super.initState();
+    _initDeepLinks();
     _checkAutoLogin();
+  }
+  
+  @override
+  void dispose() {
+    _deepLinkSub?.cancel();
+    super.dispose();
+  }
+  
+  // 딥링크 초기화
+  void _initDeepLinks() {
+    // 앱이 실행 중일 때 딥링크 수신
+    _deepLinkSub = uriLinkStream.listen((Uri? uri) {
+      if (uri != null) {
+        print('🔗 [DeepLink] 수신: $uri');
+        _handleDeepLink(uri);
+      }
+    }, onError: (err) {
+      print('❌ [DeepLink] 에러: $err');
+    });
+    
+    // 앱이 종료된 상태에서 딥링크로 실행된 경우
+    getInitialUri().then((Uri? uri) {
+      if (uri != null) {
+        print('🔗 [DeepLink] 초기 링크: $uri');
+        _handleDeepLink(uri);
+      }
+    });
+  }
+  
+  // 딥링크 처리
+  void _handleDeepLink(Uri uri) {
+    print('🔗 [DeepLink] 처리 시작: ${uri.toString()}');
+    print('   Scheme: ${uri.scheme}');
+    print('   Host: ${uri.host}');
+    print('   Path: ${uri.path}');
+    
+    // allsuri://order/{orderId} 또는 https://allsuri.app/order/{orderId}
+    if ((uri.scheme == 'allsuri' || uri.scheme == 'https') && 
+        (uri.host == 'order' || uri.path.startsWith('/order'))) {
+      
+      // orderId 추출
+      String? orderId;
+      if (uri.host == 'order') {
+        // allsuri://order/{orderId}
+        orderId = uri.pathSegments.isNotEmpty ? uri.pathSegments[0] : null;
+      } else {
+        // https://allsuri.app/order/{orderId}
+        final segments = uri.pathSegments;
+        orderId = segments.length > 1 ? segments[1] : null;
+      }
+      
+      if (orderId != null) {
+        print('✅ [DeepLink] 오더 ID: $orderId');
+        
+        // 오더 마켓플레이스로 이동
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (navigatorKey.currentContext != null) {
+            Navigator.of(navigatorKey.currentContext!).push(
+              MaterialPageRoute(
+                builder: (_) => const OrderMarketplaceScreen(),
+              ),
+            );
+          }
+        });
+      }
+    }
   }
 
   Future<void> _checkAutoLogin() async {

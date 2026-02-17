@@ -70,6 +70,14 @@
 				<string>kakao9462c73fdeaba67181aadcc46af6d293</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>allsuri</string>
+			</array>
+		</dict>
 	</array>
 	<!-- Kakao SDK 설정 -->
 	<key>KAKAO_APP_KEY</key>

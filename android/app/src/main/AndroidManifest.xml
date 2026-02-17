@@ -44,7 +44,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             
-            <!-- Removed Supabase OAuth callback (not used with Kakao) to avoid deep-link handling conflicts -->
+            <!-- 딥링크: allsuri://order/{orderId} -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="allsuri" android:host="order" />
+            </intent-filter>
+            
+            <!-- App Links: https://allsuri.app/order/{orderId} -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="allsuri.app" android:pathPrefix="/order" />
+            </intent-filter>
 
         </activity>
         
