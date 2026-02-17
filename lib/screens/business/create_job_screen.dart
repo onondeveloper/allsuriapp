@@ -34,6 +34,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
   String _selectedCategory = '일반';
   String _selectedUrgency = 'normal';
   bool _submitting = false;
+  bool _creatingOrder = false; // 오더 생성 중복 방지 플래그
   final MarketplaceService _marketplaceService = MarketplaceService();
   
   // 이미지 관련 상태
@@ -709,7 +710,15 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                   ),
                   child: FilledButton.icon(
                     onPressed: () async {
+                      // 중복 클릭 방지
+                      if (_creatingOrder) {
+                        print('⚠️ [오더 등록] 이미 오더 생성 중, 무시');
+                        return;
+                      }
+                      
+                      setState(() => _creatingOrder = true);
                       Navigator.pop(sheetContext);
+                      
                       try {
                         print('오더 등록 시작: jobId=$jobId, title=$title');
                         
@@ -810,6 +819,10 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                         ScaffoldMessenger.of(parentContext).showSnackBar(
                           SnackBar(content: Text('Call 등록 실패: $e')),
                         );
+                      } finally {
+                        if (mounted) {
+                          setState(() => _creatingOrder = false);
+                        }
                       }
                     },
                     style: FilledButton.styleFrom(

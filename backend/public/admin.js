@@ -36,7 +36,7 @@ function checkLogin() {
     return true;
 }
 
-// API 호출 헬퍼 함수
+// API 호출 헬퍼 함수 테스트
 async function apiCall(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`;
     const config = {
@@ -1556,6 +1556,10 @@ async function showCallDetail(jobId) {
         if (modalFooter) {
             modalFooter.innerHTML = `
                 <button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>
+                <button class="btn btn-primary" onclick="copyOrderShareLink('${jobId}')">
+                    <span class="material-icons" style="font-size: 1rem;">content_copy</span>
+                    카카오톡 공유 링크 복사
+                </button>
                 <button class="btn btn-success" onclick="sendOrderNotification('${jobId}')">
                     <span class="material-icons" style="font-size: 1rem;">send</span>
                     사업자들에게 알림 발송
@@ -1658,6 +1662,100 @@ async function sendOrderNotification(orderId) {
         console.error('[sendOrderNotification] 에러:', error);
         document.getElementById('notification-loading')?.remove();
         alert('알림 발송에 실패했습니다: ' + error.message);
+    }
+}
+
+// 오더를 카카오톡으로 공유
+async function shareOrderToKakao(orderId) {
+    try {
+        const calls = await apiCall('/calls');
+        const order = calls.find(c => c.id === orderId);
+        
+        if (!order) {
+            alert('오더 정보를 찾을 수 없습니다.');
+            return;
+        }
+        
+        console.log('[shareOrderToKakao] 오더 정보:', order);
+        
+        // 예산 포맷팅
+        const budgetText = order.budget_amount 
+            ? `\n💰 예산: ${order.budget_amount.toLocaleString('ko-KR')}원`
+            : '';
+        
+        // 카카오톡 공유 템플릿
+        const template = {
+            objectType: 'feed',
+            content: {
+                title: `🔧 ${order.title || '오더'}`,
+                description: `📍 지역: ${order.location || order.region || '지역 미지정'}\n🏷️ 카테고리: ${order.category || '일반'}${budgetText}\n\n${order.description || '상세 설명이 없습니다.'}`,
+                imageUrl: order.media_urls && order.media_urls.length > 0 
+                    ? order.media_urls[0]
+                    : 'https://allsuri.app/assets/images/logo.png',
+                link: {
+                    mobileWebUrl: 'https://play.google.com/store/apps/details?id=com.ononcompany.allsuri',
+                    webUrl: 'https://play.google.com/store/apps/details?id=com.ononcompany.allsuri',
+                },
+            },
+            buttons: [
+                {
+                    title: '앱에서 보기',
+                    link: {
+                        mobileWebUrl: 'https://play.google.com/store/apps/details?id=com.ononcompany.allsuri',
+                        webUrl: 'https://play.google.com/store/apps/details?id=com.ononcompany.allsuri',
+                    },
+                },
+            ],
+        };
+        
+        // Kakao SDK 확인
+        if (!window.Kakao || !Kakao.isInitialized()) {
+            alert('Kakao SDK가 초기화되지 않았습니다.\n\n관리자에게 문의하세요.');
+            return;
+        }
+        
+        // 카카오톡 공유 실행
+        Kakao.Share.sendDefault(template);
+        
+        console.log('[shareOrderToKakao] 카카오톡 공유 완료');
+    } catch (error) {
+        console.error('[shareOrderToKakao] 에러:', error);
+        alert('카카오톡 공유에 실패했습니다: ' + error.message);
+    }
+}
+
+// 오더 공유 URL 생성 및 복사
+async function copyOrderShareLink(orderId) {
+    try {
+        const calls = await apiCall('/calls');
+        const order = calls.find(c => c.id === orderId);
+        
+        if (!order) {
+            alert('오더 정보를 찾을 수 없습니다.');
+            return;
+        }
+        
+        // 예산 포맷팅
+        const budgetText = order.budget_amount 
+            ? `\n💰 예산: ${order.budget_amount.toLocaleString('ko-KR')}원`
+            : '';
+        
+        // 공유 텍스트 생성
+        const shareText = `🔧 새로운 오더 등록!\n\n` +
+            `📌 ${order.title || '오더'}\n` +
+            `📍 지역: ${order.location || order.region || '지역 미지정'}\n` +
+            `🏷️ 카테고리: ${order.category || '일반'}${budgetText}\n\n` +
+            `${order.description || ''}\n\n` +
+            `👉 앱에서 확인하기:\n` +
+            `https://play.google.com/store/apps/details?id=com.ononcompany.allsuri`;
+        
+        // 클립보드에 복사
+        await navigator.clipboard.writeText(shareText);
+        
+        alert('✅ 공유 텍스트가 클립보드에 복사되었습니다!\n\n카카오톡에 붙여넣기 하세요.');
+    } catch (error) {
+        console.error('[copyOrderShareLink] 에러:', error);
+        alert('링크 복사에 실패했습니다: ' + error.message);
     }
 }
 
