@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uni_links/uni_links.dart';
+import 'package:app_links/app_links.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
 import 'services/order_service.dart';
@@ -358,6 +358,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  late AppLinks _appLinks;
   StreamSubscription? _deepLinkSub;
   
   @override
@@ -375,18 +376,18 @@ class _SplashScreenState extends State<SplashScreen> {
   
   // 딥링크 초기화
   void _initDeepLinks() {
+    _appLinks = AppLinks();
+    
     // 앱이 실행 중일 때 딥링크 수신
-    _deepLinkSub = uriLinkStream.listen((Uri? uri) {
-      if (uri != null) {
-        print('🔗 [DeepLink] 수신: $uri');
-        _handleDeepLink(uri);
-      }
+    _deepLinkSub = _appLinks.uriLinkStream.listen((Uri uri) {
+      print('🔗 [DeepLink] 수신: $uri');
+      _handleDeepLink(uri);
     }, onError: (err) {
       print('❌ [DeepLink] 에러: $err');
     });
     
     // 앱이 종료된 상태에서 딥링크로 실행된 경우
-    getInitialUri().then((Uri? uri) {
+    _appLinks.getInitialLink().then((Uri? uri) {
       if (uri != null) {
         print('🔗 [DeepLink] 초기 링크: $uri');
         _handleDeepLink(uri);
