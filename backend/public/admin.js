@@ -1745,7 +1745,7 @@ async function copyOrderShareText(orderId) {
             : '';
         
         // HTTPS 링크 생성 (카카오톡이 자동으로 링크 버튼 생성)
-        const webLink = `https://allsuri.app/order/${orderId}`;
+        const webLink = `https://api.allsuri.app/order/${orderId}`;
         
         // 공유 텍스트 생성 (HTTPS 링크 포함)
         const shareText = `🔧 새로운 오더 등록!\n\n` +

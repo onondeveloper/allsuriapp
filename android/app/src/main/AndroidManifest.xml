@@ -52,12 +52,12 @@
                 <data android:scheme="allsuri" android:host="order" />
             </intent-filter>
             
-            <!-- App Links: https://allsuri.app/order/{orderId} -->
+            <!-- App Links: https://api.allsuri.app/order/{orderId} -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="allsuri.app" android:pathPrefix="/order" />
+                <data android:scheme="https" android:host="api.allsuri.app" android:pathPrefix="/order" />
             </intent-filter>
 
         </activity>
