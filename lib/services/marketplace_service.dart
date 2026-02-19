@@ -240,6 +240,20 @@ class MarketplaceService extends ChangeNotifier {
     debugPrint('createListing payload: $payload');
     
     try {
+      // 동일한 jobId로 이미 등록된 오더가 있는지 확인 (중복 방지)
+      final existing = await _sb
+          .from('marketplace_listings')
+          .select('id, status')
+          .eq('jobid', jobId)
+          .limit(1);
+      
+      if (existing.isNotEmpty) {
+        debugPrint('⚠️ createListing: 이미 등록된 오더가 있습니다 (jobId: $jobId)');
+        debugPrint('   기존 오더 ID: ${existing.first['id']}, 상태: ${existing.first['status']}');
+        // 기존 오더 반환 (새로 생성하지 않음)
+        return Map<String, dynamic>.from(existing.first);
+      }
+      
       // Supabase 직접 INSERT (anon 키 사용, RLS 정책 통과 필요)
       final rows = await _sb.from('marketplace_listings').insert(payload).select().limit(1);
       debugPrint('createListing DB 결과: $rows');

@@ -1684,7 +1684,7 @@ async function shareOrderToKakao(orderId) {
         
         // 예산 포맷팅
         const budgetText = order.budget_amount 
-            ? `\n💰 예산: ${order.budget_amount.toLocaleString('ko-KR')}원`
+            ? `\n💰 견적가: ${order.budget_amount.toLocaleString('ko-KR')}원`
             : '';
         
         // 카카오톡 공유 템플릿

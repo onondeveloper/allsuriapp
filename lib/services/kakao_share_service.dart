@@ -96,17 +96,20 @@ class KakaoShareService {
         descText = '\n\n📝 $shortDesc';
       }
 
-      // 이미지 URL
+      // 이미지 URL (allsuri.app은 SSL 인증서 문제 → api.allsuri.app 사용)
       final String finalImageUrl = (imageUrl != null && imageUrl.startsWith('http'))
           ? imageUrl
-          : 'https://allsuri.app/assets/images/logo.png';
+          : 'https://api.allsuri.app/assets/images/logo.png';
 
       print('   [KakaoShare] 최종 공유 이미지 URL: $finalImageUrl');
+
+      // 딥링크 URL (api.allsuri.app은 SSL 정상)
+      final deepLinkUrl = 'https://api.allsuri.app/order/$orderId';
 
       // 1. 카카오톡 공유 템플릿 (Feed) 생성
       final template = FeedTemplate(
         content: Content(
-          title: '오더: $title',
+          title: '🔧 오더: $title',
           description: '지역: $region$budgetText$feeText$descText',
           imageUrl: Uri.parse(finalImageUrl),
           imageWidth: 400,
@@ -114,8 +117,8 @@ class KakaoShareService {
           link: Link(
             androidExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
             iosExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
-            webUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'),
-            mobileWebUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'),
+            webUrl: Uri.parse(deepLinkUrl),
+            mobileWebUrl: Uri.parse(deepLinkUrl),
           ),
         ),
         buttons: [
@@ -124,8 +127,8 @@ class KakaoShareService {
             link: Link(
               androidExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
               iosExecutionParams: {'orderId': orderId, 'path': 'order_detail'},
-              webUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'),
-              mobileWebUrl: Uri.parse('https://play.google.com/store/apps/details?id=com.ononcompany.allsuri'),
+              webUrl: Uri.parse(deepLinkUrl),
+              mobileWebUrl: Uri.parse(deepLinkUrl),
             ),
           ),
         ],

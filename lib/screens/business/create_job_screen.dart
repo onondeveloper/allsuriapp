@@ -34,6 +34,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
   String _selectedCategory = '일반';
   String _selectedUrgency = 'normal';
   bool _submitting = false;
+  bool _jobCreated = false;   // 공사 생성 완료 플래그 (재등록 방지)
   bool _creatingOrder = false; // 오더 생성 중복 방지 플래그
   final MarketplaceService _marketplaceService = MarketplaceService();
   
@@ -263,6 +264,12 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
   Future<void> _submitJob() async {
     if (!_formKey.currentState!.validate()) return;
     
+    // 이미 공사가 생성된 경우 재등록 방지
+    if (_jobCreated) {
+      print('⚠️ [_submitJob] 이미 공사가 생성되었습니다. 중복 등록 방지');
+      return;
+    }
+    
     setState(() => _submitting = true);
     
     try {
@@ -272,8 +279,6 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
       
       print('🔍 [_submitJob] 공사 생성 시작');
       print('   사용자 ID: $ownerId');
-      print('   업로드된 이미지 URL 개수: ${_uploadedImageUrls.length}');
-      print('   업로드된 이미지 URLs: $_uploadedImageUrls');
       
       if (ownerId == null) {
         if (!mounted) return;
@@ -286,11 +291,6 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
       final double? budget = _budgetController.text.trim().isEmpty
           ? null
           : double.tryParse(_budgetController.text.replaceAll(',', ''));
-
-      print('   제목: ${_titleController.text.trim()}');
-      print('   예산: $budget');
-      print('   카테고리: $_selectedCategory');
-      print('   → jobs 테이블에 저장 중...');
 
       final createdJobId = await jobService.createJob(
         ownerBusinessId: ownerId,
@@ -305,6 +305,10 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
       );
 
       print('   ✅ 공사 생성 완료: $createdJobId');
+      
+      // 공사 생성 완료 플래그 설정 (재등록 방지)
+      _jobCreated = true;
+      
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -320,10 +324,15 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
           region: _locationController.text.trim(),
           category: _selectedCategory);
       
-      // ✅ 강제 홈 이동 코드 제거 (바텀시트 내부 로직에서 처리됨)
+      // 바텀시트가 닫혔는데 아직 이 화면에 있다면 (옵션 선택 안 함)
+      // 뒤로 이동하여 중복 등록 방지
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
       
     } catch (e) {
       print('❌ [_submitJob] 실패: $e');
+      _jobCreated = false; // 에러 시에만 재시도 허용
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -744,21 +753,20 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                           if (result != null) {
                             print('OrderMarketplaceScreen으로 네비게이션 시작');
                             
-                            // 다른 사업자들에게 알림 전송
+                            // 1. 다른 사업자들에게 알림 전송 (role 컬럼 사용)
                             try {
-                              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
                               final notificationService = NotificationService();
                               
-                              // 모든 사업자(자신 제외) 조회
+                              // 승인된 사업자(자신 제외) 조회 - role 컬럼 사용
                               final businessUsers = await Supabase.instance.client
                                 .from('users')
                                 .select('id, businessname')
-                                .eq('usertype', 'business')
+                                .eq('role', 'business')
+                                .eq('businessstatus', 'approved')
                                 .neq('id', currentUserId ?? '');
                               
                               print('🔔 ${businessUsers.length}명의 사업자에게 알림 전송 중...');
                               
-                              // 각 사업자에게 알림 전송
                               for (final business in businessUsers) {
                                 try {
                                   await notificationService.sendNotification(
@@ -774,30 +782,32 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                                   print('⚠️ 알림 전송 실패 (${business['businessname']}): $e');
                                 }
                               }
-                              
                               print('✅ 알림 전송 완료');
                             } catch (e) {
                               print('⚠️ 알림 전송 중 오류 (무시됨): $e');
                             }
                             
-                            // 1. 카카오톡 공유 트리거 (비동기로 실행하여 화면 전환을 방해하지 않음)
-                            // ※ 카카오톡 앱이 뜨는 동안 앱은 리스트 화면으로 넘어갑니다.
-                            print('🔍 [CreateJobScreen] 카카오톡 공유 실행 (배경)');
+                            if (!mounted) return;
+                            
+                            final orderId = result['id']?.toString() ?? '';
+                            final shareCommissionRate = double.tryParse(_feeRateController.text) ?? 5.0;
+                            final shareImageUrl = _uploadedImageUrls.isNotEmpty ? _uploadedImageUrls.first : null;
+                            
+                            // 2. 카카오톡 공유 먼저 실행 (화면 이동 전)
+                            print('🔍 [CreateJobScreen] 카카오톡 공유 실행');
                             KakaoShareService().shareOrder(
-                              orderId: result['id']?.toString() ?? '',
+                              orderId: orderId,
                               title: title,
                               region: region ?? '',
                               category: category,
                               budgetAmount: budget,
-                              commissionRate: double.tryParse(_feeRateController.text) ?? 5.0,
-                              imageUrl: _uploadedImageUrls.isNotEmpty ? _uploadedImageUrls.first : null,
+                              commissionRate: shareCommissionRate,
+                              imageUrl: shareImageUrl,
                               description: description,
                             );
                             
-                            // 2. 오더 리스트 화면으로 즉시 이동
-                            if (!mounted) return;
-                            print('🔍 [CreateJobScreen] 오더 리스트 화면으로 즉시 이동');
-                            
+                            // 3. 카카오톡 창이 열린 후 오더 리스트로 이동
+                            print('🔍 [CreateJobScreen] 오더 리스트 화면으로 이동');
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(
