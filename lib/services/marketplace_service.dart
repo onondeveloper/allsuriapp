@@ -4,7 +4,6 @@ import 'package:allsuriapp/services/api_service.dart';
 
 class MarketplaceService extends ChangeNotifier {
   final SupabaseClient _sb = Supabase.instance.client;
-  final ApiService _api = ApiService();
 
   Future<List<Map<String, dynamic>>> listListings({
     String status = 'open',
@@ -16,128 +15,76 @@ class MarketplaceService extends ChangeNotifier {
     int? limit,
     int? offset,
   }) async {
-    debugPrint('listListings 시작: status=$status, limit=$limit, offset=$offset');
     try {
-      // Join jobs to get commission_rate for display
       var query = _sb.from('marketplace_listings').select('*, jobs(commission_rate)');
-      debugPrint('listListings: 기본 쿼리 생성');
       
       if (status.isNotEmpty && status != 'all') {
         query = query.eq('status', status);
-        debugPrint('listListings: status 필터 추가 - $status');
-      } else if (status == 'all') { // 'all' 상태 처리 추가
+      } else if (status == 'all') {
         query = query.inFilter('status', ['open', 'withdrawn', 'created']);
-        debugPrint('listListings: \'all\' 상태 필터 추가 - [open, withdrawn, created]');
       }
-      if (region != null && region.isNotEmpty) {
-        query = query.eq('region', region);
-        debugPrint('listListings: region 필터 추가 - $region');
-      }
-      if (category != null && category.isNotEmpty) {
-        query = query.eq('category', category);
-        debugPrint('listListings: category 필터 추가 - $category');
-      }
-      if (postedBy != null && postedBy.isNotEmpty) {
-        query = query.eq('posted_by', postedBy);
-        debugPrint('listListings: posted_by 필터 추가 - $postedBy');
-      }
-      if (claimedBy != null && claimedBy.isNotEmpty) {
-        query = query.eq('claimed_by', claimedBy);
-        debugPrint('listListings: claimed_by 필터 추가 - $claimedBy');
-      }
+      if (region != null && region.isNotEmpty) query = query.eq('region', region);
+      if (category != null && category.isNotEmpty) query = query.eq('category', category);
+      if (postedBy != null && postedBy.isNotEmpty) query = query.eq('posted_by', postedBy);
+      if (claimedBy != null && claimedBy.isNotEmpty) query = query.eq('claimed_by', claimedBy);
       
-      debugPrint('listListings: 쿼리 실행 중...');
-      debugPrint('listListings: 현재 사용자 ID - ${_sb.auth.currentUser?.id}');
-      
-      // ⚡ 성능 개선: 페이지네이션 및 정렬
       var transformedQuery = query.order('createdat', ascending: false);
       
       if (limit != null && offset != null) {
-        debugPrint('listListings: range 추가 - offset: $offset, limit: $limit');
         transformedQuery = transformedQuery.range(offset, offset + limit - 1);
       } else if (limit != null) {
-        debugPrint('listListings: limit 추가 - $limit');
         transformedQuery = transformedQuery.limit(limit);
       }
       
       final data = await transformedQuery;
-      debugPrint('listListings: 쿼리 결과 - ${data.length}개 행');
-      
-      // 각 레코드의 상세 정보 로깅
-      for (int i = 0; i < data.length; i++) {
-        final item = data[i];
-        debugPrint('listListings: 레코드 $i - id: ${item['id']}, status: ${item['status']}, posted_by: ${item['posted_by']}, title: ${item['title']}');
-      }
       
       final result = data.map((e) => Map<String, dynamic>.from(e)).toList();
-      debugPrint('listListings: 변환 완료 - ${result.length}개 항목');
       
-      // 오더 생성자 정보 가져오기 (사업자 상호명, 평점)
+      // 오더 생성자 정보 가져오기 - 배치 쿼리로 N+1 문제 해결
       final postedByIds = result
           .map((e) => e['posted_by']?.toString())
           .where((id) => id != null && id.isNotEmpty)
           .toSet()
+          .cast<String>()
           .toList();
       
       if (postedByIds.isNotEmpty) {
-        debugPrint('listListings: ${postedByIds.length}명의 사업자 정보 조회 중...');
+        // 한 번의 쿼리로 모든 사업자 정보 조회
+        final usersData = await _sb
+            .from('users')
+            .select('id, businessname, name')
+            .inFilter('id', postedByIds);
         
-        // 병렬로 사업자 정보와 평점 조회
-        final usersFutures = postedByIds.map((userId) async {
-          try {
-            if (userId == null) return null;
-            
-            // 사업자 정보 조회
-            final user = await _sb
-                .from('users')
-                .select('id, businessname, name')
-                .eq('id', userId)
-                .maybeSingle();
-            
-            if (user == null) return null;
-            
-            // 평점 조회
-            final reviews = await _sb
-                .from('reviews')
-                .select('rating')
-                .eq('businessid', userId);
-            
-            double avgRating = 0.0;
-            int reviewCount = reviews.length;
-            
-            if (reviewCount > 0) {
-              final totalRating = reviews.fold<double>(
-                0.0, 
-                (sum, review) {
-                  final rating = review['rating'];
-                  if (rating is num) {
-                    return sum + rating.toDouble();
-                  }
-                  return sum;
-                }
-              );
-              avgRating = totalRating / reviewCount;
-            }
-            
-            return {
-              'id': userId,
-              'businessName': user['businessname'] ?? user['name'] ?? '알 수 없음',
-              'avgRating': avgRating,
-              'reviewCount': reviewCount,
-            };
-          } catch (e) {
-            debugPrint('사업자 정보 조회 실패 ($userId): $e');
-            return null;
-          }
-        }).toList();
+        // 한 번의 쿼리로 모든 리뷰 조회
+        final reviewsData = await _sb
+            .from('reviews')
+            .select('businessid, rating')
+            .inFilter('businessid', postedByIds);
         
-        final usersData = await Future.wait(usersFutures);
+        // 리뷰를 businessid 별로 그룹화
+        final reviewsByBusiness = <String, List<double>>{};
+        for (final review in reviewsData) {
+          final bid = review['businessid']?.toString();
+          if (bid == null) continue;
+          reviewsByBusiness.putIfAbsent(bid, () => []);
+          final r = review['rating'];
+          if (r is num) reviewsByBusiness[bid]!.add(r.toDouble());
+        }
+        
+        // 사업자 정보 맵 구성
         final usersMap = <String, Map<String, dynamic>>{};
-        
-        for (final userData in usersData) {
-          if (userData != null) {
-            usersMap[userData['id']] = userData;
-          }
+        for (final user in usersData) {
+          final uid = user['id']?.toString();
+          if (uid == null) continue;
+          final ratings = reviewsByBusiness[uid] ?? [];
+          final avgRating = ratings.isEmpty
+              ? 0.0
+              : ratings.fold<double>(0.0, (s, r) => s + r) / ratings.length;
+          usersMap[uid] = {
+            'businessName': user['businessname'] ?? user['name'] ?? '알 수 없음',
+            'avgRating': avgRating,
+            'reviewCount': ratings.length,
+          };
         }
         
         // 각 오더에 사업자 정보 추가
@@ -149,13 +96,6 @@ class MarketplaceService extends ChangeNotifier {
             listing['owner_review_count'] = usersMap[postedById]!['reviewCount'];
           }
         }
-        
-        debugPrint('✅ listListings: 사업자 정보 추가 완료');
-      }
-      
-      // 첫 번째 항목의 키들을 로그로 출력
-      if (result.isNotEmpty) {
-        debugPrint('listListings: 첫 번째 항목 키들 - ${result.first.keys.toList()}');
       }
       
       return result;
@@ -174,26 +114,17 @@ class MarketplaceService extends ChangeNotifier {
     String? excludePostedBy,
   }) async {
     try {
-      var query = _sb.from('marketplace_listings').select('*');
+      var query = _sb.from('marketplace_listings').select('id');
       
       if (status.isNotEmpty && status != 'all') {
         query = query.eq('status', status);
       } else if (status == 'all') {
         query = query.inFilter('status', ['open', 'withdrawn', 'created']);
       }
-      
-      if (region != null && region.isNotEmpty) {
-        query = query.eq('region', region);
-      }
-      if (category != null && category.isNotEmpty) {
-        query = query.eq('category', category);
-      }
-      if (postedBy != null && postedBy.isNotEmpty) {
-        query = query.eq('posted_by', postedBy);
-      }
-      if (excludePostedBy != null && excludePostedBy.isNotEmpty) {
-        query = query.neq('posted_by', excludePostedBy);
-      }
+      if (region != null && region.isNotEmpty) query = query.eq('region', region);
+      if (category != null && category.isNotEmpty) query = query.eq('category', category);
+      if (postedBy != null && postedBy.isNotEmpty) query = query.eq('posted_by', postedBy);
+      if (excludePostedBy != null && excludePostedBy.isNotEmpty) query = query.neq('posted_by', excludePostedBy);
       
       final response = await query.count(CountOption.exact);
       return response.count;

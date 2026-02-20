@@ -698,7 +698,15 @@
                 </div>
                 <div class="menu-item" onclick="showSection('calls')">
                     <span class="material-icons">shopping_cart</span>
-                    <span>오더 현황</span>
+                    <span>오더 관리</span>
+                </div>
+                <div class="menu-item" onclick="showSection('posts')">
+                    <span class="material-icons">article</span>
+                    <span>게시물 관리</span>
+                </div>
+                <div class="menu-item" onclick="showSection('chats')">
+                    <span class="material-icons">chat</span>
+                    <span>채팅 현황</span>
                 </div>
                 <div class="menu-item" onclick="showSection('ads')">
                     <span class="material-icons">campaign</span>
@@ -926,16 +934,87 @@
                         <div class="section-header">
                             <h2 class="section-title">
                                 <span class="material-icons">shopping_cart</span>
-                                오더 현황
+                                오더 관리
                             </h2>
-                        </div>
-                        <div id="callTableContainer">
-                            <div class="loading">
-                                <div class="spinner"></div>
-                                로딩 중...
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <select id="orderStatusFilter" style="padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 0.875rem;">
+                                    <option value="">전체 상태</option>
+                                    <option value="created">입찰 대기</option>
+                                    <option value="open">공개됨</option>
+                                    <option value="assigned">낙찰됨</option>
+                                    <option value="in_progress">진행 중</option>
+                                    <option value="awaiting_confirmation">완료 확인 대기</option>
+                                    <option value="completed">완료</option>
+                                    <option value="cancelled">취소됨</option>
+                                </select>
+                                <div style="position: relative;">
+                                    <input type="text" id="orderSearchInput" placeholder="오더 제목, 지역 검색..."
+                                        style="padding: 0.5rem 2.5rem 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; min-width: 200px;"
+                                        oninput="filterOrders(this.value)"/>
+                                    <span class="material-icons" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); color: var(--gray-500); pointer-events: none;">search</span>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="loadCalls()">
+                                    <span class="material-icons">refresh</span>새로고침
+                                </button>
                             </div>
                         </div>
+                        <div id="callTableContainer">
+                            <div class="loading"><div class="spinner"></div>로딩 중...</div>
+                        </div>
                         <div id="callPagination" class="pagination"></div>
+                    </div>
+                </div>
+
+                <!-- Posts Section -->
+                <div id="section-posts" class="hidden">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">article</span>
+                                게시물 관리
+                            </h2>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <div style="position: relative;">
+                                    <input type="text" id="postSearchInput" placeholder="제목, 내용 검색..."
+                                        style="padding: 0.5rem 2.5rem 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; min-width: 220px;"
+                                        oninput="filterPosts(this.value)"/>
+                                    <span class="material-icons" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); color: var(--gray-500); pointer-events: none;">search</span>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="loadPosts()">
+                                    <span class="material-icons">refresh</span>새로고침
+                                </button>
+                            </div>
+                        </div>
+                        <div id="postTableContainer">
+                            <div class="loading"><div class="spinner"></div>로딩 중...</div>
+                        </div>
+                        <div id="postPagination" class="pagination"></div>
+                    </div>
+                </div>
+
+                <!-- Chats Section -->
+                <div id="section-chats" class="hidden">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">chat</span>
+                                채팅 개설 현황
+                            </h2>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <div style="position: relative;">
+                                    <input type="text" id="chatSearchInput" placeholder="참여자 이름 검색..."
+                                        style="padding: 0.5rem 2.5rem 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: 8px; min-width: 200px;"
+                                        oninput="filterChats(this.value)"/>
+                                    <span class="material-icons" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); color: var(--gray-500); pointer-events: none;">search</span>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="loadChats()">
+                                    <span class="material-icons">refresh</span>새로고침
+                                </button>
+                            </div>
+                        </div>
+                        <div id="chatTableContainer">
+                            <div class="loading"><div class="spinner"></div>로딩 중...</div>
+                        </div>
                     </div>
                 </div>
 
@@ -998,16 +1077,48 @@
 
     <!-- Order Detail Modal -->
     <div id="callModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
-                <h3 class="modal-title">오더 상세</h3>
+                <h3 class="modal-title" id="callModalTitle">오더 상세</h3>
                 <button class="modal-close" onclick="closeCallModal()">
                     <span class="material-icons">close</span>
                 </button>
             </div>
-            <div class="modal-body" id="callModalBody"></div>
-            <div class="modal-footer">
+            <div class="modal-body" id="callModalBody" style="max-height: 70vh; overflow-y: auto;"></div>
+            <div class="modal-footer" id="callModalFooter">
                 <button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Post Detail Modal -->
+    <div id="postModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="postModalTitle">게시물 상세</h3>
+                <button class="modal-close" onclick="closePostModal()">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" id="postModalBody" style="max-height: 70vh; overflow-y: auto;"></div>
+            <div class="modal-footer" id="postModalFooter">
+                <button class="btn btn-secondary" onclick="closePostModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Detail Modal -->
+    <div id="chatModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="chatModalTitle">채팅방 상세</h3>
+                <button class="modal-close" onclick="closeChatModal()">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" id="chatModalBody" style="max-height: 70vh; overflow-y: auto;"></div>
+            <div class="modal-footer" id="chatModalFooter">
+                <button class="btn btn-secondary" onclick="closeChatModal()">닫기</button>
             </div>
         </div>
     </div>
@@ -1139,22 +1250,26 @@
             event.target.closest('.menu-item').classList.add('active');
 
             // Hide all sections
-            ['dashboard', 'users', 'estimates', 'calls', 'ads'].forEach(name => {
-                document.getElementById(`section-${name}`).classList.add('hidden');
+            ['dashboard', 'users', 'estimates', 'calls', 'posts', 'chats', 'ads'].forEach(name => {
+                const el = document.getElementById(`section-${name}`);
+                if (el) el.classList.add('hidden');
             });
 
             // Show selected section
-            document.getElementById(`section-${sectionName}`).classList.remove('hidden');
+            const el = document.getElementById(`section-${sectionName}`);
+            if (el) el.classList.remove('hidden');
 
             // Update page title
             const titles = {
                 dashboard: '대시보드',
                 users: '사용자 관리',
                 estimates: '견적 관리',
-                calls: '오더 현황',
+                calls: '오더 관리',
+                posts: '게시물 관리',
+                chats: '채팅 현황',
                 ads: '광고 관리'
             };
-            document.getElementById('page-title').textContent = titles[sectionName];
+            document.getElementById('page-title').textContent = titles[sectionName] || sectionName;
 
             // Load data for section
             switch(sectionName) {
@@ -1167,9 +1282,21 @@
                 case 'calls':
                     loadCalls();
                     break;
+                case 'posts':
+                    if (typeof loadPosts === 'function') loadPosts();
+                    break;
+                case 'chats':
+                    if (typeof loadChats === 'function') loadChats();
+                    break;
                 case 'ads':
                     loadAds();
                     break;
+            }
+            
+            // orderStatusFilter 변경 이벤트 바인딩
+            const orderStatusFilter = document.getElementById('orderStatusFilter');
+            if (orderStatusFilter) {
+                orderStatusFilter.onchange = () => filterOrders(document.getElementById('orderSearchInput')?.value || '');
             }
         }
     </script>

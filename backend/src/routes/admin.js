@@ -868,7 +868,7 @@ router.delete('/listings/:listingId', requireRole('developer', 'staff'), async (
   }
 });
 
-// 커뮤니티 게시글 삭제 (관리자 전용)
+// 커뮤니티 게시글 삭제 (관리자 전용) 테스트
 router.delete('/posts/:postId', requireRole('developer', 'staff'), async (req, res) => {
   try {
     const { postId } = req.params;
@@ -906,6 +906,148 @@ router.delete('/comments/:commentId', requireRole('developer', 'staff'), async (
     res.json({ success: true, message: '댓글이 삭제되었습니다' });
   } catch (error) {
     console.error('[ADMIN] 댓글 삭제 실패:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 오더 상태 업데이트 (관리자 전용)
+router.patch('/listings/:listingId/status', requireRole('developer', 'staff'), async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const { status } = req.body;
+    const { data, error } = await supabase
+      .from('marketplace_listings')
+      .update({ status, updatedat: new Date().toISOString() })
+      .eq('id', listingId)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[ADMIN] 오더 상태 업데이트 실패:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 커뮤니티 게시글 목록 조회 (관리자 전용)
+router.get('/posts', async (req, res) => {
+  try {
+    const { data: posts, error } = await supabase
+      .from('community_posts')
+      .select('id, title, content, author_id, created_at, updated_at, likes_count, comments_count, is_active, category')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+
+    // 작성자 정보 조회
+    const authorIds = [...new Set((posts || []).map(p => p.author_id).filter(Boolean))];
+    let usersMap = {};
+    if (authorIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, name, businessname, role')
+        .in('id', authorIds);
+      usersMap = (users || []).reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+    }
+
+    const result = (posts || []).map(p => ({
+      ...p,
+      author_name: usersMap[p.author_id]?.businessname || usersMap[p.author_id]?.name || '알 수 없음',
+      author_role: usersMap[p.author_id]?.role || 'unknown',
+    }));
+
+    res.json(result);
+  } catch (error) {
+    console.error('[ADMIN] 게시글 조회 실패:', error);
+    res.status(500).json({ message: '게시글 조회 실패', error: error.message });
+  }
+});
+
+// 채팅방 목록 조회 (관리자 전용)
+router.get('/chats', async (req, res) => {
+  try {
+    const { data: rooms, error } = await supabase
+      .from('chat_rooms')
+      .select('id, participant_a, participant_b, status, created_at, updated_at, last_message, last_message_at')
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(200);
+    if (error) throw error;
+
+    // 참여자 정보 조회
+    const participantIds = [...new Set((rooms || []).flatMap(r => [r.participant_a, r.participant_b]).filter(Boolean))];
+    let usersMap = {};
+    if (participantIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, name, businessname, role')
+        .in('id', participantIds);
+      usersMap = (users || []).reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+    }
+
+    const getUserName = (id) => {
+      if (!id || !usersMap[id]) return '알 수 없음';
+      return usersMap[id].businessname || usersMap[id].name || '알 수 없음';
+    };
+
+    const result = (rooms || []).map(r => ({
+      ...r,
+      participant_a_name: getUserName(r.participant_a),
+      participant_b_name: getUserName(r.participant_b),
+      participant_a_role: usersMap[r.participant_a]?.role || 'unknown',
+      participant_b_role: usersMap[r.participant_b]?.role || 'unknown',
+    }));
+
+    res.json(result);
+  } catch (error) {
+    console.error('[ADMIN] 채팅방 조회 실패:', error);
+    res.status(500).json({ message: '채팅방 조회 실패', error: error.message });
+  }
+});
+
+// 채팅방 메시지 조회 (관리자 전용)
+router.get('/chats/:roomId/messages', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { data: messages, error } = await supabase
+      .from('chat_messages')
+      .select('id, sender_id, content, image_url, video_url, created_at, message_type')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+      .limit(100);
+    if (error) throw error;
+
+    const senderIds = [...new Set((messages || []).map(m => m.sender_id).filter(Boolean))];
+    let usersMap = {};
+    if (senderIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, name, businessname, role')
+        .in('id', senderIds);
+      usersMap = (users || []).reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+    }
+
+    const result = (messages || []).map(m => ({
+      ...m,
+      sender_name: usersMap[m.sender_id]?.businessname || usersMap[m.sender_id]?.name || '알 수 없음',
+    }));
+
+    res.json(result);
+  } catch (error) {
+    console.error('[ADMIN] 채팅 메시지 조회 실패:', error);
+    res.status(500).json({ message: '채팅 메시지 조회 실패', error: error.message });
+  }
+});
+
+// 채팅방 삭제 (관리자 전용)
+router.delete('/chats/:roomId', requireRole('developer'), async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    await supabase.from('chat_messages').delete().eq('room_id', roomId);
+    const { error } = await supabase.from('chat_rooms').delete().eq('id', roomId);
+    if (error) throw error;
+    res.json({ success: true, message: '채팅방이 삭제되었습니다' });
+  } catch (error) {
+    console.error('[ADMIN] 채팅방 삭제 실패:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

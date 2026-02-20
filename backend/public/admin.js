@@ -1004,23 +1004,19 @@ async function toggleAdmin(userId) {
 
         // 모달 외부 클릭 시 닫기
         window.onclick = function(event) {
-            const estimateModal = document.getElementById('estimateModal');
-            const userModal = document.getElementById('userModal');
-            const statsModal = document.getElementById('statsModal');
-            const adModal = document.getElementById('adModal');
-            
-            if (event.target === estimateModal) {
-                closeEstimateModal();
-            }
-            if (event.target === userModal) {
-                closeUserModal();
-            }
-            if (event.target === statsModal) {
-                closeStatsModal();
-            }
-            if (event.target === adModal) {
-                closeAdModal();
-            }
+            const modals = [
+                { id: 'estimateModal', fn: closeEstimateModal },
+                { id: 'userModal', fn: closeUserModal },
+                { id: 'statsModal', fn: closeStatsModal },
+                { id: 'adModal', fn: closeAdModal },
+                { id: 'callModal', fn: closeCallModal },
+                { id: 'postModal', fn: closePostModal },
+                { id: 'chatModal', fn: closeChatModal },
+            ];
+            modals.forEach(({ id, fn }) => {
+                const el = document.getElementById(id);
+                if (event.target === el) fn();
+            });
         }
 
         // 사용자 타입별 상세 정보 표시
@@ -1547,12 +1543,29 @@ async function showCallDetail(jobId) {
             `;
         }
         
+        // 상태 변경 영역 추가
+        detailHtml += `
+            <hr style="margin: 1rem 0;">
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                <span style="font-weight:500;font-size:0.875rem;">상태 변경:</span>
+                <select id="orderStatusSelector" style="padding:0.4rem 0.75rem;border:1px solid var(--gray-300);border-radius:8px;font-size:0.875rem;">
+                    <option value="created" ${job.status === 'created' ? 'selected' : ''}>입찰 대기 (created)</option>
+                    <option value="open" ${job.status === 'open' ? 'selected' : ''}>공개됨 (open)</option>
+                    <option value="assigned" ${job.status === 'assigned' ? 'selected' : ''}>낙찰됨 (assigned)</option>
+                    <option value="in_progress" ${job.status === 'in_progress' ? 'selected' : ''}>진행 중 (in_progress)</option>
+                    <option value="awaiting_confirmation" ${job.status === 'awaiting_confirmation' ? 'selected' : ''}>완료 확인 대기</option>
+                    <option value="completed" ${job.status === 'completed' ? 'selected' : ''}>완료 (completed)</option>
+                    <option value="cancelled" ${job.status === 'cancelled' ? 'selected' : ''}>취소 (cancelled)</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="updateOrderStatus('${jobId}')">상태 변경</button>
+            </div>
+        `;
         detailHtml += `</div>`;
-        
+
         modalBody.innerHTML = detailHtml;
-        
+
         // 모달 footer에 버튼들 추가
-        const modalFooter = document.querySelector('#callModal .modal-footer');
+        const modalFooter = document.getElementById('callModalFooter');
         if (modalFooter) {
             modalFooter.innerHTML = `
                 <button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>
@@ -1610,9 +1623,293 @@ async function deleteCall(listingId) {
     }
 }
 
+// 오더 상태 업데이트
+async function updateOrderStatus(listingId) {
+    const select = document.getElementById('orderStatusSelector');
+    if (!select) return;
+    const newStatus = select.value;
+    if (!newStatus) return;
+    try {
+        await apiCall(`/listings/${listingId}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: newStatus })
+        });
+        alert('오더 상태가 변경되었습니다.');
+        closeCallModal();
+        loadCalls();
+        loadDashboard();
+    } catch (error) {
+        alert('상태 변경에 실패했습니다: ' + error.message);
+    }
+}
+
 // Call 모달 닫기
 function closeCallModal() {
     document.getElementById('callModal').style.display = 'none';
+}
+
+// 오더 검색 필터
+function filterOrders(query) {
+    const statusFilter = document.getElementById('orderStatusFilter')?.value || '';
+    const q = query.toLowerCase();
+    const filtered = allCalls.filter(c => {
+        const matchStatus = !statusFilter || c.status === statusFilter;
+        const matchText = !q || (c.title || '').toLowerCase().includes(q) || (c.region || '').toLowerCase().includes(q);
+        return matchStatus && matchText;
+    });
+    displayFilteredCalls(filtered);
+}
+
+function displayFilteredCalls(data) {
+    const container = document.getElementById('callTableContainer');
+    if (!container) return;
+    const tmp = allCalls;
+    allCalls = data;
+    callsPage = 1;
+    displayCalls();
+    allCalls = tmp;
+}
+
+// ===== 게시물 관리 =====
+let allPosts = [];
+
+async function loadPosts() {
+    try {
+        const container = document.getElementById('postTableContainer');
+        if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>로딩 중...</div>';
+        allPosts = await apiCall('/posts');
+        displayPosts(allPosts);
+    } catch (e) {
+        const container = document.getElementById('postTableContainer');
+        if (container) container.innerHTML = '<div class="error">게시물 목록을 불러오는데 실패했습니다: ' + e.message + '</div>';
+    }
+}
+
+function displayPosts(posts) {
+    const container = document.getElementById('postTableContainer');
+    if (!container) return;
+    if (!posts || posts.length === 0) {
+        container.innerHTML = '<div class="loading">등록된 게시물이 없습니다.</div>';
+        return;
+    }
+
+    const formatDate = (s) => {
+        if (!s) return '-';
+        const d = new Date(s);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    };
+
+    container.innerHTML = `
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>제목</th>
+                        <th>작성자</th>
+                        <th>카테고리</th>
+                        <th>좋아요</th>
+                        <th>댓글</th>
+                        <th>작성일</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${posts.map(p => `
+                        <tr>
+                            <td style="cursor:pointer;color:#1a73e8;text-decoration:underline;" onclick="showPostDetail('${p.id}')">${(p.title || p.content || '').substring(0,40) || '제목 없음'}</td>
+                            <td>${p.author_name || '알 수 없음'}</td>
+                            <td>${p.category || '-'}</td>
+                            <td>${p.likes_count || 0}</td>
+                            <td>${p.comments_count || 0}</td>
+                            <td>${formatDate(p.created_at)}</td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm" onclick="showPostDetail('${p.id}')">상세</button>
+                                <button class="btn btn-danger btn-sm" onclick="deletePost('${p.id}')">삭제</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div style="padding: 0.75rem; color: var(--gray-600); font-size: 0.875rem;">전체 ${posts.length}건</div>
+    `;
+}
+
+function filterPosts(query) {
+    const q = query.toLowerCase();
+    const filtered = allPosts.filter(p =>
+        (p.title || '').toLowerCase().includes(q) ||
+        (p.content || '').toLowerCase().includes(q) ||
+        (p.author_name || '').toLowerCase().includes(q)
+    );
+    displayPosts(filtered);
+}
+
+async function showPostDetail(postId) {
+    const post = allPosts.find(p => p.id === postId);
+    if (!post) {
+        alert('게시물을 찾을 수 없습니다.');
+        return;
+    }
+    const formatDate = (s) => s ? new Date(s).toLocaleString('ko-KR') : '-';
+
+    document.getElementById('postModalTitle').textContent = '게시물 상세';
+    document.getElementById('postModalBody').innerHTML = `
+        <div class="detail-row"><div class="detail-label">제목</div><div class="detail-value">${post.title || '-'}</div></div>
+        <div class="detail-row"><div class="detail-label">작성자</div><div class="detail-value">${post.author_name || '알 수 없음'} (${post.author_role || '-'})</div></div>
+        <div class="detail-row"><div class="detail-label">카테고리</div><div class="detail-value">${post.category || '-'}</div></div>
+        <div class="detail-row"><div class="detail-label">좋아요 / 댓글</div><div class="detail-value">${post.likes_count || 0}개 / ${post.comments_count || 0}개</div></div>
+        <div class="detail-row"><div class="detail-label">작성일</div><div class="detail-value">${formatDate(post.created_at)}</div></div>
+        <hr style="margin: 1rem 0;">
+        <div style="padding: 1rem; background: var(--gray-50); border-radius: 8px; white-space: pre-wrap; line-height: 1.7;">${post.content || '내용 없음'}</div>
+    `;
+    document.getElementById('postModalFooter').innerHTML = `
+        <button class="btn btn-secondary" onclick="closePostModal()">닫기</button>
+        <button class="btn btn-danger" onclick="deletePost('${postId}'); closePostModal();">삭제</button>
+    `;
+    document.getElementById('postModal').style.display = 'flex';
+}
+
+async function deletePost(postId) {
+    if (!confirm('이 게시물을 삭제하시겠습니까?')) return;
+    try {
+        await apiCall(`/posts/${postId}`, { method: 'DELETE' });
+        alert('게시물이 삭제되었습니다.');
+        loadPosts();
+    } catch (e) {
+        alert('삭제 실패: ' + e.message);
+    }
+}
+
+function closePostModal() {
+    document.getElementById('postModal').style.display = 'none';
+}
+
+// ===== 채팅 현황 =====
+let allChats = [];
+
+async function loadChats() {
+    try {
+        const container = document.getElementById('chatTableContainer');
+        if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>로딩 중...</div>';
+        allChats = await apiCall('/chats');
+        displayChats(allChats);
+    } catch (e) {
+        const container = document.getElementById('chatTableContainer');
+        if (container) container.innerHTML = '<div class="error">채팅방 목록을 불러오는데 실패했습니다: ' + e.message + '</div>';
+    }
+}
+
+function displayChats(chats) {
+    const container = document.getElementById('chatTableContainer');
+    if (!container) return;
+    if (!chats || chats.length === 0) {
+        container.innerHTML = '<div class="loading">개설된 채팅방이 없습니다.</div>';
+        return;
+    }
+
+    const formatDate = (s) => {
+        if (!s) return '-';
+        const d = new Date(s);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    };
+
+    container.innerHTML = `
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>참여자 A</th>
+                        <th>참여자 B</th>
+                        <th>마지막 메시지</th>
+                        <th>마지막 활동</th>
+                        <th>개설일</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${chats.map(c => `
+                        <tr>
+                            <td>${c.participant_a_name || '-'} <small style="color:#999;">(${c.participant_a_role === 'business' ? '사업자' : '고객'})</small></td>
+                            <td>${c.participant_b_name || '-'} <small style="color:#999;">(${c.participant_b_role === 'business' ? '사업자' : '고객'})</small></td>
+                            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.last_message || '-'}</td>
+                            <td>${formatDate(c.last_message_at || c.updated_at)}</td>
+                            <td>${formatDate(c.created_at)}</td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm" onclick="showChatDetail('${c.id}')">메시지 보기</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteChat('${c.id}')">삭제</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div style="padding: 0.75rem; color: var(--gray-600); font-size: 0.875rem;">전체 ${chats.length}개 채팅방</div>
+    `;
+}
+
+function filterChats(query) {
+    const q = query.toLowerCase();
+    const filtered = allChats.filter(c =>
+        (c.participant_a_name || '').toLowerCase().includes(q) ||
+        (c.participant_b_name || '').toLowerCase().includes(q)
+    );
+    displayChats(filtered);
+}
+
+async function showChatDetail(roomId) {
+    const room = allChats.find(c => c.id === roomId);
+    if (!room) return;
+
+    document.getElementById('chatModalTitle').textContent = `채팅방: ${room.participant_a_name} ↔ ${room.participant_b_name}`;
+    document.getElementById('chatModalBody').innerHTML = '<div class="loading"><div class="spinner"></div>메시지 로딩 중...</div>';
+    document.getElementById('chatModal').style.display = 'flex';
+
+    try {
+        const messages = await apiCall(`/chats/${roomId}/messages`);
+        const formatDate = (s) => s ? new Date(s).toLocaleString('ko-KR') : '-';
+
+        const aId = room.participant_a;
+        const msgHtml = messages.map(m => {
+            const isA = m.sender_id === aId;
+            const senderLabel = isA ? room.participant_a_name : room.participant_b_name;
+            return `
+                <div style="margin-bottom:0.75rem;display:flex;flex-direction:column;align-items:${isA ? 'flex-start' : 'flex-end'};">
+                    <div style="font-size:0.75rem;color:var(--gray-500);margin-bottom:0.25rem;">${senderLabel} · ${formatDate(m.created_at)}</div>
+                    <div style="max-width:75%;padding:0.6rem 0.9rem;border-radius:12px;background:${isA ? 'var(--gray-100)' : '#1a73e8'};color:${isA ? 'inherit' : 'white'};word-break:break-word;">
+                        ${m.image_url ? `<img src="${m.image_url}" style="max-width:200px;border-radius:8px;display:block;margin-bottom:0.25rem;" onclick="window.open('${m.image_url}','_blank')">` : ''}
+                        ${m.content || ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('chatModalBody').innerHTML = messages.length === 0
+            ? '<div style="text-align:center;color:var(--gray-500);padding:2rem;">메시지가 없습니다.</div>'
+            : `<div style="padding: 0.5rem;">${msgHtml}</div>`;
+    } catch (e) {
+        document.getElementById('chatModalBody').innerHTML = '<div class="error">메시지를 불러오는데 실패했습니다: ' + e.message + '</div>';
+    }
+
+    document.getElementById('chatModalFooter').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeChatModal()">닫기</button>
+        <button class="btn btn-danger" onclick="deleteChat('${roomId}'); closeChatModal();">채팅방 삭제</button>
+    `;
+}
+
+async function deleteChat(roomId) {
+    if (!confirm('이 채팅방과 모든 메시지를 삭제하시겠습니까?')) return;
+    try {
+        await apiCall(`/chats/${roomId}`, { method: 'DELETE' });
+        alert('채팅방이 삭제되었습니다.');
+        loadChats();
+    } catch (e) {
+        alert('삭제 실패: ' + e.message);
+    }
+}
+
+function closeChatModal() {
+    document.getElementById('chatModal').style.display = 'none';
 }
 
 // 오더에 대해 사업자들에게 알림 발송

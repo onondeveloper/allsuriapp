@@ -6,6 +6,7 @@ import '../../services/marketplace_service.dart'; // 추가
 import '../../widgets/loading_indicator.dart';
 import '../business/order_bidders_screen.dart';
 import '../business/order_review_screen.dart';
+import '../business/order_process_screen.dart';
 import '../../services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../chat_screen.dart'; // 추가
@@ -604,6 +605,25 @@ class _MyOrderManagementScreenState extends State<MyOrderManagementScreen> {
                   ),
                 ),
                 const Spacer(),
+                // 프로세스 보기 버튼
+                if (listingId.isNotEmpty)
+                  IconButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OrderProcessScreen(
+                          listingId: listingId,
+                          orderTitle: title,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.timeline_rounded, color: Color(0xFF1E3A8A), size: 22),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '프로세스 보기',
+                  ),
+                const SizedBox(width: 8),
                 // 삭제 버튼 (추가)
                 if (canDelete)
                   IconButton(
