@@ -1435,164 +1435,311 @@ function changeCallsPage(delta) {
     displayCalls();
 }
 
-// Call 상세 보기 함수
+// 오더 상세 + 프로세스 타임라인 보기
 async function showCallDetail(jobId) {
+    const modalBody = document.getElementById('callModalBody');
+    const modalFooter = document.getElementById('callModalFooter');
+    const modal = document.getElementById('callModal');
+
+    // 모달 먼저 열고 로딩 표시
+    modalBody.innerHTML = '<div class="loading"><div class="spinner"></div>프로세스 데이터를 불러오는 중...</div>';
+    if (modalFooter) modalFooter.innerHTML = '<button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>';
+    modal.style.display = 'flex';
+
+    const formatDate = (s) => {
+        if (!s) return '-';
+        try {
+            const d = new Date(s);
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        } catch (e) { return '-'; }
+    };
+
+    const STATUS_ORDER = ['created', 'open', 'assigned', 'in_progress', 'awaiting_confirmation', 'completed'];
+    const isStatusAfter = (current, check) => {
+        const ci = STATUS_ORDER.indexOf(current);
+        const ci2 = STATUS_ORDER.indexOf(check);
+        return ci >= 0 && ci2 >= 0 && ci >= ci2;
+    };
+
+    const STATUS_COLORS = {
+        created: '#f59e0b', open: '#f59e0b', assigned: '#3b82f6',
+        in_progress: '#3b82f6', awaiting_confirmation: '#8b5cf6',
+        completed: '#10b981', cancelled: '#ef4444',
+    };
+    const STATUS_LABELS = {
+        created: '입찰 대기', open: '공개됨', assigned: '낙찰됨',
+        in_progress: '진행 중', awaiting_confirmation: '완료 확인 대기',
+        completed: '완료', cancelled: '취소됨',
+    };
+
     try {
-        const calls = await apiCall('/calls');
-        const job = calls.find(c => c.id === jobId);
-        
-        if (!job) {
-            alert('Call 정보를 찾을 수 없습니다.');
-            return;
+        // 기본 목록 데이터 (이미 로드됨)
+        const job = allCalls.find(c => c.id === jobId);
+        if (!job) { modalBody.innerHTML = '<div class="error">오더를 찾을 수 없습니다.</div>'; return; }
+
+        // 프로세스 상세 API 호출
+        let processData = null;
+        try {
+            processData = await apiCall(`/listings/${jobId}/process`);
+        } catch (e) {
+            console.warn('[showCallDetail] 프로세스 API 실패, 기본 정보만 표시:', e.message);
         }
-        
-        // 상태 매핑 함수 (displayCalls에서 사용하는 것과 동일)
-        const getCallStatusText = (status, claimedBy) => {
-            if (claimedBy) return '완료';
-            if (status === 'assigned') return '완료';
-            if (status === 'completed') return '종료됨';
-            if (status === 'cancelled') return '취소됨';
-            if (status === 'created' || status === 'open') return '대기 중';
-            return status || '대기 중';
-        };
-        
-        const getStatusClass = (status, claimedBy) => {
-            if (claimedBy || status === 'assigned') return 'success';
-            if (status === 'completed') return 'completed';
-            if (status === 'cancelled') return 'cancelled';
-            return 'warning';
-        };
-        
-        // 날짜 포맷 함수
-        const formatDate = (dateStr) => {
-            if (!dateStr) return '-';
-            try {
-                const date = new Date(dateStr);
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                const hours = String(date.getHours()).padStart(2, '0');
-                const minutes = String(date.getMinutes()).padStart(2, '0');
-                return `${year}-${month}-${day} ${hours}:${minutes}`;
-            } catch (e) {
-                return '-';
-            }
-        };
-        
-        const modalBody = document.getElementById('callModalBody');
-        const statusText = getCallStatusText(job.status, job.claimed_by);
-        const statusClass = getStatusClass(job.status, job.claimed_by);
-        
-        let detailHtml = `
-            <div class="detail-group">
-                <div class="detail-item">
-                    <span class="detail-label">제목:</span>
-                    <span class="detail-value">${job.title || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">지역:</span>
-                    <span class="detail-value">${job.location || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">카테고리:</span>
-                    <span class="detail-value">${job.category || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">예산 금액:</span>
-                    <span class="detail-value">${typeof job.budget_amount === 'number' ? '₩' + job.budget_amount.toLocaleString('ko-KR') : '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">상태:</span>
-                    <span class="detail-value"><span class="status-badge status-${statusClass}">${statusText}</span></span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">등록 사업자:</span>
-                    <span class="detail-value">${job.owner_business_name || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">가져간 사업자:</span>
-                    <span class="detail-value">${job.assigned_business_name || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">생성일:</span>
-                    <span class="detail-value">${formatDate(job.created_at)}</span>
-                </div>
-        `;
-        
-        // 상세 설명이 있으면 추가
-        if (job.description) {
-            detailHtml += `
-                <div class="detail-item" style="grid-column: 1 / -1;">
-                    <span class="detail-label">설명:</span>
-                    <span class="detail-value">${job.description}</span>
-                </div>
-            `;
-        }
-        
-        // 미디어 URL이 있으면 추가
-        if (job.media_urls && Array.isArray(job.media_urls) && job.media_urls.length > 0) {
-            detailHtml += `
-                <div class="detail-item" style="grid-column: 1 / -1;">
-                    <span class="detail-label">첨부 이미지:</span>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
-                        ${job.media_urls.map(url => `
-                            <img src="${url}" alt="첨부 이미지" style="width: 120px; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer;" onclick="window.open('${url}', '_blank')">
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        }
-        
-        // 상태 변경 영역 추가
-        detailHtml += `
-            <hr style="margin: 1rem 0;">
-            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-                <span style="font-weight:500;font-size:0.875rem;">상태 변경:</span>
-                <select id="orderStatusSelector" style="padding:0.4rem 0.75rem;border:1px solid var(--gray-300);border-radius:8px;font-size:0.875rem;">
-                    <option value="created" ${job.status === 'created' ? 'selected' : ''}>입찰 대기 (created)</option>
-                    <option value="open" ${job.status === 'open' ? 'selected' : ''}>공개됨 (open)</option>
-                    <option value="assigned" ${job.status === 'assigned' ? 'selected' : ''}>낙찰됨 (assigned)</option>
-                    <option value="in_progress" ${job.status === 'in_progress' ? 'selected' : ''}>진행 중 (in_progress)</option>
-                    <option value="awaiting_confirmation" ${job.status === 'awaiting_confirmation' ? 'selected' : ''}>완료 확인 대기</option>
-                    <option value="completed" ${job.status === 'completed' ? 'selected' : ''}>완료 (completed)</option>
-                    <option value="cancelled" ${job.status === 'cancelled' ? 'selected' : ''}>취소 (cancelled)</option>
-                </select>
-                <button class="btn btn-primary btn-sm" onclick="updateOrderStatus('${jobId}')">상태 변경</button>
+
+        const listing = processData?.listing || job;
+        const bids = processData?.bids || [];
+        const winnerBid = processData?.winner_bid || null;
+        const reviews = processData?.reviews || [];
+        const status = listing.status || 'created';
+        const statusColor = STATUS_COLORS[status] || '#6b7280';
+        const statusLabel = STATUS_LABELS[status] || status;
+
+        // ── 오더 기본 정보 ──────────────────────────────────────────────
+        let html = `
+        <div style="font-family: inherit;">
+
+          <!-- 기본 정보 카드 -->
+          <div style="background: #f8faff; border: 1px solid #e0e8ff; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+              <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: #1e3a8a;">${listing.title || '-'}</h3>
+              <span style="background: ${statusColor}22; color: ${statusColor}; border: 1px solid ${statusColor}55;
+                           padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; margin-left: 0.5rem;">
+                ${statusLabel}
+              </span>
             </div>
-        `;
-        detailHtml += `</div>`;
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.85rem; color: #374151;">
+              <div>📍 <b>지역:</b> ${listing.region || listing.location || '-'}</div>
+              <div>🏷️ <b>카테고리:</b> ${listing.category || '-'}</div>
+              <div>💰 <b>예산:</b> ${typeof listing.budget_amount === 'number' ? '₩' + listing.budget_amount.toLocaleString('ko-KR') : '-'}</div>
+              <div>📅 <b>등록일:</b> ${formatDate(listing.createdat || listing.created_at)}</div>
+              <div>👤 <b>등록 사업자:</b> ${listing.owner_name || listing.owner_business_name || '-'}</div>
+              ${listing.owner_phone ? `<div>📞 ${listing.owner_phone}</div>` : '<div></div>'}
+              ${listing.winner_name ? `<div>🏆 <b>낙찰 사업자:</b> ${listing.winner_name}</div>` : ''}
+              ${listing.winner_phone ? `<div>📞 ${listing.winner_phone}</div>` : ''}
+            </div>
+            ${listing.description ? `<div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb; font-size: 0.85rem; color: #6b7280; line-height: 1.6;">${listing.description}</div>` : ''}
+          </div>
 
-        modalBody.innerHTML = detailHtml;
+          <!-- 프로세스 타임라인 -->
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 0.4rem;">
+              <span class="material-icons" style="font-size: 1rem;">timeline</span> 오더 프로세스
+            </h4>
+            ${buildProcessTimeline(status, listing, winnerBid, reviews, formatDate, isStatusAfter, STATUS_COLORS, STATUS_LABELS)}
+          </div>
 
-        // 모달 footer에 버튼들 추가
-        const modalFooter = document.getElementById('callModalFooter');
+          <!-- 입찰 목록 -->
+          ${bids.length > 0 ? `
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 0.4rem;">
+              <span class="material-icons" style="font-size: 1rem;">gavel</span> 입찰 현황 (${bids.length}건)
+            </h4>
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.83rem;">
+                <thead>
+                  <tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">사업자</th>
+                    <th style="padding: 6px 10px; text-align: right; font-weight: 600; color: #374151;">입찰금액</th>
+                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">상태</th>
+                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">입찰일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${bids.map(b => `
+                    <tr style="border-bottom: 1px solid #f3f4f6; ${b.is_winner ? 'background: #f0fdf4;' : ''}">
+                      <td style="padding: 7px 10px;">${b.is_winner ? '🏆 ' : ''}${b.bidder_name}</td>
+                      <td style="padding: 7px 10px; text-align: right; font-weight: ${b.is_winner ? '700' : '400'};">
+                        ${typeof b.bid_amount === 'number' ? '₩' + b.bid_amount.toLocaleString('ko-KR') : '-'}
+                      </td>
+                      <td style="padding: 7px 10px;">
+                        <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: ${b.is_winner ? '#d1fae5' : '#f3f4f6'}; color: ${b.is_winner ? '#065f46' : '#6b7280'};">
+                          ${b.is_winner ? '낙찰' : (b.status || '대기')}
+                        </span>
+                      </td>
+                      <td style="padding: 7px 10px; color: #9ca3af;">${formatDate(b.created_at)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          ` : ''}
+
+          <!-- 후기 -->
+          ${reviews.length > 0 ? `
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 700; color: #92400e; display: flex; align-items: center; gap: 0.4rem;">
+              <span class="material-icons" style="font-size: 1rem;">star</span> 완료 후기
+            </h4>
+            ${reviews.map(r => `
+              <div style="background: white; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <div style="font-size: 0.83rem; color: #374151;">
+                    <b>${r.reviewer_name}</b> → ${r.reviewee_name}
+                  </div>
+                  <div style="font-size: 0.8rem; color: #9ca3af;">${formatDate(r.created_at)}</div>
+                </div>
+                <div style="color: #f59e0b; font-size: 1.1rem; margin-bottom: 0.4rem;">
+                  ${'★'.repeat(r.rating || 0)}${'☆'.repeat(5 - (r.rating || 0))}
+                  <span style="font-size: 0.8rem; color: #6b7280; margin-left: 0.3rem;">${r.rating}점</span>
+                </div>
+                ${r.tags && r.tags.length > 0 ? `
+                  <div style="display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.4rem;">
+                    ${r.tags.map(t => `<span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;">${t}</span>`).join('')}
+                  </div>` : ''}
+                ${r.comment ? `<div style="font-size: 0.85rem; color: #374151; line-height: 1.5;">"${r.comment}"</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          ` : ''}
+
+          <!-- 첨부 이미지 -->
+          ${(() => {
+            const mediaUrls = listing.media_urls || listing.jobs?.media_urls;
+            if (!mediaUrls || !Array.isArray(mediaUrls) || mediaUrls.length === 0) return '';
+            return `
+            <div style="margin-bottom: 1.25rem;">
+              <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 600; color: #374151;">📎 첨부 이미지</h4>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                ${mediaUrls.map(url => `<img src="${url}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="window.open('${url}','_blank')">`).join('')}
+              </div>
+            </div>`;
+          })()}
+
+          <!-- 상태 변경 -->
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.875rem 1rem;">
+            <span style="font-size: 0.85rem; font-weight: 600; color: #374151; margin-right: 0.5rem;">⚙️ 상태 변경:</span>
+            <select id="orderStatusSelector" style="padding:0.4rem 0.75rem;border:1px solid var(--gray-300);border-radius:8px;font-size:0.875rem; margin-right: 0.5rem;">
+              <option value="created" ${status === 'created' ? 'selected' : ''}>입찰 대기 (created)</option>
+              <option value="open" ${status === 'open' ? 'selected' : ''}>공개됨 (open)</option>
+              <option value="assigned" ${status === 'assigned' ? 'selected' : ''}>낙찰됨 (assigned)</option>
+              <option value="in_progress" ${status === 'in_progress' ? 'selected' : ''}>진행 중 (in_progress)</option>
+              <option value="awaiting_confirmation" ${status === 'awaiting_confirmation' ? 'selected' : ''}>완료 확인 대기</option>
+              <option value="completed" ${status === 'completed' ? 'selected' : ''}>완료 (completed)</option>
+              <option value="cancelled" ${status === 'cancelled' ? 'selected' : ''}>취소 (cancelled)</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="updateOrderStatus('${jobId}')">변경 저장</button>
+          </div>
+
+        </div>`;
+
+        modalBody.innerHTML = html;
+        document.getElementById('callModalTitle').textContent = `오더 상세: ${listing.title || ''}`;
+
         if (modalFooter) {
             modalFooter.innerHTML = `
                 <button class="btn btn-secondary" onclick="closeCallModal()">닫기</button>
-                <button class="btn btn-primary" onclick="copyOrderShareText('${jobId}')">
-                    <span class="material-icons" style="font-size: 1rem;">content_copy</span>
-                    카카오톡 공유
+                <button class="btn btn-primary btn-sm" onclick="copyOrderShareText('${jobId}')">
+                    <span class="material-icons" style="font-size: 0.9rem;">content_copy</span> 카카오톡 공유
                 </button>
-                <button class="btn btn-info" onclick="copyOrderDeepLink('${jobId}')" style="background: var(--info);">
-                    <span class="material-icons" style="font-size: 1rem;">link</span>
-                    딥링크 복사
+                <button class="btn btn-sm" onclick="copyOrderDeepLink('${jobId}')" style="background: var(--info); color: white;">
+                    <span class="material-icons" style="font-size: 0.9rem;">link</span> 딥링크
                 </button>
-                <button class="btn btn-success" onclick="sendOrderNotification('${jobId}')">
-                    <span class="material-icons" style="font-size: 1rem;">send</span>
-                    알림 발송
+                <button class="btn btn-success btn-sm" onclick="sendOrderNotification('${jobId}')">
+                    <span class="material-icons" style="font-size: 0.9rem;">send</span> 알림 발송
                 </button>
-                <button class="btn btn-danger" onclick="deleteCall('${jobId}')">
-                    <span class="material-icons" style="font-size: 1rem;">delete</span>
-                    삭제
+                <button class="btn btn-danger btn-sm" onclick="deleteCall('${jobId}')">
+                    <span class="material-icons" style="font-size: 0.9rem;">delete</span> 삭제
                 </button>
             `;
         }
-        
-        document.getElementById('callModal').style.display = 'flex';
+
     } catch (error) {
-        console.error('Call 상세 정보 로드 오류:', error);
-        alert('Call 상세 정보를 불러오는데 실패했습니다.');
+        console.error('오더 상세 로드 오류:', error);
+        modalBody.innerHTML = '<div class="error">오더 정보를 불러오는데 실패했습니다: ' + error.message + '</div>';
     }
+}
+
+// 프로세스 타임라인 HTML 생성 헬퍼
+function buildProcessTimeline(status, listing, winnerBid, reviews, formatDate, isStatusAfter, STATUS_COLORS, STATUS_LABELS) {
+    const steps = [
+        {
+            key: 'created',
+            icon: 'add_circle',
+            title: '오더 등록',
+            color: '#1e3a8a',
+            alwaysDone: true,
+            time: listing.createdat || listing.created_at,
+            detail: `${listing.owner_name || listing.owner_business_name || '사업자'} 님이 오더를 등록했습니다.`,
+        },
+        {
+            key: 'assigned',
+            icon: 'gavel',
+            title: '낙찰',
+            color: '#f59e0b',
+            done: isStatusAfter(status, 'assigned'),
+            active: status === 'created' || status === 'open',
+            time: listing.claimed_at,
+            detail: listing.claimed_by
+                ? `${listing.winner_name || '사업자'} 님이 낙찰받았습니다.${winnerBid?.bid_amount ? '\n입찰금액: ₩' + winnerBid.bid_amount.toLocaleString('ko-KR') : ''}`
+                : '아직 낙찰된 사업자가 없습니다.',
+        },
+        {
+            key: 'in_progress',
+            icon: 'construction',
+            title: '진행 중',
+            color: '#3b82f6',
+            done: isStatusAfter(status, 'awaiting_confirmation'),
+            active: status === 'assigned' || status === 'in_progress',
+            time: null,
+            detail: (status === 'assigned' || status === 'in_progress')
+                ? `${listing.winner_name || '사업자'} 님이 작업을 진행하고 있습니다.`
+                : isStatusAfter(status, 'awaiting_confirmation') ? '작업이 완료되었습니다.' : '아직 시작되지 않았습니다.',
+        },
+        {
+            key: 'completed',
+            icon: 'check_circle',
+            title: '완료',
+            color: '#10b981',
+            done: status === 'completed' || status === 'awaiting_confirmation',
+            active: status === 'awaiting_confirmation',
+            time: (status === 'completed' || status === 'awaiting_confirmation') ? (listing.updatedat || listing.updated_at) : null,
+            detail: status === 'completed' ? '오더가 최종 완료되었습니다.' :
+                    status === 'awaiting_confirmation' ? '완료 확인을 기다리고 있습니다.' : '아직 완료되지 않았습니다.',
+        },
+        {
+            key: 'review',
+            icon: 'star',
+            title: '후기',
+            color: '#f59e0b',
+            done: reviews.length > 0,
+            active: status === 'completed' && reviews.length === 0,
+            time: reviews.length > 0 ? reviews[0].created_at : null,
+            detail: reviews.length > 0
+                ? `★${reviews[0].rating}점  "${reviews[0].comment || ''}"${reviews[0].tags?.length > 0 ? '\n태그: ' + reviews[0].tags.join(', ') : ''}`
+                : '아직 후기가 작성되지 않았습니다.',
+        },
+    ];
+
+    return steps.map((step, i) => {
+        const isDone = step.alwaysDone || step.done;
+        const isActive = !isDone && step.active;
+        const isLast = i === steps.length - 1;
+        const color = isDone ? step.color : isActive ? step.color : '#d1d5db';
+        const iconBg = isDone ? step.color : isActive ? step.color + '22' : '#f3f4f6';
+        const iconColor = isDone ? 'white' : isActive ? step.color : '#9ca3af';
+
+        return `
+        <div style="display: flex; gap: 0; position: relative;">
+          <!-- 아이콘 + 선 -->
+          <div style="display: flex; flex-direction: column; align-items: center; margin-right: 14px; flex-shrink: 0;">
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: ${iconBg};
+                        border: 2px solid ${isDone || isActive ? step.color : '#e5e7eb'};
+                        display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <span class="material-icons" style="font-size: 1rem; color: ${iconColor};">${isDone ? 'check' : step.icon}</span>
+            </div>
+            ${!isLast ? `<div style="width: 2px; flex: 1; min-height: 12px; background: ${isDone ? step.color + '44' : '#f3f4f6'}; margin: 3px 0;"></div>` : ''}
+          </div>
+          <!-- 내용 -->
+          <div style="padding-bottom: ${isLast ? '0' : '18px'}; flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+              <span style="font-size: 0.875rem; font-weight: 700; color: ${isDone || isActive ? '#111827' : '#9ca3af'};">${step.title}</span>
+              ${isActive ? `<span style="background: ${step.color}22; color: ${step.color}; font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 10px;">현재 단계</span>` : ''}
+            </div>
+            ${step.time ? `<div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 3px;">${formatDate(step.time)}</div>` : ''}
+            <div style="font-size: 0.8rem; color: ${isDone || isActive ? '#4b5563' : '#9ca3af'}; white-space: pre-line; line-height: 1.5;">${step.detail}</div>
+          </div>
+        </div>`;
+    }).join('');
 }
 
 // 오더 삭제 함수

@@ -910,6 +910,90 @@ router.delete('/comments/:commentId', requireRole('developer', 'staff'), async (
   }
 });
 
+// 오더 전체 프로세스 조회 (낙찰→진행→완료→후기)
+router.get('/listings/:listingId/process', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+
+    // 1. 오더 기본 정보
+    const { data: listing, error: listingErr } = await supabase
+      .from('marketplace_listings')
+      .select('*, jobs(commission_rate, media_urls)')
+      .eq('id', listingId)
+      .maybeSingle();
+    if (listingErr) throw listingErr;
+    if (!listing) return res.status(404).json({ message: '오더를 찾을 수 없습니다' });
+
+    // 2. 입찰 목록
+    const { data: bids } = await supabase
+      .from('order_bids')
+      .select('id, bidder_id, bid_amount, message, status, created_at')
+      .eq('listing_id', listingId)
+      .order('created_at', { ascending: true });
+
+    // 3. 후기
+    const { data: reviews } = await supabase
+      .from('order_reviews')
+      .select('id, reviewer_id, reviewee_id, rating, tags, comment, created_at')
+      .eq('listing_id', listingId)
+      .order('created_at', { ascending: false });
+
+    // 4. 참여자 ID 수집
+    const userIds = [...new Set([
+      listing.posted_by,
+      listing.claimed_by,
+      ...(bids || []).map(b => b.bidder_id),
+      ...(reviews || []).map(r => r.reviewer_id),
+      ...(reviews || []).map(r => r.reviewee_id),
+    ].filter(Boolean))];
+
+    let usersMap = {};
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, name, businessname, phonenumber, role')
+        .in('id', userIds);
+      usersMap = (users || []).reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+    }
+
+    const getUser = (id) => usersMap[id] || null;
+    const getUserName = (id) => {
+      const u = getUser(id);
+      if (!u) return '알 수 없음';
+      return u.businessname || u.name || '알 수 없음';
+    };
+
+    // 낙찰된 입찰 정보 (claimed_by 기준)
+    const winnerBid = listing.claimed_by
+      ? (bids || []).find(b => b.bidder_id === listing.claimed_by) || null
+      : null;
+
+    res.json({
+      listing: {
+        ...listing,
+        owner_name: getUserName(listing.posted_by),
+        winner_name: listing.claimed_by ? getUserName(listing.claimed_by) : null,
+        owner_phone: getUser(listing.posted_by)?.phonenumber || null,
+        winner_phone: listing.claimed_by ? getUser(listing.claimed_by)?.phonenumber || null : null,
+      },
+      bids: (bids || []).map(b => ({
+        ...b,
+        bidder_name: getUserName(b.bidder_id),
+        is_winner: b.bidder_id === listing.claimed_by,
+      })),
+      winner_bid: winnerBid,
+      reviews: (reviews || []).map(r => ({
+        ...r,
+        reviewer_name: getUserName(r.reviewer_id),
+        reviewee_name: getUserName(r.reviewee_id),
+      })),
+    });
+  } catch (error) {
+    console.error('[ADMIN] 오더 프로세스 조회 실패:', error);
+    res.status(500).json({ message: '오더 프로세스 조회 실패', error: error.message });
+  }
+});
+
 // 오더 상태 업데이트 (관리자 전용)
 router.patch('/listings/:listingId/status', requireRole('developer', 'staff'), async (req, res) => {
   try {
