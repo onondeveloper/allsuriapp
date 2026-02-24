@@ -21,6 +21,9 @@ let allCalls = [];
 const ADMIN_TOKEN = 'allsuri-admin-2024';
 let ADMIN_ROLE = 'developer';
 
+// 광고 편집 상태 (파일 최상단에 선언해야 TDZ 오류 방지)
+let currentEditingAd = null;
+
 // 로그인 체크
 function checkLogin() {
     const password = localStorage.getItem('admin_password');
@@ -2335,7 +2338,6 @@ function closeEstimateModal() {
 }
 
 // ===== 광고 관리 =====
-let currentEditingAd = null;
 
 async function loadAds() {
     try {
