@@ -362,44 +362,180 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       }
     }
 
-    // Call 공사 목록 (jobs 테이블)
+    // ─── 헬퍼: Supabase 배치 유저 조회 ─────────────────────────────────
+    const sbHeaders = { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }
+    const fetchUsers = async (ids: string[]): Promise<Record<string, any>> => {
+      if (!ids.length) return {}
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,role&id=in.(${ids.map(id => `"${id}"`).join(',')})`,
+        { headers: sbHeaders }
+      )
+      const users = await res.json()
+      if (!Array.isArray(users)) return {}
+      return users.reduce((acc: any, u: any) => { acc[u.id] = u; return acc }, {})
+    }
+    const getUserName = (map: Record<string, any>, id: string) => {
+      const u = map[id]
+      return u ? (u.businessname || u.name || '알 수 없음') : '알 수 없음'
+    }
+
+    // Call 오더 목록 (marketplace_listings 테이블)
     if (event.httpMethod === 'GET' && path === '/calls') {
-      const jobsRes = await fetch(`${SUPABASE_URL}/rest/v1/jobs?select=*&order=created_at.desc`, {
-        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-      })
-      const jobs = await jobsRes.json()
-
-      if (!Array.isArray(jobs)) {
-        return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } };
+      const listRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/marketplace_listings?select=id,title,description,posted_by,claimed_by,claimed_at,budget_amount,status,region,category,createdat,updatedat,media_urls,bid_count&order=createdat.desc&limit=200`,
+        { headers: sbHeaders }
+      )
+      const listings = await listRes.json()
+      if (!Array.isArray(listings)) {
+        return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
       }
-
-      // 사업자 정보 가져오기
-      const ownerIds = [...new Set(jobs.map((j: any) => j.owner_business_id).filter(Boolean))]
-      const assignedIds = [...new Set(jobs.map((j: any) => j.assigned_business_id).filter(Boolean))]
-      const allUserIds = [...new Set([...ownerIds, ...assignedIds])]
-
-      let usersMap: Record<string, any> = {}
-      if (allUserIds.length > 0) {
-        const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber&id=in.(${allUserIds.map(id => `"${id}"`).join(',')})`, {
-          headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-        })
-        const users = await usersRes.json()
-        if (Array.isArray(users)) {
-          usersMap = users.reduce((acc: any, user: any) => {
-            acc[user.id] = user
-            return acc
-          }, {})
-        }
-      }
-
-      // 사업자 정보를 포함한 데이터 반환
-      const jobsWithUsers = jobs.map((job: any) => ({
-        ...job,
-        owner_business_name: usersMap[job.owner_business_id]?.businessname || usersMap[job.owner_business_id]?.name || '알 수 없음',
-        assigned_business_name: job.assigned_business_id ? (usersMap[job.assigned_business_id]?.businessname || usersMap[job.assigned_business_id]?.name || '알 수 없음') : null,
+      const allIds = [...new Set([...listings.map((l: any) => l.posted_by), ...listings.map((l: any) => l.claimed_by)].filter(Boolean))] as string[]
+      const usersMap = await fetchUsers(allIds)
+      const result = listings.map((l: any) => ({
+        ...l,
+        owner_business_name: getUserName(usersMap, l.posted_by),
+        assigned_business_name: l.claimed_by ? getUserName(usersMap, l.claimed_by) : null,
+        created_at: l.createdat,
+        updated_at: l.updatedat,
+        location: l.region,
       }))
+      return { statusCode: 200, body: JSON.stringify(result), headers: { 'Content-Type': 'application/json' } }
+    }
 
-      return { statusCode: 200, body: JSON.stringify(jobsWithUsers), headers: { 'Content-Type': 'application/json' } };
+    // 오더 프로세스 상세 (낙찰→진행→완료→후기)
+    if (event.httpMethod === 'GET' && /^\/listings\/[^/]+\/process$/.test(path)) {
+      const listingId = path.split('/')[2]
+      const [listingRes, bidsRes, reviewsRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/marketplace_listings?id=eq.${listingId}&select=*&limit=1`, { headers: sbHeaders }),
+        fetch(`${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`, { headers: sbHeaders }),
+        fetch(`${SUPABASE_URL}/rest/v1/order_reviews?listing_id=eq.${listingId}&select=id,reviewer_id,reviewee_id,rating,tags,comment,created_at&order=created_at.desc`, { headers: sbHeaders }),
+      ])
+      const [listingArr, bids, reviews] = await Promise.all([listingRes.json(), bidsRes.json(), reviewsRes.json()])
+      const listing = Array.isArray(listingArr) ? listingArr[0] : null
+      if (!listing) return { statusCode: 404, body: JSON.stringify({ message: '오더를 찾을 수 없습니다' }), headers: { 'Content-Type': 'application/json' } }
+
+      const userIds = [...new Set([
+        listing.posted_by, listing.claimed_by,
+        ...(Array.isArray(bids) ? bids.map((b: any) => b.bidder_id) : []),
+        ...(Array.isArray(reviews) ? reviews.flatMap((r: any) => [r.reviewer_id, r.reviewee_id]) : []),
+      ].filter(Boolean))] as string[]
+      const usersMap = await fetchUsers(userIds)
+
+      const winnerBid = Array.isArray(bids) && listing.claimed_by
+        ? bids.find((b: any) => b.bidder_id === listing.claimed_by) || null
+        : null
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          listing: {
+            ...listing,
+            owner_name: getUserName(usersMap, listing.posted_by),
+            winner_name: listing.claimed_by ? getUserName(usersMap, listing.claimed_by) : null,
+            owner_phone: usersMap[listing.posted_by]?.phonenumber || null,
+            winner_phone: listing.claimed_by ? (usersMap[listing.claimed_by]?.phonenumber || null) : null,
+          },
+          bids: Array.isArray(bids) ? bids.map((b: any) => ({ ...b, bidder_name: getUserName(usersMap, b.bidder_id), is_winner: b.bidder_id === listing.claimed_by })) : [],
+          winner_bid: winnerBid,
+          reviews: Array.isArray(reviews) ? reviews.map((r: any) => ({ ...r, reviewer_name: getUserName(usersMap, r.reviewer_id), reviewee_name: getUserName(usersMap, r.reviewee_id) })) : [],
+        }),
+        headers: { 'Content-Type': 'application/json' }
+      }
+    }
+
+    // 오더 상태 변경
+    if (event.httpMethod === 'PATCH' && /^\/listings\/[^/]+\/status$/.test(path)) {
+      const listingId = path.split('/')[2]
+      const body = JSON.parse(event.body || '{}')
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/marketplace_listings?id=eq.${listingId}`, {
+        method: 'PATCH',
+        headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify({ status: body.status, updatedat: new Date().toISOString() }),
+      })
+      const resText = await res.text()
+      if (!res.ok) return { statusCode: 500, body: JSON.stringify({ success: false, error: resText }), headers: { 'Content-Type': 'application/json' } }
+      return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // 게시물 목록 (community_posts)
+    if (event.httpMethod === 'GET' && path === '/posts') {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/community_posts?select=id,title,content,author_id,created_at,updated_at,likes_count,comments_count,is_active,category&order=created_at.desc&limit=200`,
+        { headers: sbHeaders }
+      )
+      const posts = await res.json()
+      if (!Array.isArray(posts)) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+      const authorIds = [...new Set(posts.map((p: any) => p.author_id).filter(Boolean))] as string[]
+      const usersMap = await fetchUsers(authorIds)
+      const result = posts.map((p: any) => ({
+        ...p,
+        author_name: getUserName(usersMap, p.author_id),
+        author_role: usersMap[p.author_id]?.role || 'unknown',
+      }))
+      return { statusCode: 200, body: JSON.stringify(result), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // 게시물 삭제
+    if (event.httpMethod === 'DELETE' && /^\/posts\/[^/]+$/.test(path)) {
+      const postId = path.split('/')[2]
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/community_posts?id=eq.${postId}`, {
+        method: 'DELETE',
+        headers: sbHeaders,
+      })
+      if (!res.ok) {
+        const errText = await res.text()
+        return { statusCode: 500, body: JSON.stringify({ success: false, error: errText }), headers: { 'Content-Type': 'application/json' } }
+      }
+      return { statusCode: 200, body: JSON.stringify({ success: true, message: '게시글이 삭제되었습니다' }), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // 채팅방 목록
+    if (event.httpMethod === 'GET' && path === '/chats') {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/chat_rooms?select=id,participant_a,participant_b,status,created_at,updated_at,last_message,last_message_at&order=last_message_at.desc.nullslast&limit=200`,
+        { headers: sbHeaders }
+      )
+      const rooms = await res.json()
+      if (!Array.isArray(rooms)) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+      const pIds = [...new Set(rooms.flatMap((r: any) => [r.participant_a, r.participant_b]).filter(Boolean))] as string[]
+      const usersMap = await fetchUsers(pIds)
+      const result = rooms.map((r: any) => ({
+        ...r,
+        participant_a_name: getUserName(usersMap, r.participant_a),
+        participant_b_name: getUserName(usersMap, r.participant_b),
+        participant_a_role: usersMap[r.participant_a]?.role || 'unknown',
+        participant_b_role: usersMap[r.participant_b]?.role || 'unknown',
+      }))
+      return { statusCode: 200, body: JSON.stringify(result), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // 채팅방 메시지
+    if (event.httpMethod === 'GET' && /^\/chats\/[^/]+\/messages$/.test(path)) {
+      const roomId = path.split('/')[2]
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/chat_messages?room_id=eq.${roomId}&select=id,sender_id,content,image_url,video_url,created_at,message_type&order=created_at.asc&limit=100`,
+        { headers: sbHeaders }
+      )
+      const messages = await res.json()
+      if (!Array.isArray(messages)) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+      const senderIds = [...new Set(messages.map((m: any) => m.sender_id).filter(Boolean))] as string[]
+      const usersMap = await fetchUsers(senderIds)
+      const result = messages.map((m: any) => ({ ...m, sender_name: getUserName(usersMap, m.sender_id) }))
+      return { statusCode: 200, body: JSON.stringify(result), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // 채팅방 삭제
+    if (event.httpMethod === 'DELETE' && /^\/chats\/[^/]+$/.test(path)) {
+      const roomId = path.split('/')[2]
+      // 메시지 먼저 삭제
+      await fetch(`${SUPABASE_URL}/rest/v1/chat_messages?room_id=eq.${roomId}`, { method: 'DELETE', headers: sbHeaders })
+      // 채팅방 삭제
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/chat_rooms?id=eq.${roomId}`, { method: 'DELETE', headers: sbHeaders })
+      if (!res.ok) {
+        const errText = await res.text()
+        return { statusCode: 500, body: JSON.stringify({ success: false, error: errText }), headers: { 'Content-Type': 'application/json' } }
+      }
+      return { statusCode: 200, body: JSON.stringify({ success: true, message: '채팅방이 삭제되었습니다' }), headers: { 'Content-Type': 'application/json' } }
     }
 
     // Ads endpoints via Supabase
@@ -413,24 +549,47 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       if (event.httpMethod === 'POST' && (sub === '' || sub === '/')) {
         const payload = JSON.parse(event.body || '{}')
         payload.createdat = new Date().toISOString()
+        payload.updatedat = new Date().toISOString()
         const res = await fetch(`${SUPABASE_URL}/rest/v1/ads`, {
           method: 'POST',
-          headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',  // Supabase가 생성된 row를 JSON으로 반환하도록 요청
+          },
           body: JSON.stringify(payload),
         })
-        if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '광고 생성 실패' }), headers: { 'Content-Type': 'application/json' } };
-        return { statusCode: 200, body: JSON.stringify(await res.json()), headers: { 'Content-Type': 'application/json' } };
+        const resText = await res.text()
+        if (!res.ok) {
+          console.error('[ads POST] Supabase error:', res.status, resText)
+          return { statusCode: 500, body: JSON.stringify({ message: '광고 생성 실패', error: resText }), headers: { 'Content-Type': 'application/json' } };
+        }
+        // 빈 응답 방어 처리
+        const created = resText ? JSON.parse(resText) : []
+        return { statusCode: 201, body: JSON.stringify(Array.isArray(created) ? (created[0] ?? {}) : created), headers: { 'Content-Type': 'application/json' } };
       }
       if (event.httpMethod === 'PUT' && /^\/(.+)/.test(sub)) {
         const id = sub.slice(1)
         const payload = JSON.parse(event.body || '{}')
+        payload.updatedat = new Date().toISOString()
         const res = await fetch(`${SUPABASE_URL}/rest/v1/ads?id=eq.${encodeURIComponent(id)}`, {
           method: 'PATCH',
-          headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          },
           body: JSON.stringify(payload),
         })
-        if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '광고 업데이트 실패' }), headers: { 'Content-Type': 'application/json' } };
-        return { statusCode: 200, body: JSON.stringify(await res.json()), headers: { 'Content-Type': 'application/json' } };
+        const resText = await res.text()
+        if (!res.ok) {
+          console.error('[ads PUT] Supabase error:', res.status, resText)
+          return { statusCode: 500, body: JSON.stringify({ message: '광고 업데이트 실패', error: resText }), headers: { 'Content-Type': 'application/json' } };
+        }
+        const updated = resText ? JSON.parse(resText) : []
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(updated) ? (updated[0] ?? {}) : updated), headers: { 'Content-Type': 'application/json' } };
       }
       if (event.httpMethod === 'DELETE' && /^\/(.+)/.test(sub)) {
         const id = sub.slice(1)
@@ -438,7 +597,11 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
           method: 'DELETE',
           headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
         })
-        if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '광고 삭제 실패' }), headers: { 'Content-Type': 'application/json' } };
+        if (!res.ok) {
+          const errText = await res.text()
+          console.error('[ads DELETE] Supabase error:', res.status, errText)
+          return { statusCode: 500, body: JSON.stringify({ message: '광고 삭제 실패', error: errText }), headers: { 'Content-Type': 'application/json' } };
+        }
         return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } };
       }
     }

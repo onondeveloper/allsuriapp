@@ -399,64 +399,78 @@ class _HomeScreenState extends State<HomeScreen> {
         
         // 광고가 있으면 첫 번째 광고 표시
         final ad = ads.first;
-        return GestureDetector(
-          onTap: () {
-            if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
-              _launchAdUrl(ad.linkUrl!);
-            } else {
-              _showAdvertisingInquiry(context);
-            }
-          },
-          child: Container(
-            width: double.infinity,
-            height: 150,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.grey[300]!),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () {
+                if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
+                  _launchAdUrl(ad.linkUrl!);
+                } else {
+                  _showAdvertisingInquiry(context);
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                height: 150,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.grey[300]!),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: ad.imageUrl.isNotEmpty
-                  ? Image.network(
-                      ad.imageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Colors.grey[100],
-                        child: Center(
-                          child: Text(
-                            ad.title ?? '광고',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: ad.imageUrl.isNotEmpty
+                      ? Image.network(
+                          ad.imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.grey[100],
+                            child: Center(
+                              child: Text(
+                                ad.title ?? '광고',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey[100],
+                          child: Center(
+                            child: Text(
+                              ad.title ?? '광고',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    )
-                  : Container(
-                      color: Colors.grey[100],
-                      child: Center(
-                        child: Text(
-                          ad.title ?? '광고',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ),
+                ),
+              ),
             ),
-          ),
+            // 쿠팡 파트너스 고지 문구
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.',
+                style: TextStyle(fontSize: 9, color: Colors.grey, height: 1.3),
+              ),
+            ),
+          ],
         );
       },
     );

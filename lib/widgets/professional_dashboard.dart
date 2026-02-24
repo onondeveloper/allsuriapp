@@ -743,9 +743,22 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
           );
         }
         
-        return SizedBox(
-          height: 80,
-          child: _DashboardAdCarousel(ads: ads),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 80,
+              child: _DashboardAdCarousel(ads: ads),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+              child: Text(
+                '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.',
+                style: TextStyle(fontSize: 9, color: Colors.grey, height: 1.3),
+              ),
+            ),
+          ],
         );
       },
     );
