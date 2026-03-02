@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart' as url_launcher;
 import 'custom_painters.dart';
 import '../services/ad_service.dart';
 import '../models/ad.dart';
+import 'announcement_banner.dart';
 import '../screens/business/estimate_requests_screen.dart';
 import '../screens/business/estimate_management_screen.dart';
 import '../screens/business/transfer_estimate_screen.dart';
@@ -333,7 +334,12 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
               ),
             ],
           ),
-          body: SingleChildScrollView(
+          body: Column(
+            children: [
+              // 관리자 공지 배너 (앱 업데이트 없이 즉시 반영)
+              const AnnouncementBanner(),
+              Expanded(
+                child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -542,6 +548,9 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
               ],
             ),
           ),
+              ),
+            ],
+          ),
           bottomNavigationBar: BottomNavigation(
             currentIndex: _currentIndex,
             onTap: (index) {
@@ -619,22 +628,9 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
           );
         }
         
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 80,
-              child: _DashboardAdCarousel(ads: ads),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 3),
-              child: Text(
-                '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.',
-                style: TextStyle(fontSize: 9, color: Colors.grey, height: 1.3),
-              ),
-            ),
-          ],
+        return SizedBox(
+          height: 80,
+          child: _DashboardAdCarousel(ads: ads),
         );
       },
     );

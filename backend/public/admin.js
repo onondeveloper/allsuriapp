@@ -722,6 +722,15 @@ async function toggleAdmin(userId) {
             if (reloadAdsBtn) reloadAdsBtn.addEventListener('click', loadAds);
             const newAdBtn = document.getElementById('btnNewAd');
             if (newAdBtn) newAdBtn.addEventListener('click', showAdModal);
+
+            // 공지 배너
+            const newAnnBtn = document.getElementById('btnNewAnnouncement');
+            if (newAnnBtn) newAnnBtn.addEventListener('click', showAnnouncementModal);
+            // 공지 미리보기 실시간 업데이트
+            ['announcementMessage', 'announcementBgColor', 'announcementTextColor'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', updateAnnouncementPreview);
+            });
             const statsAdBtn = document.getElementById('btnAdsStats');
             if (statsAdBtn) statsAdBtn.addEventListener('click', showAdsStats);
         });
@@ -1015,6 +1024,7 @@ async function toggleAdmin(userId) {
                 { id: 'callModal', fn: closeCallModal },
                 { id: 'postModal', fn: closePostModal },
                 { id: 'chatModal', fn: closeChatModal },
+                { id: 'announcementModal', fn: closeAnnouncementModal },
             ];
             modals.forEach(({ id, fn }) => {
                 const el = document.getElementById(id);
@@ -2613,6 +2623,230 @@ async function deleteAd(id) {
 function closeAdModal() {
     document.getElementById('adModal').style.display = 'none';
     currentEditingAd = null;
+}
+
+// ===== 공지 배너 관리 =====
+let allAnnouncements = [];
+let currentEditingAnnouncement = null;
+
+async function loadAnnouncements() {
+    try {
+        const container = document.getElementById('announcementTableContainer');
+        if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>로딩 중...</div>';
+        allAnnouncements = await apiCall('/announcements');
+        displayAnnouncements();
+    } catch (e) {
+        const container = document.getElementById('announcementTableContainer');
+        if (container) container.innerHTML = '<div class="error">공지 목록을 불러오는데 실패했습니다: ' + e.message + '</div>';
+    }
+}
+
+function displayAnnouncements() {
+    const container = document.getElementById('announcementTableContainer');
+    if (!container) return;
+
+    const formatDate = (s) => {
+        if (!s) return '-';
+        return new Date(s).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    };
+
+    if (allAnnouncements.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:3rem;color:var(--gray-500);">
+                <span class="material-icons" style="font-size:2.5rem;display:block;margin-bottom:0.5rem;">notifications_off</span>
+                등록된 공지가 없습니다.<br>
+                <button class="btn btn-primary btn-sm" style="margin-top:1rem;" id="btnNewAnnouncementEmpty">
+                    <span class="material-icons">add</span> 첫 공지 만들기
+                </button>
+            </div>`;
+        const btn = document.getElementById('btnNewAnnouncementEmpty');
+        if (btn) btn.addEventListener('click', showAnnouncementModal);
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>미리보기</th>
+                        <th>내용</th>
+                        <th>활성</th>
+                        <th>노출 기간</th>
+                        <th>등록일</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${allAnnouncements.map(a => `
+                        <tr>
+                            <td>
+                                <div style="background:${a.bg_color};color:${a.text_color};padding:5px 10px;border-radius:6px;font-size:0.78rem;font-weight:500;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;">
+                                    ${a.message || ''}
+                                </div>
+                            </td>
+                            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.message || '-'}</td>
+                            <td>
+                                <span style="background:${a.is_active ? '#d1fae5' : '#f3f4f6'};color:${a.is_active ? '#065f46' : '#6b7280'};padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">
+                                    ${a.is_active ? '활성' : '비활성'}
+                                </span>
+                            </td>
+                            <td style="font-size:0.78rem;color:var(--gray-600);">
+                                ${a.start_at ? formatDate(a.start_at) : '즉시'} ~<br>
+                                ${a.end_at ? formatDate(a.end_at) : '무기한'}
+                            </td>
+                            <td style="font-size:0.78rem;color:var(--gray-500);">${formatDate(a.createdat)}</td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm" style="margin-right:4px;" onclick="editAnnouncement('${a.id}')">수정</button>
+                                <button class="btn ${a.is_active ? 'btn-warning' : 'btn-success'} btn-sm" style="margin-right:4px;" onclick="toggleAnnouncement('${a.id}', ${a.is_active})">
+                                    ${a.is_active ? '비활성화' : '활성화'}
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteAnnouncement('${a.id}')">삭제</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div style="padding:0.75rem;color:var(--gray-500);font-size:0.85rem;">전체 ${allAnnouncements.length}개</div>
+    `;
+}
+
+function showAnnouncementModal() {
+    currentEditingAnnouncement = null;
+    document.getElementById('announcementModalTitle').textContent = '새 공지 배너';
+    document.getElementById('announcementId').value = '';
+    document.getElementById('announcementMessage').value = '';
+    document.getElementById('announcementBgColor').value = '#1E3A8A';
+    document.getElementById('announcementBgColorText').value = '#1E3A8A';
+    document.getElementById('announcementTextColor').value = '#FFFFFF';
+    document.getElementById('announcementTextColorText').value = '#FFFFFF';
+    document.getElementById('announcementStartAt').value = '';
+    document.getElementById('announcementEndAt').value = '';
+    document.getElementById('announcementIsActive').checked = true;
+    document.getElementById('announcementIsDismissible').checked = true;
+    updateAnnouncementPreview();
+    document.getElementById('announcementModal').style.display = 'flex';
+}
+
+function editAnnouncement(id) {
+    const a = allAnnouncements.find(x => x.id === id);
+    if (!a) return;
+    currentEditingAnnouncement = a;
+
+    const toLocalDatetime = (iso) => {
+        if (!iso) return '';
+        return new Date(iso).toISOString().slice(0, 16);
+    };
+
+    document.getElementById('announcementModalTitle').textContent = '공지 수정';
+    document.getElementById('announcementId').value = a.id;
+    document.getElementById('announcementMessage').value = a.message || '';
+    document.getElementById('announcementBgColor').value = a.bg_color || '#1E3A8A';
+    document.getElementById('announcementBgColorText').value = a.bg_color || '#1E3A8A';
+    document.getElementById('announcementTextColor').value = a.text_color || '#FFFFFF';
+    document.getElementById('announcementTextColorText').value = a.text_color || '#FFFFFF';
+    document.getElementById('announcementStartAt').value = toLocalDatetime(a.start_at);
+    document.getElementById('announcementEndAt').value = toLocalDatetime(a.end_at);
+    document.getElementById('announcementIsActive').checked = !!a.is_active;
+    document.getElementById('announcementIsDismissible').checked = !!a.is_dismissible;
+    updateAnnouncementPreview();
+    document.getElementById('announcementModal').style.display = 'flex';
+}
+
+function closeAnnouncementModal() {
+    document.getElementById('announcementModal').style.display = 'none';
+    currentEditingAnnouncement = null;
+}
+
+function updateAnnouncementPreview() {
+    const preview = document.getElementById('announcementPreview');
+    const previewText = document.getElementById('previewText');
+    if (!preview || !previewText) return;
+    const bg = document.getElementById('announcementBgColor')?.value || '#1E3A8A';
+    const tc = document.getElementById('announcementTextColor')?.value || '#FFFFFF';
+    const msg = document.getElementById('announcementMessage')?.value || '공지 내용이 여기 표시됩니다';
+    preview.style.background = bg;
+    preview.style.color = tc;
+    previewText.textContent = msg;
+}
+
+function syncColor(type) {
+    if (type === 'bg') {
+        const val = document.getElementById('announcementBgColorText').value;
+        if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+            document.getElementById('announcementBgColor').value = val;
+            updateAnnouncementPreview();
+        }
+    } else {
+        const val = document.getElementById('announcementTextColorText').value;
+        if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+            document.getElementById('announcementTextColor').value = val;
+            updateAnnouncementPreview();
+        }
+    }
+}
+
+function applyPreset(bg, tc) {
+    document.getElementById('announcementBgColor').value = bg;
+    document.getElementById('announcementBgColorText').value = bg;
+    document.getElementById('announcementTextColor').value = tc;
+    document.getElementById('announcementTextColorText').value = tc;
+    updateAnnouncementPreview();
+}
+
+async function saveAnnouncement() {
+    const message = document.getElementById('announcementMessage').value.trim();
+    if (!message) { alert('공지 내용을 입력해주세요.'); return; }
+
+    const toISO = (localStr) => localStr ? new Date(localStr).toISOString() : null;
+
+    const payload = {
+        message,
+        bg_color: document.getElementById('announcementBgColor').value || '#1E3A8A',
+        text_color: document.getElementById('announcementTextColor').value || '#FFFFFF',
+        is_active: document.getElementById('announcementIsActive').checked,
+        is_dismissible: document.getElementById('announcementIsDismissible').checked,
+        start_at: toISO(document.getElementById('announcementStartAt').value),
+        end_at: toISO(document.getElementById('announcementEndAt').value),
+    };
+
+    const id = document.getElementById('announcementId').value;
+    try {
+        if (id) {
+            await apiCall(`/announcements/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+            alert('공지가 수정되었습니다.');
+        } else {
+            await apiCall('/announcements', { method: 'POST', body: JSON.stringify(payload) });
+            alert('공지가 등록되었습니다.');
+        }
+        closeAnnouncementModal();
+        loadAnnouncements();
+    } catch (e) {
+        alert('저장 실패: ' + e.message);
+    }
+}
+
+async function toggleAnnouncement(id, currentActive) {
+    try {
+        await apiCall(`/announcements/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ is_active: !currentActive })
+        });
+        loadAnnouncements();
+    } catch (e) {
+        alert('상태 변경 실패: ' + e.message);
+    }
+}
+
+async function deleteAnnouncement(id) {
+    if (!confirm('이 공지를 삭제하시겠습니까?')) return;
+    try {
+        await apiCall(`/announcements/${id}`, { method: 'DELETE' });
+        loadAnnouncements();
+    } catch (e) {
+        alert('삭제 실패: ' + e.message);
+    }
 }
 
 // ===== 초기화 및 전체 로드 =====

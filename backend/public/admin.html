@@ -708,6 +708,10 @@
                     <span class="material-icons">chat</span>
                     <span>채팅 현황</span>
                 </div>
+                <div class="menu-item" onclick="showSection('announcements')">
+                    <span class="material-icons">notifications_active</span>
+                    <span>공지 배너</span>
+                </div>
                 <div class="menu-item" onclick="showSection('ads')">
                     <span class="material-icons">campaign</span>
                     <span>광고 관리</span>
@@ -1018,6 +1022,29 @@
                     </div>
                 </div>
 
+                <!-- Announcements Section -->
+                <div id="section-announcements" class="hidden">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">notifications_active</span>
+                                앱 공지 배너 관리
+                            </h2>
+                            <button class="btn btn-primary btn-sm" id="btnNewAnnouncement">
+                                <span class="material-icons">add</span>
+                                새 공지
+                            </button>
+                        </div>
+                        <!-- 미리보기 -->
+                        <div style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: #f0f4ff; border-radius: 10px; font-size: 0.82rem; color: #374151;">
+                            💡 공지 배너는 앱의 <b>대시보드 최상단</b>에 표시됩니다. 앱 업데이트 없이 즉시 반영됩니다.
+                        </div>
+                        <div id="announcementTableContainer">
+                            <div class="loading"><div class="spinner"></div>로딩 중...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Ads Section -->
                 <div id="section-ads" class="hidden">
                     <div class="section">
@@ -1119,6 +1146,107 @@
             <div class="modal-body" id="chatModalBody" style="max-height: 70vh; overflow-y: auto;"></div>
             <div class="modal-footer" id="chatModalFooter">
                 <button class="btn btn-secondary" onclick="closeChatModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Announcement Modal -->
+    <div id="announcementModal" class="modal">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="announcementModalTitle">새 공지 배너</h3>
+                <button class="modal-close" onclick="closeAnnouncementModal()">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+                <form id="announcementForm">
+                    <input type="hidden" id="announcementId">
+
+                    <!-- 내용 -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display:block;margin-bottom:0.4rem;font-weight:600;">공지 내용 <span style="color:var(--danger)">*</span></label>
+                        <textarea id="announcementMessage" rows="3"
+                            style="width:100%;padding:0.75rem;border:1px solid var(--gray-300);border-radius:8px;font-size:0.95rem;resize:vertical;"
+                            placeholder="예: 🔧 서버 점검 안내: 2월 28일 새벽 2시~4시 서비스가 일시 중단됩니다."></textarea>
+                    </div>
+
+                    <!-- 색상 설정 -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.4rem;font-weight:600;">배경색</label>
+                            <div style="display:flex;gap:0.5rem;align-items:center;">
+                                <input type="color" id="announcementBgColor" value="#1E3A8A"
+                                    style="width:44px;height:38px;border:1px solid var(--gray-300);border-radius:6px;cursor:pointer;padding:2px;">
+                                <input type="text" id="announcementBgColorText" value="#1E3A8A"
+                                    style="flex:1;padding:0.5rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.875rem;"
+                                    placeholder="#1E3A8A" oninput="syncColor('bg')">
+                            </div>
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.4rem;font-weight:600;">글자색</label>
+                            <div style="display:flex;gap:0.5rem;align-items:center;">
+                                <input type="color" id="announcementTextColor" value="#FFFFFF"
+                                    style="width:44px;height:38px;border:1px solid var(--gray-300);border-radius:6px;cursor:pointer;padding:2px;">
+                                <input type="text" id="announcementTextColorText" value="#FFFFFF"
+                                    style="flex:1;padding:0.5rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.875rem;"
+                                    placeholder="#FFFFFF" oninput="syncColor('text')">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 프리셋 색상 -->
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block;margin-bottom:0.5rem;font-weight:600;font-size:0.875rem;">색상 프리셋</label>
+                        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;" id="colorPresets">
+                            <button type="button" onclick="applyPreset('#1E3A8A','#FFFFFF')" style="padding:4px 10px;border-radius:6px;border:none;background:#1E3A8A;color:white;font-size:0.78rem;cursor:pointer;">네이비</button>
+                            <button type="button" onclick="applyPreset('#EF4444','#FFFFFF')" style="padding:4px 10px;border-radius:6px;border:none;background:#EF4444;color:white;font-size:0.78rem;cursor:pointer;">빨강 (긴급)</button>
+                            <button type="button" onclick="applyPreset('#F59E0B','#1F2937')" style="padding:4px 10px;border-radius:6px;border:none;background:#F59E0B;color:#1F2937;font-size:0.78rem;cursor:pointer;">노랑 (주의)</button>
+                            <button type="button" onclick="applyPreset('#10B981','#FFFFFF')" style="padding:4px 10px;border-radius:6px;border:none;background:#10B981;color:white;font-size:0.78rem;cursor:pointer;">초록 (안내)</button>
+                            <button type="button" onclick="applyPreset('#6366F1','#FFFFFF')" style="padding:4px 10px;border-radius:6px;border:none;background:#6366F1;color:white;font-size:0.78rem;cursor:pointer;">보라 (이벤트)</button>
+                            <button type="button" onclick="applyPreset('#374151','#FFFFFF')" style="padding:4px 10px;border-radius:6px;border:none;background:#374151;color:white;font-size:0.78rem;cursor:pointer;">다크</button>
+                        </div>
+                    </div>
+
+                    <!-- 미리보기 -->
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block;margin-bottom:0.4rem;font-weight:600;font-size:0.875rem;">미리보기</label>
+                        <div id="announcementPreview" style="border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:#1E3A8A;color:#FFFFFF;">
+                            <span id="previewText" style="font-size:0.875rem;font-weight:500;flex:1;">공지 내용이 여기 표시됩니다</span>
+                            <span style="font-size:1rem;margin-left:8px;opacity:0.8;">✕</span>
+                        </div>
+                    </div>
+
+                    <!-- 노출 기간 -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.4rem;font-weight:600;font-size:0.875rem;">노출 시작 (비워두면 즉시)</label>
+                            <input type="datetime-local" id="announcementStartAt"
+                                style="width:100%;padding:0.5rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.875rem;">
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.4rem;font-weight:600;font-size:0.875rem;">노출 종료 (비워두면 무기한)</label>
+                            <input type="datetime-local" id="announcementEndAt"
+                                style="width:100%;padding:0.5rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.875rem;">
+                        </div>
+                    </div>
+
+                    <!-- 옵션 -->
+                    <div style="display:flex;gap:1.5rem;margin-bottom:0.5rem;">
+                        <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.875rem;">
+                            <input type="checkbox" id="announcementIsActive" checked style="width:16px;height:16px;cursor:pointer;">
+                            <span>즉시 활성화</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.875rem;">
+                            <input type="checkbox" id="announcementIsDismissible" checked style="width:16px;height:16px;cursor:pointer;">
+                            <span>닫기 버튼 표시</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAnnouncementModal()">취소</button>
+                <button class="btn btn-primary" onclick="saveAnnouncement()">저장</button>
             </div>
         </div>
     </div>
@@ -1250,7 +1378,7 @@
             event.target.closest('.menu-item').classList.add('active');
 
             // Hide all sections
-            ['dashboard', 'users', 'estimates', 'calls', 'posts', 'chats', 'ads'].forEach(name => {
+            ['dashboard', 'users', 'estimates', 'calls', 'posts', 'chats', 'announcements', 'ads'].forEach(name => {
                 const el = document.getElementById(`section-${name}`);
                 if (el) el.classList.add('hidden');
             });
@@ -1267,6 +1395,7 @@
                 calls: '오더 관리',
                 posts: '게시물 관리',
                 chats: '채팅 현황',
+                announcements: '공지 배너',
                 ads: '광고 관리'
             };
             document.getElementById('page-title').textContent = titles[sectionName] || sectionName;
@@ -1287,6 +1416,9 @@
                     break;
                 case 'chats':
                     if (typeof loadChats === 'function') loadChats();
+                    break;
+                case 'announcements':
+                    if (typeof loadAnnouncements === 'function') loadAnnouncements();
                     break;
                 case 'ads':
                     loadAds();

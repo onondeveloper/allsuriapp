@@ -606,6 +606,75 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       }
     }
 
+    // ─── 공지 배너 CRUD ─────────────────────────────────────────────────
+    if (path.startsWith('/announcements')) {
+      const sub = path.replace(/^\/announcements/, '')
+
+      // 전체 조회 (관리자)
+      if (event.httpMethod === 'GET' && (sub === '' || sub === '/')) {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/announcements?select=*&order=sort_order.asc,createdat.desc`,
+          { headers: sbHeaders }
+        )
+        const json = await res.json()
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // 앱용 활성 공지 조회 (현재 시간 기준 유효한 것만)
+      if (event.httpMethod === 'GET' && sub === '/active') {
+        const now = new Date().toISOString()
+        const url = `${SUPABASE_URL}/rest/v1/announcements?is_active=eq.true&or=(start_at.is.null,start_at.lte.${now})&or=(end_at.is.null,end_at.gte.${now})&order=sort_order.asc&limit=5`
+        const res = await fetch(url, { headers: sbHeaders })
+        const json = await res.json()
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // 생성
+      if (event.httpMethod === 'POST' && (sub === '' || sub === '/')) {
+        const payload = JSON.parse(event.body || '{}')
+        payload.createdat = new Date().toISOString()
+        payload.updatedat = new Date().toISOString()
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/announcements`, {
+          method: 'POST',
+          headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+          body: JSON.stringify(payload),
+        })
+        const resText = await res.text()
+        if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '공지 생성 실패', error: resText }), headers: { 'Content-Type': 'application/json' } }
+        const created = resText ? JSON.parse(resText) : []
+        return { statusCode: 201, body: JSON.stringify(Array.isArray(created) ? (created[0] ?? {}) : created), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // 수정
+      if (event.httpMethod === 'PUT' && /^\/[^/]+$/.test(sub)) {
+        const id = sub.slice(1)
+        const payload = JSON.parse(event.body || '{}')
+        payload.updatedat = new Date().toISOString()
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/announcements?id=eq.${id}`, {
+          method: 'PATCH',
+          headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+          body: JSON.stringify(payload),
+        })
+        const resText = await res.text()
+        if (!res.ok) return { statusCode: 500, body: JSON.stringify({ message: '공지 수정 실패', error: resText }), headers: { 'Content-Type': 'application/json' } }
+        return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // 삭제
+      if (event.httpMethod === 'DELETE' && /^\/[^/]+$/.test(sub)) {
+        const id = sub.slice(1)
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/announcements?id=eq.${id}`, {
+          method: 'DELETE',
+          headers: sbHeaders,
+        })
+        if (!res.ok) {
+          const errText = await res.text()
+          return { statusCode: 500, body: JSON.stringify({ message: '공지 삭제 실패', error: errText }), headers: { 'Content-Type': 'application/json' } }
+        }
+        return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } }
+      }
+    }
+
     return { statusCode: 404, body: JSON.stringify({ message: 'Not Found' }), headers: { 'Content-Type': 'application/json' } };
   } catch (e: any) {
     return { statusCode: 500, body: JSON.stringify({ message: 'Admin function error', error: String(e) }), headers: { 'Content-Type': 'application/json' } };
