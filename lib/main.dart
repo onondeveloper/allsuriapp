@@ -70,18 +70,23 @@ void main() async {
     },
   );
   
-  // FCM 초기화 (선택사항 - Firebase 설정이 완료된 경우에만 작동)
+  // FCM 초기화 (Firebase 설정이 완료된 경우에만 작동)
   try {
     // FCM 백그라운드 메시지 핸들러 등록
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     
-    // FCM 초기화
+    // FCM 초기화 (내부적으로 requestPermission 호출 → 시스템 설정에 앱 등록)
     await FCMService().initialize();
     print('✅ FCM 기능이 활성화되었습니다.');
   } catch (e) {
-    print('⚠️ FCM 초기화 실패 (Firebase 설정이 필요합니다): $e');
-    print('   앱은 FCM 없이 계속 실행됩니다.');
-    // FCM이 없어도 앱은 정상 작동
+    print('⚠️ FCM 초기화 실패: $e');
+    // FCM이 실패해도 시스템 알림 채널은 따로 등록 시도
+    // (앱이 설정 > 알림 목록에 나타나게 하기 위해)
+    try {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true, badge: true, sound: true,
+      );
+    } catch (_) {}
   }
   
   await runZonedGuarded(() async {

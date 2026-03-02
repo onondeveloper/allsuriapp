@@ -21,6 +21,7 @@ import '../services/notification_service.dart';
 import '../services/marketplace_service.dart';
 import '../services/order_service.dart';
 import '../services/api_service.dart';
+import '../services/push_permission_service.dart';
 import '../screens/home/home_screen.dart';
 import '../widgets/bottom_navigation.dart';
 import '../screens/community/community_board_screen.dart';
@@ -47,6 +48,17 @@ class _ProfessionalDashboardState extends State<ProfessionalDashboard> {
     super.initState();
     _setupRealtimeListeners();
     _refreshData();
+
+    // 로그인 후 푸시 알림 권한 체크 (딜레이 후 표시)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        final userId = context.read<AuthService>().currentUser?.id ?? '';
+        if (userId.isNotEmpty) {
+          PushPermissionService.checkAndRequest(context, userId: userId);
+        }
+      });
+    });
   }
 
   void _setupRealtimeListeners() {

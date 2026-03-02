@@ -218,21 +218,7 @@ class NotificationService {
     }
   }
 
-  /// 일반 알림 전송 (Supabase에 저장 + FCM 푸시)
-  /// 
-  /// 이 함수는 Supabase에 알림을 저장하고, 백엔드를 통해 FCM 푸시도 전송합니다.
-  /// 다른 기능에서도 쉽게 사용할 수 있습니다.
-  /// 
-  /// 예제:
-  /// ```dart
-  /// await NotificationService().sendNotification(
-  ///   userId: 'kakao:123',
-  ///   title: '새 견적 요청',
-  ///   body: '강남구에서 에어컨 수리 견적이 도착했습니다.',
-  ///   type: 'new_estimate',
-  ///   jobId: 'job-123',
-  /// );
-  /// ```
+  /// 알림 전송: Supabase DB 저장 + Netlify Function 통해 FCM 푸시
   Future<void> sendNotification({
     required String userId,
     required String title,
@@ -245,13 +231,8 @@ class NotificationService {
     String? estimateId,
     String? chatRoomId,
   }) async {
+    // 1. Supabase DB에 알림 저장 (앱 내 알림 센터용)
     try {
-      print('📤 [NotificationService.sendNotification] 알림 전송 시작');
-      print('   userId: $userId');
-      print('   title: $title');
-      print('   type: $type');
-      
-      // 1. Supabase에 알림 저장
       final insertData = {
         'userid': userId,
         'title': title,
@@ -259,7 +240,6 @@ class NotificationService {
         'type': type,
         'isread': false,
         'createdat': DateTime.now().toIso8601String(),
-        // 선택적 필드들 (null이나 빈 문자열이면 포함하지 않음)
         if (jobId != null && jobId.isNotEmpty) 'jobid': jobId,
         if (jobTitle != null && jobTitle.isNotEmpty) 'jobtitle': jobTitle,
         if (region != null && region.isNotEmpty) 'region': region,
@@ -267,32 +247,78 @@ class NotificationService {
         if (estimateId != null && estimateId.isNotEmpty) 'estimateid': estimateId,
         if (chatRoomId != null && chatRoomId.isNotEmpty) 'chatroom_id': chatRoomId,
       };
-      
-      print('   저장할 데이터: $insertData');
-      
-      final result = await _sb.from('notifications').insert(insertData).select();
-      
-      print('✅ [NotificationService] 알림 DB 저장 완료: $userId - $title');
-      print('   저장된 알림 ID: ${result.isNotEmpty ? result.first['id'] : 'unknown'}');
-      
-      // 2. FCM 푸시는 Supabase 세션 토큰으로 직접 전송
-      // (백엔드 API /notifications/send-push는 Bearer 토큰이 필요하나
-      //  현재 Netlify Functions에 배포가 안 되어 있어 Supabase 직접 사용)
-      try {
-        final session = _sb.auth.currentSession;
-        if (session != null) {
-          // FCM 토큰을 DB에서 직접 조회하여 Supabase Edge Function 또는 
-          // 앱 내부 FCM 전송 방식으로 처리
-          // 현재는 DB 저장만으로도 앱에서 실시간 알림 수신 가능 (Supabase Realtime)
-          print('✅ FCM 푸시: 알림이 DB에 저장됨 (Realtime으로 앱에 전달)');
+      await _sb.from('notifications').insert(insertData);
+      debugPrint('✅ [NotificationService] DB 저장 완료: $userId - $title');
+    } catch (e) {
+      debugPrint('❌ [NotificationService] DB 저장 실패: $e');
+      rethrow;
+    }
+
+    // 2. Netlify Function을 통해 FCM 푸시 전송
+    //    앱이 백그라운드/종료 상태여도 푸시 수신 가능
+    _sendFCMPush(
+      userId: userId,
+      title: title,
+      body: body,
+      data: {
+        if (type != null) 'type': type,
+        if (orderId != null) 'orderId': orderId,
+        if (jobId != null) 'jobId': jobId,
+        if (chatRoomId != null) 'chatRoomId': chatRoomId,
+      },
+    );
+  }
+
+  /// Netlify Function(/api/notifications/send-push)으로 FCM 푸시 전송
+  /// - 비동기 fire-and-forget: 실패해도 앱 흐름에 영향 없음
+  Future<void> _sendFCMPush({
+    required String userId,
+    required String title,
+    required String body,
+    Map<String, String?> data = const {},
+  }) async {
+    try {
+      final session = _sb.auth.currentSession;
+      if (session == null) {
+        debugPrint('⚠️ [FCM Push] 세션 없음 - 푸시 스킵');
+        return;
+      }
+
+      const apiBase = String.fromEnvironment('API_BASE_URL',
+          defaultValue: 'https://api.allsuri.app/api');
+      final url = Uri.parse('$apiBase/notifications/send-push');
+
+      // data 값 중 null 제거
+      final safeData = <String, String>{};
+      data.forEach((k, v) { if (v != null) safeData[k] = v; });
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${session.accessToken}',
+        },
+        body: jsonEncode({
+          'userId': userId,
+          'title': title,
+          'body': body,
+          'data': safeData,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result['sent'] == true) {
+          debugPrint('✅ [FCM Push] 전송 성공: $userId');
+        } else {
+          debugPrint('ℹ️ [FCM Push] 스킵됨: ${result['reason']}');
         }
-      } catch (e) {
-        print('⚠️ FCM 푸시 전송 실패 (무시됨): $e');
-        // FCM 실패해도 알림은 DB에 저장되었으므로 성공으로 처리
+      } else {
+        debugPrint('⚠️ [FCM Push] 서버 오류 ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      print('❌ 알림 전송 실패: $e');
-      rethrow;
+      // 푸시 실패해도 DB 저장은 됐으므로 무시
+      debugPrint('⚠️ [FCM Push] 전송 실패 (무시): $e');
     }
   }
 

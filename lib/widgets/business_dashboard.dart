@@ -26,6 +26,7 @@ import 'package:lottie/lottie.dart';
 import 'package:allsuriapp/services/api_service.dart';
 import 'package:allsuriapp/services/marketplace_service.dart';
 import '../services/order_service.dart';
+import '../services/push_permission_service.dart';
 import '../screens/community/community_board_screen.dart';
 import '../screens/labs/ai_assistant_screen.dart';
 
@@ -63,6 +64,17 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
       vsync: this,
     )..repeat();
     _waveAnimation = Tween<double>(begin: 0, end: 1).animate(_waveController);
+
+    // 로그인 후 푸시 알림 권한 체크 (딜레이 후 표시)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        final userId = context.read<AuthService>().currentUser?.id ?? '';
+        if (userId.isNotEmpty) {
+          PushPermissionService.checkAndRequest(context, userId: userId);
+        }
+      });
+    });
   }
 
   void _setupRealtimeListeners() {
