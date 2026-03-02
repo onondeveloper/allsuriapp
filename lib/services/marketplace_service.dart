@@ -57,14 +57,14 @@ class MarketplaceService extends ChangeNotifier {
         
         // 한 번의 쿼리로 모든 리뷰 조회
         final reviewsData = await _sb
-            .from('reviews')
-            .select('businessid, rating')
-            .inFilter('businessid', postedByIds);
+            .from('order_reviews')
+            .select('reviewee_id, rating')
+            .inFilter('reviewee_id', postedByIds);
         
-        // 리뷰를 businessid 별로 그룹화
+        // 리뷰를 reviewee_id(사업자) 별로 그룹화
         final reviewsByBusiness = <String, List<double>>{};
         for (final review in reviewsData) {
-          final bid = review['businessid']?.toString();
+          final bid = review['reviewee_id']?.toString();
           if (bid == null) continue;
           reviewsByBusiness.putIfAbsent(bid, () => []);
           final r = review['rating'];

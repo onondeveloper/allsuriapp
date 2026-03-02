@@ -311,14 +311,20 @@ class NotificationService {
         if (result['sent'] == true) {
           debugPrint('✅ [FCM Push] 전송 성공: $userId');
         } else {
-          debugPrint('ℹ️ [FCM Push] 스킵됨: ${result['reason']}');
+          final reason = result['reason'] ?? 'unknown';
+          debugPrint('⚠️ [FCM Push] 전송 스킵: reason=$reason');
+          if (reason == 'firebase_not_configured') {
+            debugPrint('   → Netlify 대시보드에서 FIREBASE_SERVICE_ACCOUNT_KEY 환경변수를 설정하세요');
+          } else if (reason == 'no_fcm_token') {
+            debugPrint('   → 수신자($userId)의 FCM 토큰이 DB에 없습니다. 해당 사용자가 앱에 로그인해야 합니다.');
+          }
         }
       } else {
-        debugPrint('⚠️ [FCM Push] 서버 오류 ${response.statusCode}: ${response.body}');
+        debugPrint('❌ [FCM Push] 서버 오류 ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
       // 푸시 실패해도 DB 저장은 됐으므로 무시
-      debugPrint('⚠️ [FCM Push] 전송 실패 (무시): $e');
+      debugPrint('❌ [FCM Push] 전송 실패: $e');
     }
   }
 

@@ -82,7 +82,7 @@ class FCMService {
     }
   }
 
-  /// 로컬 알림 초기화 (포그라운드 알림용)
+  /// 로컬 알림 초기화 + Android 알림 채널 생성
   Future<void> _initializeLocalNotifications() async {
     const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
     const iosSettings = DarwinInitializationSettings(
@@ -102,6 +102,25 @@ class FCMService {
         _handleNotificationTap(details.payload);
       },
     );
+
+    // Android 8.0+ 필수: 알림 채널 생성
+    // 채널이 없으면 시스템 알림이 전혀 표시되지 않음
+    final androidPlugin = _localNotifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'allsuri_notifications', // FCM channelId와 반드시 일치
+          '올수리 알림',
+          description: '새로운 오더, 견적, 채팅 알림',
+          importance: Importance.max,
+          enableVibration: true,
+          playSound: true,
+          showBadge: true,
+        ),
+      );
+      print('✅ Android 알림 채널 생성 완료');
+    }
   }
 
   /// 메시지 핸들러 설정
@@ -112,19 +131,39 @@ class FCMService {
       _showLocalNotification(message);
     });
 
-    // 백그라운드 메시지에서 앱 열림
+    // 백그라운드 메시지에서 앱 열림 → 뱃지 클리어
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       print('🚀 백그라운드 메시지에서 앱 열림: ${message.notification?.title}');
+      _clearBadge();
       _handleNotificationTap(jsonEncode(message.data));
     });
 
-    // 앱이 종료된 상태에서 알림 탭으로 앱 시작
+    // 앱이 종료된 상태에서 알림 탭으로 앱 시작 → 뱃지 클리어
     _messaging.getInitialMessage().then((message) {
       if (message != null) {
         print('🌟 종료 상태에서 알림으로 앱 시작: ${message.notification?.title}');
+        _clearBadge();
         _handleNotificationTap(jsonEncode(message.data));
       }
     });
+  }
+
+  /// iOS 앱 아이콘 뱃지 클리어
+  Future<void> _clearBadge() async {
+    try {
+      // iOS: FCM에 badge=0 설정 요청
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      // flutter_local_notifications로 뱃지 초기화
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(badge: true);
+    } catch (e) {
+      print('뱃지 클리어 실패 (무시): $e');
+    }
   }
 
   /// 포그라운드에서 로컬 알림 표시

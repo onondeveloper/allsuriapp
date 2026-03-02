@@ -106,9 +106,24 @@ export const handler = async (event: any) => {
       }
     }
 
-    // ── 4. FCM 전송 ─────────────────────────────────────────────────────
+    // ── 4. 읽지 않은 알림 수 조회 (iOS 뱃지용) ──────────────────────────
+    let unreadCount = 1
+    try {
+      const unreadRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/notifications?userid=eq.${encodeURIComponent(userId)}&isread=eq.false&select=id`,
+        { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } }
+      )
+      const unreadData = await unreadRes.json()
+      // 현재 미읽음 수 + 이번 알림 1개
+      unreadCount = (Array.isArray(unreadData) ? unreadData.length : 0) + 1
+    } catch (e) {
+      console.warn('[send-push] 미읽음 수 조회 실패 (badge=1 사용):', e)
+    }
+
+    // ── 5. FCM 전송 ─────────────────────────────────────────────────────
     const messaging = getMessaging()
     if (!messaging) {
+      console.error('[send-push] Firebase 미설정 - FIREBASE_SERVICE_ACCOUNT_KEY 환경변수를 Netlify 대시보드에서 확인하세요')
       return {
         statusCode: 200,
         body: JSON.stringify({ sent: false, reason: 'firebase_not_configured' }),
@@ -122,6 +137,7 @@ export const handler = async (event: any) => {
       safeData[k] = String(v ?? '')
     }
     safeData['sentAt'] = new Date().toISOString()
+    safeData['badge'] = String(unreadCount)
 
     await messaging.send({
       token: fcmToken,
@@ -132,19 +148,20 @@ export const handler = async (event: any) => {
         notification: {
           channelId: 'allsuri_notifications',
           sound: 'default',
+          notificationCount: unreadCount, // Android 뱃지 숫자
         },
       },
       apns: {
         payload: {
           aps: {
             sound: 'default',
-            badge: 1,
+            badge: unreadCount, // iOS 뱃지 숫자 (실제 미읽음 수)
           },
         },
       },
     })
 
-    console.log(`✅ [send-push] 푸시 전송 성공: userId=${userId}`)
+    console.log(`✅ [send-push] 푸시 전송 성공: userId=${userId}, badge=${unreadCount}`)
     return {
       statusCode: 200,
       body: JSON.stringify({ sent: true }),

@@ -30,9 +30,9 @@ class LocalNotificationService {
       tz.initializeTimeZones();
       tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
       
-      // Android 초기화 설정
+      // Android 초기화 설정 (앱 아이콘과 동일한 이름 사용)
       const AndroidInitializationSettings androidInitSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+          AndroidInitializationSettings('@mipmap/launcher_icon');
       
       // iOS 초기화 설정
       const DarwinInitializationSettings iosInitSettings = DarwinInitializationSettings(
@@ -69,7 +69,7 @@ class LocalNotificationService {
   /// 알림 채널 생성 (Android)
   Future<void> _createNotificationChannel(String id, String name, String description) async {
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'allsuri_channel',
+      'allsuri_notifications',
       '올수리 알림',
       description: '올수리 앱의 알림을 받습니다',
       importance: Importance.high,
@@ -92,7 +92,7 @@ class LocalNotificationService {
     required String jobId,
   }) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'allsuri_channel',
+      'allsuri_notifications',
       '올수리 알림',
       channelDescription: '올수리 앱의 알림을 받습니다',
       importance: Importance.high,
@@ -144,7 +144,7 @@ class LocalNotificationService {
     required String listingId,
   }) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'allsuri_channel',
+      'allsuri_notifications',
       '올수리 알림',
       channelDescription: '올수리 앱의 알림을 받습니다',
       importance: Importance.high,
@@ -197,7 +197,7 @@ class LocalNotificationService {
     required String otherUserName,
   }) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'allsuri_channel',
+      'allsuri_notifications',
       '올수리 알림',
       channelDescription: '올수리 앱의 알림을 받습니다',
       importance: Importance.high,
@@ -250,7 +250,7 @@ class LocalNotificationService {
     required String listingId,
   }) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'allsuri_channel',
+      'allsuri_notifications',
       '올수리 알림',
       channelDescription: '올수리 앱의 알림을 받습니다',
       importance: Importance.high,
@@ -302,7 +302,7 @@ class LocalNotificationService {
     String? payload,
   }) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'allsuri_channel',
+      'allsuri_notifications',
       '올수리 알림',
       channelDescription: '올수리 앱의 알림을 받습니다',
       importance: Importance.high,

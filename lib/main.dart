@@ -20,7 +20,9 @@ import 'services/notification_service.dart';
 import 'services/local_notification_service.dart';
 import 'services/community_service.dart';
 import 'services/fcm_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
 import 'providers/user_provider.dart';
 import 'providers/order_provider.dart';
 import 'screens/home/home_screen.dart';
@@ -72,21 +74,20 @@ void main() async {
   
   // FCM 초기화 (Firebase 설정이 완료된 경우에만 작동)
   try {
-    // FCM 백그라운드 메시지 핸들러 등록
+    // ⚠️ 중요: Firebase.initializeApp() 먼저 호출해야
+    //    onBackgroundMessage() 등록이 가능함
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    // 백그라운드 메시지 핸들러는 Firebase 초기화 후에 등록
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    
-    // FCM 초기화 (내부적으로 requestPermission 호출 → 시스템 설정에 앱 등록)
+
+    // FCM 토큰 발급 및 포그라운드 메시지 리스너 설정
     await FCMService().initialize();
     print('✅ FCM 기능이 활성화되었습니다.');
   } catch (e) {
     print('⚠️ FCM 초기화 실패: $e');
-    // FCM이 실패해도 시스템 알림 채널은 따로 등록 시도
-    // (앱이 설정 > 알림 목록에 나타나게 하기 위해)
-    try {
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true, badge: true, sound: true,
-      );
-    } catch (_) {}
   }
   
   await runZonedGuarded(() async {

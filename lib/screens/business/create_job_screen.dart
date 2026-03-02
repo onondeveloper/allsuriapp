@@ -753,11 +753,11 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                           if (result != null) {
                             print('OrderMarketplaceScreen으로 네비게이션 시작');
                             
-                            // 1. 다른 사업자들에게 알림 전송 (role 컬럼 사용)
+                            // 1. 다른 사업자들에게 알림 전송 (병렬 처리)
                             try {
                               final notificationService = NotificationService();
                               
-                              // 승인된 사업자(자신 제외) 조회 - role 컬럼 사용
+                              // 승인된 사업자(자신 제외) 조회
                               final businessUsers = await Supabase.instance.client
                                 .from('users')
                                 .select('id, businessname')
@@ -765,11 +765,12 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                                 .eq('businessstatus', 'approved')
                                 .neq('id', currentUserId ?? '');
                               
-                              print('🔔 ${businessUsers.length}명의 사업자에게 알림 전송 중...');
+                              debugPrint('🔔 ${businessUsers.length}명의 사업자에게 알림 전송 중...');
                               
-                              for (final business in businessUsers) {
-                                try {
-                                  await notificationService.sendNotification(
+                              // 병렬 전송 (순차 → 동시 처리로 변경)
+                              await Future.wait(
+                                businessUsers.map((business) =>
+                                  notificationService.sendNotification(
                                     userId: business['id'],
                                     title: '새로운 오더 등록',
                                     body: '$title - 새로운 공사 오더가 등록되었습니다!',
@@ -777,14 +778,14 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                                     orderId: result['id']?.toString(),
                                     jobTitle: title,
                                     region: region,
-                                  );
-                                } catch (e) {
-                                  print('⚠️ 알림 전송 실패 (${business['businessname']}): $e');
-                                }
-                              }
-                              print('✅ 알림 전송 완료');
+                                  ).catchError((e) {
+                                    debugPrint('⚠️ 알림 전송 실패 (${business['businessname']}): $e');
+                                  })
+                                ).toList(),
+                              );
+                              debugPrint('✅ 알림 전송 완료 (${businessUsers.length}명)');
                             } catch (e) {
-                              print('⚠️ 알림 전송 중 오류 (무시됨): $e');
+                              debugPrint('⚠️ 알림 전송 중 오류 (무시됨): $e');
                             }
                             
                             if (!mounted) return;
