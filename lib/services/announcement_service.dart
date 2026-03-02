@@ -53,7 +53,13 @@ class AnnouncementService {
           .map((e) => Announcement.fromMap(Map<String, dynamic>.from(e)))
           .toList();
     } catch (e) {
-      debugPrint('AnnouncementService 오류: $e');
+      // 테이블 미생성 시 조용히 빈 목록 반환 (앱 동작에 영향 없음)
+      // 해결: Supabase SQL Editor에서 database/create_announcements.sql 실행
+      if (e.toString().contains('announcements')) {
+        debugPrint('ℹ️ announcements 테이블 없음 - Supabase에서 create_announcements.sql 실행 필요');
+      } else {
+        debugPrint('AnnouncementService 오류: $e');
+      }
       return [];
     }
   }

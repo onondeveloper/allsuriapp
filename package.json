@@ -4,8 +4,7 @@
     "version": "1.0.0",
     "license": "UNLICENSED",
     "dependencies": {
-        "@netlify/functions": "^2.6.0",
-        "firebase-admin": "^13.7.0"
+        "@netlify/functions": "^2.6.0"
     },
     "devDependencies": {
         "@types/node": "^24.10.1"
