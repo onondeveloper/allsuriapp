@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../firebase_options.dart';
+import '../screens/chat_screen.dart';
+import '../screens/business/job_management_screen.dart';
 
 /// Firebase Cloud Messaging 서비스
 /// 실시간 푸시 알림을 처리하고 FCM 토큰을 관리합니다.
@@ -212,13 +215,66 @@ class FCMService {
       
       print('🔔 알림 타입: $type, 데이터: $data');
       
-      // TODO: 타입별로 적절한 화면으로 이동
-      // 예: Navigator.pushNamed(context, '/route', arguments: data);
-      // 실제 구현은 앱의 라우팅 시스템에 맞게 조정 필요
-      
+      // main.dart의 전역 navigatorKey 사용
+      // ignore: avoid_dynamic_calls
+      final navigatorKey = _getNavigatorKey();
+      if (navigatorKey?.currentState == null) return;
+
+      final navigator = navigatorKey!.currentState!;
+
+      switch (type) {
+        // 채팅 알림 → 해당 채팅방으로 이동
+        case 'chat_message':
+          final chatRoomId = data['chatRoomId'] as String?;
+          if (chatRoomId != null && chatRoomId.isNotEmpty) {
+            print('💬 채팅방으로 이동: $chatRoomId');
+            navigator.push(MaterialPageRoute(
+              builder: (_) => ChatScreen(chatRoomId: chatRoomId),
+            ));
+          }
+          break;
+
+        // 낙찰 알림 → 내 공사 관리 (해당 공사 하이라이트 + 진행중 필터)
+        case 'bid_selected':
+          final orderId = data['orderId'] as String?;
+          print('🏆 내 공사 관리로 이동: orderId=$orderId');
+          navigator.push(MaterialPageRoute(
+            builder: (_) => JobManagementScreen(
+              highlightedJobId: orderId,
+              initialFilter: 'in_progress', // 진행중 탭으로 바로 이동
+            ),
+          ));
+          break;
+
+        // 새 오더 알림 → 오더 마켓플레이스
+        case 'new_order':
+          // 오더 목록은 대시보드에서 접근 가능하므로 별도 네비게이션 생략
+          break;
+
+        default:
+          break;
+      }
     } catch (e) {
       print('❌ 알림 데이터 파싱 실패: $e');
     }
+  }
+
+  /// main.dart의 전역 navigatorKey 접근 (순환 import 방지용)
+  GlobalKey<NavigatorState>? _getNavigatorKey() {
+    try {
+      // main.dart의 navigatorKey를 동적으로 가져오는 대신
+      // FCMService를 초기화할 때 주입받음
+      return _navigatorKey;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  GlobalKey<NavigatorState>? _navigatorKey;
+
+  /// navigatorKey 주입 (main.dart에서 호출)
+  void setNavigatorKey(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
   }
 
   /// FCM 토큰을 Supabase에 저장

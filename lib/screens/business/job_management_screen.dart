@@ -923,12 +923,42 @@ class _ModernJobsList extends StatelessWidget {
                   customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
                 ),
               ),
+              // 낙찰 알림에서 진입 시 채팅 버튼 안내 배너
+              if (isHighlighted)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3A8A),
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(14),
+                        bottomRight: Radius.circular(14),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.chat_bubble_outline, color: Colors.white, size: 14),
+                        SizedBox(width: 6),
+                        Text(
+                          '우측 채팅 버튼을 눌러 발주자와 대화를 시작하세요',
+                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Positioned(
                 top: 66,
                 right: 16,
                 child: Material(
-                  elevation: 2,
+                  elevation: isHighlighted ? 6 : 2,
                   borderRadius: BorderRadius.circular(20),
+                  color: isHighlighted ? const Color(0xFF1E3A8A) : null,
                   child: InkWell(
                     onTap: () async {
                       // 채팅방 이동 로직
@@ -971,16 +1001,28 @@ class _ModernJobsList extends StatelessWidget {
                     },
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: isHighlighted
+                          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+                          : const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E3A8A),
+                        color: isHighlighted
+                            ? const Color(0xFFFF6B35) // 강조: 주황색
+                            : const Color(0xFF1E3A8A),
                         borderRadius: BorderRadius.circular(20),
+                        boxShadow: isHighlighted
+                            ? [BoxShadow(color: const Color(0xFFFF6B35).withOpacity(0.5), blurRadius: 8, spreadRadius: 2)]
+                            : null,
                       ),
-                      child: const Icon(
-                        Icons.chat_bubble_outline,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      child: isHighlighted
+                          ? const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
+                                SizedBox(width: 4),
+                                Text('채팅하기', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                              ],
+                            )
+                          : const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 20),
                     ),
                   ),
                 ),

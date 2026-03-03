@@ -85,6 +85,8 @@ void main() async {
 
     // FCM 토큰 발급 및 포그라운드 메시지 리스너 설정
     await FCMService().initialize();
+    // navigatorKey 주입 (알림 탭 시 화면 이동용)
+    FCMService().setNavigatorKey(navigatorKey);
     print('✅ FCM 기능이 활성화되었습니다.');
   } catch (e) {
     print('⚠️ FCM 초기화 실패: $e');
