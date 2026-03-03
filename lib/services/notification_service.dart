@@ -255,8 +255,7 @@ class NotificationService {
     }
 
     // 2. Netlify Function을 통해 FCM 푸시 전송
-    //    앱이 백그라운드/종료 상태여도 푸시 수신 가능
-    _sendFCMPush(
+    await _sendFCMPush(
       userId: userId,
       title: title,
       body: body,
@@ -278,9 +277,14 @@ class NotificationService {
     Map<String, String?> data = const {},
   }) async {
     try {
-      final session = _sb.auth.currentSession;
-      if (session == null) {
-        debugPrint('⚠️ [FCM Push] 세션 없음 - 푸시 스킵');
+      // 세션 또는 ApiService 베어러 토큰 사용 (Kakao 로그인 시 세션이 null일 수 있음)
+      final sessionToken = _sb.auth.currentSession?.accessToken;
+      final bearerToken = sessionToken ?? ApiService.currentBearerToken;
+
+      if (bearerToken == null || bearerToken.isEmpty) {
+        debugPrint('⚠️ [FCM Push] 인증 토큰 없음 - 푸시 스킵');
+        debugPrint('   currentSession: ${_sb.auth.currentSession != null ? "있음" : "없음"}');
+        debugPrint('   ApiService.currentBearerToken: ${ApiService.currentBearerToken != null ? "있음(${ApiService.currentBearerToken!.substring(0, 10)}...)" : "없음"}');
         return;
       }
 
@@ -292,11 +296,16 @@ class NotificationService {
       final safeData = <String, String>{};
       data.forEach((k, v) { if (v != null) safeData[k] = v; });
 
+      debugPrint('📤 [FCM Push] 요청 → $url');
+      debugPrint('   수신자: $userId');
+      debugPrint('   토큰 출처: ${sessionToken != null ? "Supabase 세션" : "ApiService"}');
+      debugPrint('   토큰 앞 20자: ${bearerToken.substring(0, bearerToken.length > 20 ? 20 : bearerToken.length)}...');
+
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.accessToken}',
+          'Authorization': 'Bearer $bearerToken',
         },
         body: jsonEncode({
           'userId': userId,
@@ -304,27 +313,24 @@ class NotificationService {
           'body': body,
           'data': safeData,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 15));
+
+      debugPrint('📥 [FCM Push] 응답 ${response.statusCode}: ${response.body}');
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         if (result['sent'] == true) {
-          debugPrint('✅ [FCM Push] 전송 성공: $userId');
+          debugPrint('✅ [FCM Push] 전송 성공: $userId (messageId: ${result['messageId']})');
         } else {
           final reason = result['reason'] ?? 'unknown';
-          debugPrint('⚠️ [FCM Push] 전송 스킵: reason=$reason');
-          if (reason == 'firebase_not_configured') {
-            debugPrint('   → Netlify 대시보드에서 FIREBASE_SERVICE_ACCOUNT_KEY 환경변수를 설정하세요');
-          } else if (reason == 'no_fcm_token') {
-            debugPrint('   → 수신자($userId)의 FCM 토큰이 DB에 없습니다. 해당 사용자가 앱에 로그인해야 합니다.');
-          }
+          final detail = result['detail'] ?? '';
+          debugPrint('⚠️ [FCM Push] 전송 스킵: reason=$reason detail=$detail');
         }
       } else {
         debugPrint('❌ [FCM Push] 서버 오류 ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      // 푸시 실패해도 DB 저장은 됐으므로 무시
-      debugPrint('❌ [FCM Push] 전송 실패: $e');
+      debugPrint('❌ [FCM Push] 예외: $e');
     }
   }
 

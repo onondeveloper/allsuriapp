@@ -110,18 +110,28 @@ export const handler = async (event: any) => {
   }
 
   try {
-    // ── 1. JWT 인증 ──────────────────────────────────────────────────
+    // ── 1. 인증 ───────────────────────────────────────────────────────
     const authHeader = (event.headers['authorization'] || event.headers['Authorization'] || '') as string
     const token = authHeader.replace(/^Bearer\s+/i, '').trim()
     if (!token) {
       return { statusCode: 401, body: JSON.stringify({ error: 'Authorization header required' }), headers: JSON_HEADERS }
     }
 
-    const verifyRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${token}` },
-    })
-    if (!verifyRes.ok) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Invalid token' }), headers: JSON_HEADERS }
+    // 관리자 토큰으로도 호출 가능 (테스트 및 서버 측 호출용)
+    const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.env.ADMIN_DEVELOPER_TOKEN || ''
+    const isAdminToken = ADMIN_TOKEN && token === ADMIN_TOKEN
+
+    if (!isAdminToken) {
+      // 일반 Supabase JWT 검증
+      const verifyRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${token}` },
+      })
+      if (!verifyRes.ok) {
+        console.warn('[send-push] JWT 검증 실패:', verifyRes.status, 'token 앞 20자:', token.substring(0, 20))
+        return { statusCode: 401, body: JSON.stringify({ error: 'Invalid token' }), headers: JSON_HEADERS }
+      }
+    } else {
+      console.log('[send-push] 관리자 토큰으로 인증됨')
     }
 
     // ── 2. 요청 파싱 ─────────────────────────────────────────────────

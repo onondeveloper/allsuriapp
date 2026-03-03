@@ -14,18 +14,29 @@ class AuthService extends ChangeNotifier {
   
   app_models.User? _currentUser;
   bool _isLoading = false;
-  bool _needsRoleSelection = false; // 역할 선택이 필요한지 표시
+  bool _needsRoleSelection = false;
+  String? _supabaseAccessToken; // Supabase 세션 설정 실패 시 FCM 푸시용 fallback
 
   app_models.User? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
   bool get isLoading => _isLoading;
-  bool get needsRoleSelection => _needsRoleSelection; // 역할 선택 필요 여부
+  bool get needsRoleSelection => _needsRoleSelection;
+  /// FCM 푸시 전송에 사용할 access token (세션이 없을 때 사용)
+  String? get accessToken => _sb.auth.currentSession?.accessToken ?? _supabaseAccessToken;
+
+  bool _isLoadingFromKakao = false; // 카카오 로그인 중 onAuthStateChange 중복 방지
+  bool _isLoadingManually = false;  // 수동 loadUserData 호출 중 중복 방지
 
   AuthService() {
     _sb.auth.onAuthStateChange.listen((event) async {
       final session = event.session;
       final supaUserId = session?.user.id;
       if (supaUserId != null) {
+        // 카카오 로그인 또는 수동 로드 중 중복 호출 방지
+        if (_isLoadingFromKakao || _isLoadingManually) {
+          debugPrint('ℹ️ [onAuthStateChange] 수동 로드 중 - 중복 _loadUserData 스킵');
+          return;
+        }
         await _loadUserData(supaUserId);
       } else {
         _currentUser = null;
@@ -130,6 +141,7 @@ class AuthService extends ChangeNotifier {
 
   Future<bool> signInWithKakao() async {
     _isLoading = true;
+    _isLoadingFromKakao = true; // onAuthStateChange 중복 방지 시작
     notifyListeners();
     try {
       // Kakao SDK는 main.dart에서 이미 초기화됨 - 여기서는 초기화 생략으로 속도 향상
@@ -247,18 +259,20 @@ class AuthService extends ChangeNotifier {
             if (user != null) {
               final uid = user['id'] as String;
               
-              // Supabase 세션 설정 시도 (실패해도 로그인은 계속 진행)
-              // 현재 RLS가 비활성화되어 있어 세션 없이도 정상 작동합니다.
+              // Supabase 세션 설정 (FCM 푸시 발송에 필요)
               if (supabaseAccessToken != null && supabaseAccessToken.isNotEmpty) {
                 try {
-                  await _sb.auth.setSession(supabaseAccessToken);
+                  if (supabaseRefreshToken != null && supabaseRefreshToken.isNotEmpty) {
+                    // access token + refresh token 모두 전달
+                    await _sb.auth.setSession(supabaseRefreshToken);
+                  } else {
+                    await _sb.auth.setSession(supabaseAccessToken);
+                  }
                   print('✅ [signInWithKakao] Supabase 세션 설정 성공');
                 } catch (e) {
-                  // 세션 설정 실패는 무시 (RLS가 비활성화되어 있어 문제없음)
-                  print('ℹ️ [signInWithKakao] Supabase 세션 없이 계속 진행 (정상)');
-                  if (kDebugMode) {
-                    print('   상세: $e');
-                  }
+                  print('⚠️ [signInWithKakao] Supabase 세션 설정 실패: $e');
+                  // 세션 설정 실패 시 access token을 직접 저장 (FCM 푸시용)
+                  _supabaseAccessToken = supabaseAccessToken;
                 }
               }
               
@@ -325,6 +339,7 @@ class AuthService extends ChangeNotifier {
       return false;
     } finally {
       _isLoading = false;
+      _isLoadingFromKakao = false; // onAuthStateChange 중복 방지 해제
       notifyListeners();
     }
   }
@@ -574,13 +589,15 @@ class AuthService extends ChangeNotifier {
         print('ℹ️ [AuthService] 세션 없음');
         return;
       }
-      
+
       final userId = session.user.id;
       print('🔄 [AuthService] 세션에서 사용자 정보 로드: $userId');
-      
+
+      _isLoadingManually = true; // onAuthStateChange 중복 방지
       await _loadUserData(userId);
+      _isLoadingManually = false;
       notifyListeners();
-      
+
       print('✅ [AuthService] 세션에서 사용자 정보 로드 완료');
     } catch (e) {
       print('❌ [AuthService] 세션에서 사용자 정보 로드 실패: $e');

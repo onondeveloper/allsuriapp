@@ -22,6 +22,7 @@ class ApiService extends ChangeNotifier {
   static void setBearerToken(String? token) {
     _bearerToken = token;
   }
+  static String? get currentBearerToken => _bearerToken;
   Map<String, String> _headers() => {
         'Content-Type': 'application/json',
         if (_bearerToken != null && _bearerToken!.isNotEmpty) 'Authorization': 'Bearer $_bearerToken',
