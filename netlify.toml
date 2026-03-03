@@ -29,6 +29,19 @@
   force = true
 
 [[redirects]]
+  # Supabase Webhook 경로 (서버→서버, Bot Protection 우회)
+  from = "/api/notifications/send-push-webhook"
+  to = "/.netlify/functions/notifications-send-push"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/api/notifications/*"
+  [headers.values]
+    # Bot protection 우회 (모바일 앱에서 호출)
+    X-Robots-Tag = "noindex"
+
+[[redirects]]
   from = "/api/admin/*"
   to = "/.netlify/functions/admin/:splat"
   status = 200

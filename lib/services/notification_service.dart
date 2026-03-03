@@ -306,6 +306,9 @@ class NotificationService {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $bearerToken',
+          'User-Agent': 'AllSuriApp/1.0 (Flutter; Android)',
+          'X-App-Version': '1.0',
+          'Accept': 'application/json',
         },
         body: jsonEncode({
           'userId': userId,

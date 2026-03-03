@@ -1,0 +1,34 @@
+-- Supabase Database Webhook 설정 (대안 방법)
+-- 
+-- notifications 테이블에 새 행이 INSERT될 때 자동으로 Netlify Function 호출
+-- 이 방법은 Flutter 앱이 Netlify를 직접 호출하지 않아 Bot Protection 우회 가능
+--
+-- 설정 방법:
+-- Supabase 대시보드 → Database → Webhooks → Create a new hook
+--
+-- Hook 설정:
+--   Name: push_notification_on_insert
+--   Table: notifications (public schema)
+--   Events: INSERT
+--   Type: HTTP Request
+--   URL: https://api.allsuri.app/api/notifications/send-push-webhook
+--   HTTP Method: POST
+--   Headers:
+--     Content-Type: application/json
+--     Authorization: Bearer allsuri-admin-2024
+--
+-- Payload (자동으로 Supabase가 보내는 형식):
+-- {
+--   "type": "INSERT",
+--   "table": "notifications",
+--   "record": {
+--     "id": "...",
+--     "userid": "...",
+--     "title": "...",
+--     "body": "...",
+--     ...
+--   }
+-- }
+
+-- 이 SQL 파일은 실행하는 것이 아니라 Webhook 설정 가이드입니다.
+SELECT 'Webhook 설정은 Supabase 대시보드 UI에서 진행하세요' as message;

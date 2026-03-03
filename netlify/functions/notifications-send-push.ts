@@ -84,7 +84,104 @@ async function getGoogleAccessToken(): Promise<string | null> {
   }
 }
 
+// Supabase Webhook 경로 처리 (/send-push-webhook)
+async function handleSupabaseWebhook(event: any) {
+  const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.env.ADMIN_DEVELOPER_TOKEN || ''
+  const authHeader = (event.headers['authorization'] || event.headers['Authorization'] || '') as string
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+
+  // 관리자 토큰 검증
+  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }), headers: JSON_HEADERS }
+  }
+
+  try {
+    const webhookBody = JSON.parse(event.body || '{}')
+    const record = webhookBody.record // Supabase webhook payload
+
+    if (!record?.userid || !record?.title || !record?.body) {
+      return { statusCode: 200, body: JSON.stringify({ skipped: true, reason: 'missing_fields' }), headers: JSON_HEADERS }
+    }
+
+    return await sendFCMToUser(record.userid, record.title, record.body, {
+      type: record.type || '',
+      orderId: record.orderid || '',
+      chatRoomId: record.chatroom_id || '',
+    })
+  } catch (e: any) {
+    console.error('[webhook] 오류:', e)
+    return { statusCode: 500, body: JSON.stringify({ error: e.message }), headers: JSON_HEADERS }
+  }
+}
+
+// FCM 전송 공통 함수
+async function sendFCMToUser(userId: string, title: string, msgBody: string, data: Record<string, string> = {}) {
+  // FCM 토큰 조회
+  const userRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=fcm_token`,
+    { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } }
+  )
+  const users = await userRes.json() as any[]
+  const fcmToken: string | null = Array.isArray(users) && users[0]?.fcm_token ? users[0].fcm_token : null
+
+  if (!fcmToken) {
+    console.log(`[FCM] userId=${userId} 토큰 없음`)
+    return { statusCode: 200, body: JSON.stringify({ sent: false, reason: 'no_fcm_token' }), headers: JSON_HEADERS }
+  }
+
+  // 미읽음 수 조회
+  let unreadCount = 1
+  try {
+    const unreadRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/notifications?userid=eq.${encodeURIComponent(userId)}&isread=eq.false&select=id`,
+      { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } }
+    )
+    const unreadData = await unreadRes.json() as any[]
+    unreadCount = (Array.isArray(unreadData) ? unreadData.length : 0) + 1
+  } catch (_) {}
+
+  const accessToken = await getGoogleAccessToken()
+  if (!accessToken) {
+    return { statusCode: 200, body: JSON.stringify({ sent: false, reason: 'firebase_not_configured' }), headers: JSON_HEADERS }
+  }
+
+  const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_KEY)
+  const safeData: Record<string, string> = { sentAt: new Date().toISOString(), badge: String(unreadCount), ...data }
+
+  const fcmRes = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        message: {
+          token: fcmToken,
+          notification: { title, body: msgBody },
+          data: safeData,
+          android: { priority: 'high', notification: { channel_id: 'allsuri_notifications', sound: 'default', notification_count: unreadCount } },
+          apns: { payload: { aps: { sound: 'default', badge: unreadCount } } },
+        },
+      }),
+    }
+  )
+
+  const fcmResult = await fcmRes.json() as any
+  if (!fcmRes.ok) {
+    console.error(`[FCM] 실패 (${fcmRes.status}):`, JSON.stringify(fcmResult))
+    return { statusCode: 200, body: JSON.stringify({ sent: false, reason: 'fcm_error', detail: fcmResult?.error?.message }), headers: JSON_HEADERS }
+  }
+
+  console.log(`[FCM] 성공: userId=${userId}, badge=${unreadCount}`)
+  return { statusCode: 200, body: JSON.stringify({ sent: true, messageId: fcmResult.name }), headers: JSON_HEADERS }
+}
+
 export const handler = async (event: any) => {
+  // Supabase Webhook 경로
+  const path = (event.path || '').replace(/^\/\.netlify\/functions\/notifications-send-push/, '').replace(/^\/api\/notifications\//, '')
+  if (path === 'send-push-webhook' || event.path?.endsWith('/send-push-webhook')) {
+    return handleSupabaseWebhook(event)
+  }
+
   // ── GET: 환경변수 진단 엔드포인트 ───────────────────────────────────
   if (event.httpMethod === 'GET') {
     return {
@@ -134,104 +231,18 @@ export const handler = async (event: any) => {
       console.log('[send-push] 관리자 토큰으로 인증됨')
     }
 
-    // ── 2. 요청 파싱 ─────────────────────────────────────────────────
+    // ── 2. 요청 파싱 후 공통 함수 호출 ──────────────────────────────
     const body = JSON.parse(event.body || '{}')
     const { userId, title, body: msgBody, data = {} } = body
     if (!userId || !title || !msgBody) {
       return { statusCode: 400, body: JSON.stringify({ error: 'userId, title, body are required' }), headers: JSON_HEADERS }
     }
 
-    // ── 3. 수신자 FCM 토큰 조회 ──────────────────────────────────────
-    const userRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=fcm_token`,
-      { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } }
-    )
-    const users = await userRes.json() as any[]
-    const fcmToken: string | null = Array.isArray(users) && users[0]?.fcm_token ? users[0].fcm_token : null
-
-    if (!fcmToken) {
-      console.log(`[FCM] userId=${userId} FCM 토큰 없음`)
-      return { statusCode: 200, body: JSON.stringify({ sent: false, reason: 'no_fcm_token' }), headers: JSON_HEADERS }
-    }
-
-    // ── 4. 미읽음 알림 수 조회 (뱃지용) ─────────────────────────────
-    let unreadCount = 1
-    try {
-      const unreadRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/notifications?userid=eq.${encodeURIComponent(userId)}&isread=eq.false&select=id`,
-        { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } }
-      )
-      const unreadData = await unreadRes.json() as any[]
-      unreadCount = (Array.isArray(unreadData) ? unreadData.length : 0) + 1
-    } catch (_) { /* badge=1 fallback */ }
-
-    // ── 5. Google OAuth2 Access Token 발급 ──────────────────────────
-    const accessToken = await getGoogleAccessToken()
-    if (!accessToken) {
-      return { statusCode: 200, body: JSON.stringify({ sent: false, reason: 'firebase_not_configured' }), headers: JSON_HEADERS }
-    }
-
-    // ── 6. FCM HTTP v1 API로 푸시 전송 ──────────────────────────────
-    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_KEY)
-    const projectId = serviceAccount.project_id
-
-    const safeData: Record<string, string> = { sentAt: new Date().toISOString(), badge: String(unreadCount) }
-    for (const [k, v] of Object.entries(data)) {
-      safeData[k] = String(v ?? '')
-    }
-
-    const fcmRes = await fetch(
-      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          message: {
-            token: fcmToken,
-            notification: { title, body: msgBody },
-            data: safeData,
-            android: {
-              priority: 'high',
-              notification: {
-                channel_id: 'allsuri_notifications',
-                sound: 'default',
-                notification_count: unreadCount,
-              },
-            },
-            apns: {
-              payload: {
-                aps: { sound: 'default', badge: unreadCount },
-              },
-            },
-          },
-        }),
-      }
-    )
-
-    const fcmResult = await fcmRes.json() as any
-    if (!fcmRes.ok) {
-      console.error(`[FCM] 전송 실패 (${fcmRes.status}):`, JSON.stringify(fcmResult))
-      // FCM 토큰 만료 시 DB에서 제거
-      const errCode = fcmResult?.error?.details?.[0]?.errorCode || ''
-      if (errCode === 'UNREGISTERED' || errCode === 'INVALID_ARGUMENT') {
-        console.log(`[FCM] 만료된 토큰 제거: ${userId}`)
-        await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
-          method: 'PATCH',
-          headers: { ...{ apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fcm_token: null }),
-        })
-      }
-      return { statusCode: 200, body: JSON.stringify({ sent: false, reason: 'fcm_error', detail: fcmResult?.error?.message }), headers: JSON_HEADERS }
-    }
-
-    console.log(`[FCM] 전송 성공: userId=${userId}, messageId=${fcmResult.name}, badge=${unreadCount}`)
-    return { statusCode: 200, body: JSON.stringify({ sent: true, messageId: fcmResult.name }), headers: JSON_HEADERS }
+    return await sendFCMToUser(userId, title, msgBody, data)
 
   } catch (e: any) {
-    console.error('[FCM] 예외 발생:', e)
+    console.error('[send-push] 예외:', e)
     return { statusCode: 500, body: JSON.stringify({ error: e.message }), headers: JSON_HEADERS }
   }
 }
+
