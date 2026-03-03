@@ -254,18 +254,9 @@ class NotificationService {
       rethrow;
     }
 
-    // 2. Netlify Function을 통해 FCM 푸시 전송
-    await _sendFCMPush(
-      userId: userId,
-      title: title,
-      body: body,
-      data: {
-        if (type != null) 'type': type,
-        if (orderId != null) 'orderId': orderId,
-        if (jobId != null) 'jobId': jobId,
-        if (chatRoomId != null) 'chatRoomId': chatRoomId,
-      },
-    );
+    // 2. FCM 푸시는 Supabase Database Webhook이 자동 처리
+    // (DB INSERT → Supabase Webhook → Netlify Function → FCM)
+    // Flutter 앱에서 직접 호출 시 Netlify Bot Protection에 차단되므로 제거
   }
 
   /// Netlify Function(/api/notifications/send-push)으로 FCM 푸시 전송
