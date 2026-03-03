@@ -39,48 +39,46 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyB3X9b9m7M0nEdJs_qjZzK0WA1uuvNIQgI',
+    apiKey: 'AIzaSyBolrVh2-JBG4LCjdPFDlMeEV7gycoiOcw',
     appId: '1:313094370491:android:611c8a2fae809e51b7259e',
     messagingSenderId: '313094370491',
     projectId: 'allsuri-abab9',
-    authDomain: 'allsuri.firebaseapp.com',
-    storageBucket: 'allsuri.firebasestorage.app',
+    authDomain: 'allsuri-abab9.firebaseapp.com',
+    storageBucket: 'allsuri-abab9.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyB3X9b9m7M0nEdJs_qjZzK0WA1uuvNIQgI',
+    apiKey: 'AIzaSyBolrVh2-JBG4LCjdPFDlMeEV7gycoiOcw',
     appId: '1:313094370491:android:611c8a2fae809e51b7259e',
     messagingSenderId: '313094370491',
     projectId: 'allsuri-abab9',
-    storageBucket: 'allsuri.firebasestorage.app',
+    storageBucket: 'allsuri-abab9.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyB3X9b9m7M0nEdJs_qjZzK0WA1uuvNIQgI',
+    apiKey: 'AIzaSyBolrVh2-JBG4LCjdPFDlMeEV7gycoiOcw',
     appId: '1:313094370491:android:611c8a2fae809e51b7259e',
     messagingSenderId: '313094370491',
     projectId: 'allsuri-abab9',
-    storageBucket: 'allsuri.firebasestorage.app',
-    iosClientId: '313094370491-abcdefghijklmnop.apps.googleusercontent.com',
+    storageBucket: 'allsuri-abab9.firebasestorage.app',
     iosBundleId: 'com.ononcompany.allsuri',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyB3X9b9m7M0nEdJs_qjZzK0WA1uuvNIQgI',
+    apiKey: 'AIzaSyBolrVh2-JBG4LCjdPFDlMeEV7gycoiOcw',
     appId: '1:313094370491:android:611c8a2fae809e51b7259e',
     messagingSenderId: '313094370491',
     projectId: 'allsuri-abab9',
-    storageBucket: 'allsuri.firebasestorage.app',
-    iosClientId: '313094370491-abcdefghijklmnop.apps.googleusercontent.com',
+    storageBucket: 'allsuri-abab9.firebasestorage.app',
     iosBundleId: 'com.ononcompany.allsuri',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyB3X9b9m7M0nEdJs_qjZzK0WA1uuvNIQgI',
+    apiKey: 'AIzaSyBolrVh2-JBG4LCjdPFDlMeEV7gycoiOcw',
     appId: '1:313094370491:android:611c8a2fae809e51b7259e',
     messagingSenderId: '313094370491',
     projectId: 'allsuri-abab9',
-    authDomain: 'allsuri.firebaseapp.com',
-    storageBucket: 'allsuri.firebasestorage.app',
+    authDomain: 'allsuri-abab9.firebaseapp.com',
+    storageBucket: 'allsuri-abab9.firebasestorage.app',
   );
-} 
+}
