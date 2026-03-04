@@ -924,19 +924,18 @@ router.get('/listings/:listingId/process', async (req, res) => {
     if (listingErr) throw listingErr;
     if (!listing) return res.status(404).json({ message: '오더를 찾을 수 없습니다' });
 
-    // 2. 입찰 목록 (listing_id로 조회, 없으면 jobid로 job_id 조회)
+    // 2. 입찰 목록 (listing_id로 조회, 없으면 job_id 또는 listing_id=jobid로 조회)
     let { data: bids } = await supabase
       .from('order_bids')
       .select('id, bidder_id, bid_amount, message, status, created_at')
       .eq('listing_id', listingId)
       .order('created_at', { ascending: true });
     if ((!bids || bids.length === 0) && listing.jobid) {
-      const { data: bidsByJob } = await supabase
-        .from('order_bids')
-        .select('id, bidder_id, bid_amount, message, status, created_at')
-        .eq('job_id', listing.jobid)
-        .order('created_at', { ascending: true });
-      bids = bidsByJob || [];
+      const [{ data: bidsByJob }, { data: bidsByListingJob }] = await Promise.all([
+        supabase.from('order_bids').select('id, bidder_id, bid_amount, message, status, created_at').eq('job_id', listing.jobid).order('created_at', { ascending: true }),
+        supabase.from('order_bids').select('id, bidder_id, bid_amount, message, status, created_at').eq('listing_id', listing.jobid).order('created_at', { ascending: true }),
+      ]);
+      bids = (bidsByJob && bidsByJob.length > 0) ? bidsByJob : (bidsByListingJob && bidsByListingJob.length > 0) ? bidsByListingJob : [];
     }
 
     // 3. 후기

@@ -425,16 +425,18 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       const listing = Array.isArray(listingArr) ? listingArr[0] : null
       if (!listing) return { statusCode: 404, body: JSON.stringify({ message: '오더를 찾을 수 없습니다' }), headers: { 'Content-Type': 'application/json' } }
 
-      // listing_id로 입찰이 없고 jobid가 있으면 job_id로도 조회 (일부 입찰이 job_id로만 저장된 경우 대응)
+      // listing_id로 입찰이 없으면 job_id 또는 listing_id=jobid로 조회 (앱에서 jobid를 listing_id로 사용한 경우 대응)
       let bids = Array.isArray(bidsByListing) ? bidsByListing : []
       const jobid = listing.jobid ?? listing.jobId
       if (bids.length === 0 && jobid) {
-        const bidsByJobRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/order_bids?job_id=eq.${encodeURIComponent(jobid)}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`,
-          { headers: sbHeaders }
-        )
-        const bidsByJob = await bidsByJobRes.json()
-        bids = Array.isArray(bidsByJob) ? bidsByJob : []
+        const [bidsByJobRes, bidsByListingJobRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/order_bids?job_id=eq.${encodeURIComponent(jobid)}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`, { headers: sbHeaders }),
+          fetch(`${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${encodeURIComponent(jobid)}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`, { headers: sbHeaders }),
+        ])
+        const [bidsByJob, bidsByListingJob] = await Promise.all([bidsByJobRes.json(), bidsByListingJobRes.json()])
+        bids = Array.isArray(bidsByJob) && bidsByJob.length > 0 ? bidsByJob
+          : Array.isArray(bidsByListingJob) && bidsByListingJob.length > 0 ? bidsByListingJob
+          : []
       }
 
       const userIds = [...new Set([
