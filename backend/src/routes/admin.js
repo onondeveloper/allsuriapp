@@ -924,12 +924,20 @@ router.get('/listings/:listingId/process', async (req, res) => {
     if (listingErr) throw listingErr;
     if (!listing) return res.status(404).json({ message: '오더를 찾을 수 없습니다' });
 
-    // 2. 입찰 목록
-    const { data: bids } = await supabase
+    // 2. 입찰 목록 (listing_id로 조회, 없으면 jobid로 job_id 조회)
+    let { data: bids } = await supabase
       .from('order_bids')
       .select('id, bidder_id, bid_amount, message, status, created_at')
       .eq('listing_id', listingId)
       .order('created_at', { ascending: true });
+    if ((!bids || bids.length === 0) && listing.jobid) {
+      const { data: bidsByJob } = await supabase
+        .from('order_bids')
+        .select('id, bidder_id, bid_amount, message, status, created_at')
+        .eq('job_id', listing.jobid)
+        .order('created_at', { ascending: true });
+      bids = bidsByJob || [];
+    }
 
     // 3. 후기
     const { data: reviews } = await supabase
