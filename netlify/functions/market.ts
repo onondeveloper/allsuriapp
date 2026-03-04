@@ -184,28 +184,64 @@ async function handleBidListing(event: any, path: string) {
   }
 
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_order_bid`, {
+    // 중복 입찰 확인 (같은 사업자가 같은 오더에 이미 입찰했는지)
+    const existingRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${id}&bidder_id=eq.${businessId}&select=id&limit=1`,
+      {
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        }
+      }
+    )
+    const existing = await existingRes.json()
+    if (Array.isArray(existing) && existing.length > 0) {
+      return { statusCode: 409, body: JSON.stringify({ success: false, message: '이미 입찰하셨습니다' }), headers: { 'Content-Type': 'application/json' } };
+    }
+
+    // 직접 INSERT (RPC 대신 - 여러 사업자가 동시 입찰 가능하도록)
+    const now = new Date().toISOString()
+    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/order_bids`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        listing_id: id,
+        bidder_id: businessId,
+        message: message || null,
+        status: 'pending',
+        created_at: now,
+        updated_at: now,
+      })
+    })
+
+    const data = await insertRes.json()
+
+    if (!insertRes.ok) {
+      // 409: unique constraint (이미 입찰)
+      if (insertRes.status === 409) {
+        return { statusCode: 409, body: JSON.stringify({ success: false, message: '이미 입찰하셨습니다' }), headers: { 'Content-Type': 'application/json' } };
+      }
+      console.error('[market] bid insert error:', data)
+      throw new Error(Array.isArray(data) ? data[0]?.message : data.message || 'Bid failed')
+    }
+
+    // bid_count 업데이트 (marketplace_listings)
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_bid_count`, {
       method: 'POST',
       headers: {
         apikey: SUPABASE_SERVICE_ROLE_KEY,
         Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        p_listing_id: id,
-        p_bidder_id: businessId,
-        p_message: message || null,
-      })
-    })
+      body: JSON.stringify({ p_listing_id: id })
+    }).catch(() => {/* bid_count 업데이트 실패는 무시 */})
 
-    const data = await response.json()
-
-    if (!response.ok) {
-      if (response.status === 409) {
-        return { statusCode: 409, body: JSON.stringify({ success: false, message: '이미 입찰하셨습니다' }), headers: { 'Content-Type': 'application/json' } };
-      }
-      throw new Error(data.message || 'Bid failed')
-    }
+    const bidId = Array.isArray(data) ? data[0]?.id : data?.id
 
     // 알림 및 푸시 알림 전송
     try {
@@ -318,7 +354,7 @@ async function handleBidListing(event: any, path: string) {
       console.warn('[market] notification failed:', e.message)
     }
 
-    return { statusCode: 200, body: JSON.stringify({ success: true, bidId: data }), headers: { 'Content-Type': 'application/json' } };
+    return { statusCode: 200, body: JSON.stringify({ success: true, bidId }), headers: { 'Content-Type': 'application/json' } };
   } catch (error: any) {
     console.error('[market] bid error:', error.message)
     return { statusCode: 500, body: JSON.stringify({ message: '입찰 처리 실패', error: error.message }), headers: { 'Content-Type': 'application/json' } };

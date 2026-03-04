@@ -1314,6 +1314,12 @@ function displayCalls() {
                 bVal = b.budget_amount || 0;
             }
             
+            // 입찰 수 처리
+            if (callsSortColumn === 'bid_count') {
+                aVal = a.bid_count ?? 0;
+                bVal = b.bid_count ?? 0;
+            }
+            
             // 문자열 비교
             if (typeof aVal === 'string') {
                 aVal = (aVal || '').toLowerCase();
@@ -1379,6 +1385,7 @@ function displayCalls() {
                     <th class="sortable" data-column="category">카테고리</th>
                     <th class="sortable" data-column="budget_amount">예산</th>
                     <th class="sortable" data-column="status">상태</th>
+                    <th class="sortable" data-column="bid_count">입찰</th>
                     <th>등록한 사업자</th>
                     <th>가져간 사업자</th>
                     <th class="sortable" data-column="claimed_at">입찰받은 날짜</th>
@@ -1386,7 +1393,13 @@ function displayCalls() {
                 </tr>
             </thead>
             <tbody>
-                ${paginatedCalls.map(item => `
+                ${paginatedCalls.map(item => {
+                    const bidCount = item.bid_count ?? 0;
+                    const isUnawarded = !item.claimed_by && item.status !== 'completed' && item.status !== 'cancelled' && item.status !== 'assigned';
+                    const bidCell = isUnawarded
+                        ? `<span style="font-weight: 600; color: ${bidCount > 0 ? 'var(--primary)' : '#9ca3af'};" title="클릭하여 입찰 목록 확인">${bidCount}건</span>`
+                        : (bidCount > 0 ? `${bidCount}건` : '-');
+                    return `
                     <tr style="cursor: pointer;" onclick="showCallDetail('${item.id}')">
                         <td><strong>${item.title || '-'}</strong></td>
                         <td>${item.location || item.region || '-'}</td>
@@ -1397,12 +1410,13 @@ function displayCalls() {
                                 ${getCallStatusText(item.status, item.claimed_by)}
                             </span>
                         </td>
+                        <td>${bidCell}</td>
                         <td>${item.owner_business_name || '-'}</td>
                         <td>${item.claimed_business_name || item.assigned_business_name || '<span style="color: #999;">-</span>'}</td>
                         <td>${item.claimed_at ? formatDate(item.claimed_at) : '<span style="color: #999;">-</span>'}</td>
                         <td>${formatDate(item.created_at)}</td>
                     </tr>
-                `).join('')}
+                `}).join('')}
             </tbody>
         </table>
         <div class="pagination">
@@ -1505,6 +1519,59 @@ async function showCallDetail(jobId) {
         const status = listing.status || 'created';
         const statusColor = STATUS_COLORS[status] || '#6b7280';
         const statusLabel = STATUS_LABELS[status] || status;
+        const isUnawarded = !listing.claimed_by && status !== 'completed' && status !== 'cancelled';
+
+        // 입찰 목록 HTML (미낙찰: 항상 표시, 낙찰됨: 입찰 있을 때만)
+        const buildBidListHtml = () => {
+            const showBids = isUnawarded || bids.length > 0;
+            if (!showBids) return '';
+            const borderColor = isUnawarded ? '#f59e0b' : '#e5e7eb';
+            const bgColor = isUnawarded ? '#fffbeb' : 'white';
+            const headerColor = isUnawarded ? '#92400e' : '#1e3a8a';
+            return `
+          <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 700; color: ${headerColor}; display: flex; align-items: center; gap: 0.4rem;">
+              <span class="material-icons" style="font-size: 1rem;">gavel</span>
+              ${isUnawarded ? '미낙찰 오더 - 입찰 목록' : '입찰 현황'} (${bids.length}건)
+            </h4>
+            ${bids.length > 0 ? `
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.83rem;">
+                <thead>
+                  <tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">사업자</th>
+                    <th style="padding: 6px 10px; text-align: right; font-weight: 600; color: #374151;">입찰금액</th>
+                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">메시지</th>
+                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">상태</th>
+                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">입찰일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${bids.map(b => `
+                    <tr style="border-bottom: 1px solid #f3f4f6; ${b.is_winner ? 'background: #f0fdf4;' : ''}">
+                      <td style="padding: 7px 10px;">${b.is_winner ? '🏆 ' : ''}${b.bidder_name}</td>
+                      <td style="padding: 7px 10px; text-align: right; font-weight: ${b.is_winner ? '700' : '400'};">
+                        ${typeof b.bid_amount === 'number' ? '₩' + b.bid_amount.toLocaleString('ko-KR') : '-'}
+                      </td>
+                      <td style="padding: 7px 10px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(b.message || '').replace(/"/g, '&quot;')}">${b.message ? (b.message.length > 30 ? b.message.substring(0, 30) + '...' : b.message) : '-'}</td>
+                      <td style="padding: 7px 10px;">
+                        <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: ${b.is_winner ? '#d1fae5' : '#f3f4f6'}; color: ${b.is_winner ? '#065f46' : '#6b7280'};">
+                          ${b.is_winner ? '낙찰' : (b.status || '대기')}
+                        </span>
+                      </td>
+                      <td style="padding: 7px 10px; color: #9ca3af;">${formatDate(b.created_at)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ` : `
+            <div style="padding: 1rem; text-align: center; color: #6b7280; font-size: 0.9rem; background: white; border-radius: 8px; border: 1px dashed #e5e7eb;">
+              아직 입찰이 없습니다.
+            </div>
+            `}
+          </div>`;
+        };
 
         // ── 오더 기본 정보 ──────────────────────────────────────────────
         let html = `
@@ -1532,6 +1599,8 @@ async function showCallDetail(jobId) {
             ${listing.description ? `<div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb; font-size: 0.85rem; color: #6b7280; line-height: 1.6;">${listing.description}</div>` : ''}
           </div>
 
+          ${isUnawarded ? buildBidListHtml() : ''}
+
           <!-- 프로세스 타임라인 -->
           <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
             <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 0.4rem;">
@@ -1540,42 +1609,7 @@ async function showCallDetail(jobId) {
             ${buildProcessTimeline(status, listing, winnerBid, reviews, formatDate, isStatusAfter, STATUS_COLORS, STATUS_LABELS)}
           </div>
 
-          <!-- 입찰 목록 -->
-          ${bids.length > 0 ? `
-          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
-            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 0.4rem;">
-              <span class="material-icons" style="font-size: 1rem;">gavel</span> 입찰 현황 (${bids.length}건)
-            </h4>
-            <div style="overflow-x: auto;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 0.83rem;">
-                <thead>
-                  <tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">사업자</th>
-                    <th style="padding: 6px 10px; text-align: right; font-weight: 600; color: #374151;">입찰금액</th>
-                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">상태</th>
-                    <th style="padding: 6px 10px; text-align: left; font-weight: 600; color: #374151;">입찰일</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${bids.map(b => `
-                    <tr style="border-bottom: 1px solid #f3f4f6; ${b.is_winner ? 'background: #f0fdf4;' : ''}">
-                      <td style="padding: 7px 10px;">${b.is_winner ? '🏆 ' : ''}${b.bidder_name}</td>
-                      <td style="padding: 7px 10px; text-align: right; font-weight: ${b.is_winner ? '700' : '400'};">
-                        ${typeof b.bid_amount === 'number' ? '₩' + b.bid_amount.toLocaleString('ko-KR') : '-'}
-                      </td>
-                      <td style="padding: 7px 10px;">
-                        <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: ${b.is_winner ? '#d1fae5' : '#f3f4f6'}; color: ${b.is_winner ? '#065f46' : '#6b7280'};">
-                          ${b.is_winner ? '낙찰' : (b.status || '대기')}
-                        </span>
-                      </td>
-                      <td style="padding: 7px 10px; color: #9ca3af;">${formatDate(b.created_at)}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          ` : ''}
+          ${!isUnawarded ? buildBidListHtml() : ''}
 
           <!-- 후기 -->
           ${reviews.length > 0 ? `
