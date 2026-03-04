@@ -416,28 +416,27 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
     // 오더 프로세스 상세 (낙찰→진행→완료→후기)
     if (event.httpMethod === 'GET' && /^\/listings\/[^/]+\/process$/.test(path)) {
       const listingId = path.split('/')[2]
-      const [listingRes, bidsRes, reviewsRes] = await Promise.all([
+      const [listingRes, reviewsRes] = await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/marketplace_listings?id=eq.${listingId}&select=*&limit=1`, { headers: sbHeaders }),
-        fetch(`${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`, { headers: sbHeaders }),
         fetch(`${SUPABASE_URL}/rest/v1/order_reviews?listing_id=eq.${listingId}&select=id,reviewer_id,reviewee_id,rating,tags,comment,created_at&order=created_at.desc`, { headers: sbHeaders }),
       ])
-      const [listingArr, bidsByListing, reviews] = await Promise.all([listingRes.json(), bidsRes.json(), reviewsRes.json()])
+      const [listingArr, reviews] = await Promise.all([listingRes.json(), reviewsRes.json()])
       const listing = Array.isArray(listingArr) ? listingArr[0] : null
       if (!listing) return { statusCode: 404, body: JSON.stringify({ message: '오더를 찾을 수 없습니다' }), headers: { 'Content-Type': 'application/json' } }
 
-      // listing_id로 입찰이 없으면 job_id 또는 listing_id=jobid로 조회 (앱에서 jobid를 listing_id로 사용한 경우 대응)
-      let bids = Array.isArray(bidsByListing) ? bidsByListing : []
       const jobid = listing.jobid ?? listing.jobId
-      if (bids.length === 0 && jobid) {
-        const [bidsByJobRes, bidsByListingJobRes] = await Promise.all([
-          fetch(`${SUPABASE_URL}/rest/v1/order_bids?job_id=eq.${encodeURIComponent(jobid)}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`, { headers: sbHeaders }),
-          fetch(`${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${encodeURIComponent(jobid)}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`, { headers: sbHeaders }),
-        ])
-        const [bidsByJob, bidsByListingJob] = await Promise.all([bidsByJobRes.json(), bidsByListingJobRes.json()])
-        bids = Array.isArray(bidsByJob) && bidsByJob.length > 0 ? bidsByJob
-          : Array.isArray(bidsByListingJob) && bidsByListingJob.length > 0 ? bidsByListingJob
-          : []
+      // 입찰 조회: listing_id=listingId OR job_id=jobid OR listing_id=jobid (한 번에 or 쿼리로 조회)
+      const orParts = [`listing_id.eq.${listingId}`]
+      if (jobid) {
+        orParts.push(`job_id.eq.${jobid}`, `listing_id.eq.${jobid}`)
       }
+      const orFilter = encodeURIComponent(`or(${orParts.join(',')})`)
+      const bidsRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/order_bids?${orFilter}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`,
+        { headers: sbHeaders }
+      )
+      const bidsRaw = await bidsRes.json()
+      const bids = Array.isArray(bidsRaw) && !(bidsRaw as any)?.code ? bidsRaw : []
 
       const userIds = [...new Set([
         listing.posted_by, listing.claimed_by,
