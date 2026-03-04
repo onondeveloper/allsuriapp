@@ -34,17 +34,18 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
     if (event.httpMethod === 'GET' && path === '/dashboard') {
       const headers = { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }
 
-      // Fetch users
+      // Fetch users (Supabase 에러 객체 반환 시 빈 배열로 처리)
       const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=role,businessstatus`, { headers })
-      const users = await usersRes.json()
-      const totalUsers = Array.isArray(users) ? users.length : 0
+      const usersRaw = await usersRes.json()
+      const users = Array.isArray(usersRaw) ? usersRaw : (usersRaw?.code ? [] : [])
       const totalBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business').length : 0
       const totalCustomers = Array.isArray(users) ? users.filter((u: any) => u.role === 'customer').length : 0
       const pendingBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business' && u.businessstatus === 'pending').length : 0
 
-      // Fetch estimates (use amount column, not estimatedPrice)
+      // Fetch estimates (에러 객체 시 빈 배열)
       const estimatesRes = await fetch(`${SUPABASE_URL}/rest/v1/estimates?select=status,amount`, { headers })
-      const estimates = await estimatesRes.json()
+      const estimatesRaw = await estimatesRes.json()
+      const estimates = Array.isArray(estimatesRaw) ? estimatesRaw : (estimatesRaw?.code ? [] : [])
 
       console.log('[ADMIN DASHBOARD] Estimates count:', Array.isArray(estimates) ? estimates.length : 0)
       console.log('[ADMIN DASHBOARD] Estimates sample:', Array.isArray(estimates) ? estimates.slice(0, 5) : [])
@@ -76,9 +77,10 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       // 총 수익: 완료된 견적 금액의 5% 계산
       const totalRevenue = totalEstimateAmount * 0.05
 
-      // Fetch marketplace_listings (오더 현황)
+      // Fetch marketplace_listings (에러 객체 시 빈 배열)
       const listingsRes = await fetch(`${SUPABASE_URL}/rest/v1/marketplace_listings?select=id,status,claimed_by,budget_amount`, { headers })
-      const listings = await listingsRes.json()
+      const listingsRaw = await listingsRes.json()
+      const listings = Array.isArray(listingsRaw) ? listingsRaw : (listingsRaw?.code ? [] : [])
       console.log('[ADMIN DASHBOARD] Listings count:', Array.isArray(listings) ? listings.length : 0)
       console.log('[ADMIN DASHBOARD] Listings sample:', Array.isArray(listings) ? listings.slice(0, 3) : [])
 
@@ -103,9 +105,10 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       console.log('[ADMIN DASHBOARD] Orders - Total:', totalOrders, 'Pending:', pendingOrders, 'Completed:', completedOrders)
       console.log('[ADMIN DASHBOARD] Total order amount:', totalOrderAmount)
 
-      // Fetch jobs (기존 jobs 테이블)
+      // Fetch jobs (에러 객체 시 빈 배열)
       const jobsRes = await fetch(`${SUPABASE_URL}/rest/v1/jobs?select=id,status`, { headers })
-      const jobs = await jobsRes.json()
+      const jobsRaw = await jobsRes.json()
+      const jobs = Array.isArray(jobsRaw) ? jobsRaw : (jobsRaw?.code ? [] : [])
       const totalJobs = Array.isArray(jobs) ? jobs.length : 0
       const pendingJobs = Array.isArray(jobs) ? jobs.filter((j: any) => j.status === 'pending').length : 0
       const completedJobs = Array.isArray(jobs) ? jobs.filter((j: any) => j.status === 'completed').length : 0
@@ -365,17 +368,25 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
     // ─── 헬퍼: Supabase 배치 유저 조회 ─────────────────────────────────
     const sbHeaders = { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }
     const fetchUsers = async (ids: string[]): Promise<Record<string, any>> => {
-      if (!ids.length) return {}
+      const validIds = ids.filter(Boolean).map(String)
+      if (!validIds.length) return {}
+      const idList = validIds.map(id => `"${id}"`).join(',')
       const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,role&id=in.(${ids.map(id => `"${id}"`).join(',')})`,
+        `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,role&id=in.(${idList})`,
         { headers: sbHeaders }
       )
       const users = await res.json()
-      if (!Array.isArray(users)) return {}
-      return users.reduce((acc: any, u: any) => { acc[u.id] = u; return acc }, {})
+      if (!Array.isArray(users) || (users as any)?.code) return {}
+      const map: Record<string, any> = {}
+      for (const u of users) {
+        const key = u?.id != null ? String(u.id) : null
+        if (key) map[key] = u
+      }
+      return map
     }
-    const getUserName = (map: Record<string, any>, id: string) => {
-      const u = map[id]
+    const getUserName = (map: Record<string, any>, id: string | null | undefined) => {
+      if (!id) return '알 수 없음'
+      const u = map[String(id)] || map[id]
       return u ? (u.businessname || u.name || '알 수 없음') : '알 수 없음'
     }
 
@@ -501,35 +512,48 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       return { statusCode: 200, body: JSON.stringify({ success: true, message: '게시글이 삭제되었습니다' }), headers: { 'Content-Type': 'application/json' } }
     }
 
-    // 채팅방 목록
+    // 채팅방 목록 (createdat/created_at 스키마 호환)
     if (event.httpMethod === 'GET' && path === '/chats') {
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/chat_rooms?select=id,participant_a,participant_b,status,created_at,updated_at,last_message,last_message_at&order=last_message_at.desc.nullslast&limit=200`,
-        { headers: sbHeaders }
-      )
-      const rooms = await res.json()
-      if (!Array.isArray(rooms)) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+      const selectCols = 'id,participant_a,participant_b,status'
+      let rooms: any[] = []
+      for (const orderCol of ['createdat', 'created_at']) {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/chat_rooms?select=${selectCols},${orderCol}&order=${orderCol}.desc&limit=200`,
+          { headers: sbHeaders }
+        )
+        const data = await res.json()
+        if (Array.isArray(data) && !(data as any)?.code) {
+          rooms = data
+          break
+        }
+      }
       const pIds = [...new Set(rooms.flatMap((r: any) => [r.participant_a, r.participant_b]).filter(Boolean))] as string[]
       const usersMap = await fetchUsers(pIds)
       const result = rooms.map((r: any) => ({
         ...r,
         participant_a_name: getUserName(usersMap, r.participant_a),
         participant_b_name: getUserName(usersMap, r.participant_b),
-        participant_a_role: usersMap[r.participant_a]?.role || 'unknown',
-        participant_b_role: usersMap[r.participant_b]?.role || 'unknown',
+        participant_a_role: usersMap[String(r.participant_a)]?.role || 'unknown',
+        participant_b_role: usersMap[String(r.participant_b)]?.role || 'unknown',
       }))
       return { statusCode: 200, body: JSON.stringify(result), headers: { 'Content-Type': 'application/json' } }
     }
 
-    // 채팅방 메시지
+    // 채팅방 메시지 (createdat/created_at 스키마 호환)
     if (event.httpMethod === 'GET' && /^\/chats\/[^/]+\/messages$/.test(path)) {
       const roomId = path.split('/')[2]
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/chat_messages?room_id=eq.${roomId}&select=id,sender_id,content,image_url,video_url,created_at,message_type&order=created_at.asc&limit=100`,
-        { headers: sbHeaders }
-      )
-      const messages = await res.json()
-      if (!Array.isArray(messages)) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+      let messages: any[] = []
+      for (const orderCol of ['created_at', 'createdat']) {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/chat_messages?room_id=eq.${roomId}&select=id,sender_id,content,image_url,video_url,${orderCol},message_type&order=${orderCol}.asc&limit=100`,
+          { headers: sbHeaders }
+        )
+        const data = await res.json()
+        if (Array.isArray(data) && !(data as any)?.code) {
+          messages = data
+          break
+        }
+      }
       const senderIds = [...new Set(messages.map((m: any) => m.sender_id).filter(Boolean))] as string[]
       const usersMap = await fetchUsers(senderIds)
       const result = messages.map((m: any) => ({ ...m, sender_name: getUserName(usersMap, m.sender_id) }))
