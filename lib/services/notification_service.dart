@@ -336,6 +336,10 @@ class NotificationService {
     required String chatRoomId,
   }) async {
     try {
+      if (recipientUserId.isEmpty) {
+        print('📩 [sendChatNotification] 수신자 ID 없음, 알림 스킵');
+        return;
+      }
       print('📩 [sendChatNotification] 채팅 알림 전송 시작');
       print('   수신자: $recipientUserId');
       print('   발신자: $senderName');

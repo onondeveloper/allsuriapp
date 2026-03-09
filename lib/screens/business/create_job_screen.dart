@@ -658,6 +658,114 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
     );
   }
 
+  /// 카카오톡 공유 다이얼로그 - 오더 등록 후 카카오톡으로 공유할지 선택
+  Future<void> _showKakaoShareDialog({
+    required String orderId,
+    required String title,
+    required String region,
+    required String category,
+    double? budget,
+    double? commissionRate,
+    String? imageUrl,
+    String? description,
+  }) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/kakao_logo.png',
+              height: 24,
+              errorBuilder: (_, __, ___) => Icon(Icons.chat_bubble, color: const Color(0xFFFAE100)),
+            ),
+            const SizedBox(width: 8),
+            const Text('카카오톡으로 공유'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '새로운 오더를 카카오톡 단체방에 공유하시겠어요?',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      SizedBox(width: 4),
+                      Text('단체방에 오더 정보 공유'),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      SizedBox(width: 4),
+                      Text('더 많은 사업자에게 오더 노출'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('나중에'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              final success = await KakaoShareService().shareOrder(
+                orderId: orderId,
+                title: title,
+                region: region,
+                category: category,
+                budgetAmount: budget,
+                commissionRate: commissionRate,
+                imageUrl: imageUrl,
+                description: description,
+              );
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop();
+                if (success && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ 카카오톡 공유가 시작되었습니다'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else if (!success && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('❌ 카카오톡 공유에 실패했습니다'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.share, size: 18),
+            label: const Text('공유하기'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showPostCreateOptions(
     String jobId, {
     required String title,
@@ -794,21 +902,21 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                             final shareCommissionRate = double.tryParse(_feeRateController.text) ?? 5.0;
                             final shareImageUrl = _uploadedImageUrls.isNotEmpty ? _uploadedImageUrls.first : null;
                             
-                            // 2. 카카오톡 공유 먼저 실행 (화면 이동 전)
-                            print('🔍 [CreateJobScreen] 카카오톡 공유 실행');
-                            KakaoShareService().shareOrder(
+                            // 2. 카카오톡 공유 다이얼로그 표시 (다이얼로그 닫힐 때까지 대기)
+                            await _showKakaoShareDialog(
                               orderId: orderId,
                               title: title,
                               region: region ?? '',
                               category: category,
-                              budgetAmount: budget,
+                              budget: budget,
                               commissionRate: shareCommissionRate,
                               imageUrl: shareImageUrl,
                               description: description,
                             );
                             
-                            // 3. 카카오톡 창이 열린 후 오더 리스트로 이동
-                            print('🔍 [CreateJobScreen] 오더 리스트 화면으로 이동');
+                            if (!mounted) return;
+                            
+                            // 3. 다이얼로그 닫힌 후 오더 리스트로 이동
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(

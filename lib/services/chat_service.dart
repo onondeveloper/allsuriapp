@@ -182,11 +182,11 @@ class ChatService extends ChangeNotifier {
       
       print('메시지 저장 성공: $insertResult');
 
-      // 채팅방 참가자 정보 가져오기
+      // 채팅방 참가자 정보 가져오기 (participant_a/b, customerid/businessid 모두 지원)
       print('채팅방 정보 가져오기 시도...');
       final chatRoom = await _sb
           .from('chat_rooms')
-          .select('customerid, businessid, title')
+          .select('participant_a, participant_b, customerid, businessid, title')
           .eq('id', resolvedId)
           .single();
       
@@ -198,14 +198,18 @@ class ChatService extends ChangeNotifier {
       final senderName = senderProfile?['name'] ?? senderProfile?['businessname'] ?? '사용자';
       print('발신자 이름: $senderName');
 
-      // 수신자 ID 결정 (발신자가 고객이면 사업자, 사업자면 고객)
-      String recipientId;
-      if (senderId == chatRoom['customerid']) {
-        recipientId = chatRoom['businessid'];
-        print('발신자가 고객, 수신자는 사업자: $recipientId');
-      } else {
-        recipientId = chatRoom['customerid'];
-        print('발신자가 사업자, 수신자는 고객: $recipientId');
+      // 수신자 ID 결정 (participant_a/b 우선, 없으면 customerid/businessid)
+      String recipientId = '';
+      final pa = chatRoom['participant_a']?.toString();
+      final pb = chatRoom['participant_b']?.toString();
+      final cust = chatRoom['customerid']?.toString();
+      final biz = chatRoom['businessid']?.toString();
+      if (pa != null && pb != null) {
+        recipientId = (senderId == pa) ? pb : pa;
+        print('participant 기반 수신자: $recipientId');
+      } else if (cust != null && biz != null) {
+        recipientId = (senderId == cust) ? biz : cust;
+        print('customerid/businessid 기반 수신자: $recipientId');
       }
 
       // 채팅 알림 전송 (실패해도 메시지는 성공으로 처리)
