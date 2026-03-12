@@ -49,7 +49,7 @@ async function sendPushNotification(userId, notification, data = {}) {
   try {
     if (!firebaseApp) {
       console.warn('⚠️ Firebase Admin이 초기화되지 않아 푸시 알림을 보낼 수 없습니다.');
-      return false;
+      return { success: false, reason: 'FIREBASE_ADMIN_NOT_INITIALIZED' };
     }
 
     // Supabase에서 사용자의 FCM 토큰 가져오기
@@ -65,7 +65,7 @@ async function sendPushNotification(userId, notification, data = {}) {
 
     if (!user || !user.fcm_token) {
       console.log(`ℹ️ 사용자 ${userId}의 FCM 토큰이 없습니다. (푸시 알림 스킵)`);
-      return false;
+      return { success: false, reason: 'FCM_TOKEN_NOT_FOUND' };
     }
 
     const fcmToken = user.fcm_token;
@@ -104,21 +104,20 @@ async function sendPushNotification(userId, notification, data = {}) {
     // FCM 전송
     const response = await admin.messaging().send(message);
     console.log(`✅ FCM 푸시 알림 전송 성공: ${userId}`, response);
-    return true;
+    return { success: true };
   } catch (error) {
     // 토큰이 만료되었거나 잘못된 경우
     if (error.code === 'messaging/invalid-registration-token' ||
         error.code === 'messaging/registration-token-not-registered') {
       console.log(`⚠️ 사용자 ${userId}의 FCM 토큰이 유효하지 않습니다. 토큰을 삭제합니다.`);
-      // Supabase에서 토큰 삭제
       await supabase
         .from('users')
         .update({ fcm_token: null })
         .eq('id', userId);
-    } else {
-      console.error(`❌ FCM 푸시 알림 전송 실패: ${userId}`, error.message);
+      return { success: false, reason: 'INVALID_FCM_TOKEN' };
     }
-    return false;
+    console.error(`❌ FCM 푸시 알림 전송 실패: ${userId}`, error.message);
+    return { success: false, reason: error.message || 'FCM_SEND_FAILED' };
   }
 }
 
@@ -134,7 +133,7 @@ async function sendPushNotificationToMultiple(userIds, notification, data = {}) 
     userIds.map(userId => sendPushNotification(userId, notification, data))
   );
 
-  const success = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
+  const success = results.filter(r => r.status === 'fulfilled' && r.value?.success === true).length;
   const failed = results.length - success;
 
   console.log(`📊 다중 푸시 알림 전송 결과: 성공 ${success}개, 실패 ${failed}개`);

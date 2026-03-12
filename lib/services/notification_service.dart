@@ -273,6 +273,75 @@ class NotificationService {
     ));
   }
 
+  /// 일괄 알림 전송: DB 저장 + FCM 푸시를 서버에서 처리 (앱 1회 API 호출)
+  /// - Netlify 403/Bot Protection 회피: 앱→서버 1회, 서버가 내부에서 FCM 전송
+  Future<Map<String, int>> sendBulkNotification({
+    required List<String> userIds,
+    required String title,
+    required String body,
+    String? type,
+    String? orderId,
+    String? jobTitle,
+    String? region,
+  }) async {
+    if (userIds.isEmpty) {
+      return {'total': 0, 'sent': 0, 'failed': 0};
+    }
+
+    try {
+      final sessionToken = _sb.auth.currentSession?.accessToken;
+      final bearerToken = sessionToken ?? ApiService.currentBearerToken;
+
+      if (bearerToken == null || bearerToken.isEmpty) {
+        debugPrint('⚠️ [FCM Bulk] 인증 토큰 없음 - 푸시 스킵');
+        return {'total': userIds.length, 'sent': 0, 'failed': userIds.length};
+      }
+
+      const apiBase = String.fromEnvironment('API_BASE_URL',
+          defaultValue: 'https://api.allsuri.app/api');
+      final url = Uri.parse('$apiBase/notifications/send-bulk');
+
+      final data = <String, String>{};
+      if (type != null) data['type'] = type;
+      if (orderId != null) data['orderId'] = orderId;
+      if (jobTitle != null) data['jobTitle'] = jobTitle;
+      if (region != null) data['region'] = region;
+
+      debugPrint('📤 [FCM Bulk] 요청 → $url 수신자 ${userIds.length}명');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $bearerToken',
+          'User-Agent': 'AllSuriApp/1.0 (Flutter; Mobile)',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'userIds': userIds,
+          'title': title,
+          'body': body,
+          'data': data,
+        }),
+      ).timeout(const Duration(seconds: 120));
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        final total = result['total'] as int? ?? userIds.length;
+        final sent = result['sent'] as int? ?? 0;
+        final failed = result['failed'] as int? ?? 0;
+        debugPrint('✅ [FCM Bulk] 완료: total=$total, sent=$sent, failed=$failed');
+        return {'total': total, 'sent': sent, 'failed': failed};
+      } else {
+        debugPrint('❌ [FCM Bulk] 서버 오류 ${response.statusCode}: ${response.body}');
+        return {'total': userIds.length, 'sent': 0, 'failed': userIds.length};
+      }
+    } catch (e) {
+      debugPrint('❌ [FCM Bulk] 예외: $e');
+      return {'total': userIds.length, 'sent': 0, 'failed': userIds.length};
+    }
+  }
+
   /// Netlify Function(/api/notifications/send-push)으로 FCM 푸시 전송
   /// - 비동기 fire-and-forget: 실패해도 앱 흐름에 영향 없음
   Future<void> _sendFCMPush({
@@ -301,43 +370,44 @@ class NotificationService {
       final safeData = <String, String>{};
       data.forEach((k, v) { if (v != null) safeData[k] = v; });
 
-      debugPrint('📤 [FCM Push] 요청 → $url');
-      debugPrint('   수신자: $userId');
-      debugPrint('   토큰 출처: ${sessionToken != null ? "Supabase 세션" : "ApiService"}');
-      debugPrint('   토큰 앞 20자: ${bearerToken.substring(0, bearerToken.length > 20 ? 20 : bearerToken.length)}...');
+      print('📤 [FCM Push] 요청 → $url 수신자: $userId');
 
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $bearerToken',
-          'User-Agent': 'AllSuriApp/1.0 (Flutter; Android)',
+          'User-Agent': 'AllSuriApp/1.0 (Flutter; Mobile)',
           'X-App-Version': '1.0',
           'Accept': 'application/json',
         },
+        // Netlify Function은 { userId, title, body, data } 플랫 형식 기대
         body: jsonEncode({
           'userId': userId,
-          'notification': {'title': title, 'body': body},
+          'title': title,
+          'body': body,
           'data': safeData,
         }),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 30));
 
-      debugPrint('📥 [FCM Push] 응답 ${response.statusCode}: ${response.body}');
+      print('📥 [FCM Push] 응답 ${response.statusCode}: ${response.body}');
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body) as Map<String, dynamic>;
-        if (result['success'] == true) {
-          debugPrint('✅ [FCM Push] 전송 성공: $userId');
+        // API 응답: { sent: true, messageId } 또는 { sent: false, reason }
+        if (result['sent'] == true) {
+          print('✅ [FCM Push] 전송 성공: $userId');
         } else {
-          final reason = result['reason'] ?? 'unknown';
-          final detail = result['detail'] ?? '';
-          debugPrint('⚠️ [FCM Push] 전송 스킵: reason=$reason detail=$detail');
+          final reason = result['reason'] ?? result['message'] ?? 'unknown';
+          print('⚠️ [FCM Push] 전송 실패: $reason');
         }
       } else {
-        debugPrint('❌ [FCM Push] 서버 오류 ${response.statusCode}: ${response.body}');
+        final body = response.body;
+        final reason = body.length > 200 ? '${body.substring(0, 200)}...' : body;
+        print('❌ [FCM Push] 서버 오류 ${response.statusCode}: $reason');
       }
     } catch (e) {
-      debugPrint('❌ [FCM Push] 예외: $e');
+      print('❌ [FCM Push] 예외: $e');
     }
   }
 

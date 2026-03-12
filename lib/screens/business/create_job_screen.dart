@@ -861,7 +861,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                           if (result != null) {
                             print('OrderMarketplaceScreen으로 네비게이션 시작');
                             
-                            // 1. 다른 사업자들에게 알림 전송 (병렬 처리)
+                            // 1. 다른 사업자들에게 알림 전송 (서버 일괄 발송 - API 1회 호출)
                             try {
                               final notificationService = NotificationService();
                               
@@ -873,25 +873,24 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                                 .eq('businessstatus', 'approved')
                                 .neq('id', currentUserId ?? '');
                               
-                              debugPrint('🔔 ${businessUsers.length}명의 사업자에게 알림 전송 중...');
+                              final userIds = businessUsers
+                                  .map((u) => u['id'] as String)
+                                  .where((id) => id.isNotEmpty)
+                                  .toList();
                               
-                              // 병렬 전송 (순차 → 동시 처리로 변경)
-                              await Future.wait(
-                                businessUsers.map((business) =>
-                                  notificationService.sendNotification(
-                                    userId: business['id'],
-                                    title: '새로운 오더 등록',
-                                    body: '$title - 새로운 공사 오더가 등록되었습니다!',
-                                    type: 'new_order',
-                                    orderId: result['id']?.toString(),
-                                    jobTitle: title,
-                                    region: region,
-                                  ).catchError((e) {
-                                    debugPrint('⚠️ 알림 전송 실패 (${business['businessname']}): $e');
-                                  })
-                                ).toList(),
-                              );
-                              debugPrint('✅ 알림 전송 완료 (${businessUsers.length}명)');
+                              if (userIds.isNotEmpty) {
+                                debugPrint('🔔 ${userIds.length}명의 사업자에게 알림 일괄 전송 중...');
+                                final bulkResult = await notificationService.sendBulkNotification(
+                                  userIds: userIds,
+                                  title: '새로운 오더 등록',
+                                  body: '$title - 새로운 공사 오더가 등록되었습니다!',
+                                  type: 'new_order',
+                                  orderId: result['id']?.toString(),
+                                  jobTitle: title,
+                                  region: region,
+                                );
+                                debugPrint('✅ 알림 전송 완료: sent=${bulkResult['sent']}, failed=${bulkResult['failed']}');
+                              }
                             } catch (e) {
                               debugPrint('⚠️ 알림 전송 중 오류 (무시됨): $e');
                             }

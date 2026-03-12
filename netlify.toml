@@ -29,6 +29,13 @@
   force = true
 
 [[redirects]]
+  # 푸시 알림 일괄 전송 (앱 1회 호출 → 서버에서 다수 사용자에게 발송)
+  from = "/api/notifications/send-bulk"
+  to = "/.netlify/functions/notifications-send-bulk"
+  status = 200
+  force = true
+
+[[redirects]]
   # Supabase Webhook 경로 (서버→서버, Bot Protection 우회)
   from = "/api/notifications/send-push-webhook"
   to = "/.netlify/functions/notifications-send-push"

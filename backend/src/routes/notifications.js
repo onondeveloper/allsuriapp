@@ -41,7 +41,7 @@ router.post('/send-push', requireAuth, async (req, res) => {
       });
     }
 
-    const success = await sendPushNotification(userId, notification, data || {});
+    const { success, reason } = await sendPushNotification(userId, notification, data || {});
 
     if (success) {
       return res.json({
@@ -49,9 +49,9 @@ router.post('/send-push', requireAuth, async (req, res) => {
         message: '푸시 알림이 전송되었습니다.',
       });
     } else {
-      return res.status(500).json({
+      return res.status(200).json({
         success: false,
-        message: '푸시 알림 전송에 실패했습니다.',
+        reason: reason || '푸시 전송 실패',
       });
     }
   } catch (error) {
@@ -59,7 +59,7 @@ router.post('/send-push', requireAuth, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: '푸시 알림 전송 중 오류가 발생했습니다.',
-      error: error.message,
+      reason: error.message,
     });
   }
 });

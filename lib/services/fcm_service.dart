@@ -97,9 +97,9 @@ class FCMService {
   Future<void> _initializeLocalNotifications() async {
     const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
     const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
     );
     const initSettings = InitializationSettings(
       android: androidSettings,
@@ -113,6 +113,14 @@ class FCMService {
         _handleNotificationTap(details.payload);
       },
     );
+
+    // iOS: 로컬 알림 표시를 위해 권한 명시적 요청
+    final iosPlugin = _localNotifications
+        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    if (iosPlugin != null) {
+      await iosPlugin.requestPermissions(alert: true, badge: true, sound: true);
+      print('✅ iOS 로컬 알림 권한 요청 완료');
+    }
 
     // Android 8.0+ 필수: 알림 채널 생성
     // 채널이 없으면 시스템 알림이 전혀 표시되지 않음
@@ -180,8 +188,6 @@ class FCMService {
   /// 포그라운드에서 로컬 알림 표시
   Future<void> _showLocalNotification(RemoteMessage message) async {
     final notification = message.notification;
-    final android = message.notification?.android;
-
     if (notification == null) return;
 
     const androidDetails = AndroidNotificationDetails(
@@ -204,13 +210,18 @@ class FCMService {
       iOS: iosDetails,
     );
 
-    await _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      details,
-      payload: jsonEncode(message.data),
-    );
+    try {
+      await _localNotifications.show(
+        notification.hashCode,
+        notification.title ?? '알림',
+        notification.body ?? '',
+        details,
+        payload: jsonEncode(message.data),
+      );
+      print('✅ 포그라운드 로컬 알림 표시: ${notification.title}');
+    } catch (e) {
+      print('❌ 포그라운드 로컬 알림 표시 실패: $e');
+    }
   }
 
   /// 알림 탭 처리
