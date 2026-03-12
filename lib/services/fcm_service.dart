@@ -15,7 +15,8 @@ class FCMService {
   factory FCMService() => _instance;
   FCMService._internal();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  /// Firebase 초기화 전 접근 시 크래시 방지 - 필요할 때만 접근
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   final SupabaseClient _sb = Supabase.instance.client;
   
   // 로컬 알림 플러그인 (포그라운드 알림용)
@@ -30,11 +31,18 @@ class FCMService {
     try {
       print('🔔 FCM 초기화 시작...');
 
-      // Firebase 초기화 확인
+      // Firebase 초기화 확인 (iOS: 네이티브 자동 초기화 시 duplicate-app 무시)
       if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        );
+        try {
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
+        } catch (e) {
+          if (!e.toString().contains('duplicate-app') && !e.toString().contains('already exists')) {
+            rethrow;
+          }
+          // duplicate-app = 이미 초기화됨, 계속 진행
+        }
       }
 
       // 알림 권한 요청
@@ -325,7 +333,9 @@ class FCMService {
 /// 백그라운드 메시지 핸들러 (최상위 함수여야 함)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  }
   await FCMService.backgroundMessageHandler(message);
 }
 

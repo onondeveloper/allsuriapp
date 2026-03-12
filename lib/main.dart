@@ -1,10 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
@@ -72,30 +73,59 @@ void main() async {
     },
   );
   
-  // FCM 초기화 (Firebase 설정이 완료된 경우에만 작동)
-  try {
-    // ⚠️ 중요: Firebase.initializeApp() 먼저 호출해야
-    //    onBackgroundMessage() 등록이 가능함
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-
-    // 백그라운드 메시지 핸들러는 Firebase 초기화 후에 등록
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-    // FCM 토큰 발급 및 포그라운드 메시지 리스너 설정
-    await FCMService().initialize();
-    // navigatorKey 주입 (알림 탭 시 화면 이동용)
-    FCMService().setNavigatorKey(navigatorKey);
-    print('✅ FCM 기능이 활성화되었습니다.');
-  } catch (e) {
-    print('⚠️ FCM 초기화 실패: $e');
+  // Firebase 초기화 (Android + iOS)
+  // iOS: 네이티브가 GoogleService-Info.plist로 자동 초기화 시 duplicate-app → 무시하고 FCM 계속 진행
+  if (!kIsWeb) {
+    bool firebaseReady = false;
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('⚠️ Firebase 초기화 타임아웃');
+            throw TimeoutException('Firebase init timeout');
+          },
+        );
+      } else {
+        print('ℹ️ [Main] Firebase 이미 초기화됨 (네이티브)');
+      }
+      firebaseReady = true;
+    } catch (e) {
+      if (e.toString().contains('duplicate-app') || e.toString().contains('already exists')) {
+        print('ℹ️ [Main] Firebase 네이티브 초기화됨 - FCM 계속 진행');
+        firebaseReady = true;
+      } else {
+        print('⚠️ Firebase 초기화 실패: $e');
+      }
+    }
+    if (firebaseReady) {
+      try {
+        FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+        await FCMService().initialize().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('⚠️ FCM 초기화 타임아웃');
+            throw TimeoutException('FCM init timeout');
+          },
+        );
+        FCMService().setNavigatorKey(navigatorKey);
+        print('✅ FCM 기능이 활성화되었습니다. (${Platform.isIOS ? "iOS" : "Android"})');
+      } catch (e) {
+        print('⚠️ FCM 초기화 실패 (앱은 계속 실행됨): $e');
+      }
+    }
   }
   
-  await runZonedGuarded(() async {
+  runZonedGuarded(() {
     runApp(const MyApp());
   }, (error, stack) {
-    // 백그라운드 비동기 예외로 앱이 중단되지 않도록 보호
+    // Supabase OAuth 미사용 시 Code verifier 에러 무시 (Kakao 리다이렉트 등으로 인한 오탐)
+    if (error.toString().contains('Code verifier could not be found')) {
+      debugPrint('ℹ️ [Main] Supabase OAuth 관련 에러 무시 (카카오 로그인 사용 중)');
+      return;
+    }
     debugPrint('Top-level error caught: $error');
   });
 }
@@ -148,23 +178,7 @@ class MyApp extends StatelessWidget {
             return ThemeData(
               useMaterial3: true,
               colorScheme: colorScheme,
-              textTheme: GoogleFonts.notoSansKrTextTheme().copyWith(
-                displayLarge: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                displayMedium: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                displaySmall: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                headlineLarge: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                headlineMedium: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                headlineSmall: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                titleLarge: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                titleMedium: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                titleSmall: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                bodyLarge: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                bodyMedium: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                bodySmall: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                labelLarge: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                labelMedium: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-                labelSmall: GoogleFonts.notoSansKr(decoration: TextDecoration.none),
-              ),
+              // iOS: GoogleFonts 네트워크 로드가 첫 프레임 블로킹 → 기본 시스템 폰트 사용
               appBarTheme: AppBarTheme(
                 centerTitle: true,
                 elevation: 0,
@@ -372,7 +386,10 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _initDeepLinks();
+    // iOS: 첫 프레임 렌더 후 딥링크 초기화 (앱 표시 블로킹 방지)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initDeepLinks();
+    });
     _checkAutoLogin();
   }
   
@@ -405,6 +422,12 @@ class _SplashScreenState extends State<SplashScreen> {
   
   // 딥링크 처리
   void _handleDeepLink(Uri uri) {
+    // 카카오 OAuth 리다이렉트는 Kakao SDK가 처리 - 여기서 무시 (route 에러 방지)
+    if (uri.scheme.startsWith('kakao')) {
+      debugPrint('🔗 [DeepLink] 카카오 리다이렉트 무시 (Kakao SDK 처리)');
+      return;
+    }
+    
     print('🔗 [DeepLink] 처리 시작: ${uri.toString()}');
     print('   Scheme: ${uri.scheme}');
     print('   Host: ${uri.host}');

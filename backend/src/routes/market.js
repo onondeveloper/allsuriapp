@@ -300,21 +300,68 @@ router.post('/listings/:id/select-bidder', async (req, res) => {
 
 // GET /api/market/listings/:id/bids
 // 오더의 모든 입찰 조회 (오더 소유자만)
+// 조인 실패 시를 대비해 order_bids 먼저 조회 후 users 별도 조회
 router.get('/listings/:id/bids', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const { data, error } = await supabase
+
+    // 1. order_bids 전체 조회 (조인 없이)
+    const { data: bids, error: bidsError } = await supabase
       .from('order_bids')
-      .select(`
-        *,
-        bidder:users!order_bids_bidder_id_fkey(id, businessname, avatar_url, estimates_created_count, jobs_accepted_count, serviceareas, address, specialties)
-      `)
+      .select('*')
       .eq('listing_id', id)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    res.json(data || []);
+    if (bidsError) throw bidsError;
+    if (!bids || bids.length === 0) {
+      return res.json([]);
+    }
+
+    // 2. bidder_id 목록 추출 (중복 제거, 유효한 값만)
+    const bidderIds = [...new Set(bids.map((b) => b.bidder_id).filter((bid) => bid != null && String(bid).trim()))];
+
+    // 3. users 테이블에서 사업자 정보 조회
+    let users = [];
+    if (bidderIds.length > 0) {
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, name, businessname, avatar_url, estimates_created_count, jobs_accepted_count, serviceareas, address, specialties')
+        .in('id', bidderIds);
+      if (!usersError) users = usersData || [];
+      else console.warn('[market] users 조회 실패:', usersError.message);
+    }
+
+    // 4. bidder_id → user 맵 생성 (UUID 문자열 정규화)
+    const userMap = new Map();
+    if (users) {
+      for (const u of users) {
+        const key = (u.id || '').toString().toLowerCase().trim();
+        if (key) userMap.set(key, u);
+      }
+    }
+
+    // 5. 각 입찰에 bidder 정보 병합
+    const result = bids.map((bid) => {
+      const bidderId = (bid.bidder_id || '').toString().toLowerCase().trim();
+      const bidder = userMap.get(bidderId) || null;
+      return {
+        ...bid,
+        bidder_id: bid.bidder_id,
+        bidder: bidder ? {
+          id: bidder.id,
+          name: bidder.name,
+          businessname: bidder.businessname || bidder.name,
+          avatar_url: bidder.avatar_url,
+          estimates_created_count: bidder.estimates_created_count,
+          jobs_accepted_count: bidder.jobs_accepted_count,
+          serviceareas: bidder.serviceareas,
+          address: bidder.address,
+          specialties: bidder.specialties,
+        } : { id: bid.bidder_id, name: '알 수 없는 사업자', businessname: '알 수 없는 사업자' },
+      };
+    });
+
+    res.json(result);
   } catch (error) {
     console.error('[market] get bids error:', error);
     res.status(500).json({ message: '입찰 목록 조회 실패' });

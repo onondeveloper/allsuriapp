@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 // Supabase Auth 전환: Firebase/GoogleSignIn 제거
@@ -168,12 +169,21 @@ class AuthService extends ChangeNotifier {
         return false;
       }
 
-      // Kakao 로그인 (톡 우선, 실패 시 계정)
+      // Kakao 로그인: iOS는 WebAuthenticationSession 이슈로 웹뷰 우선, Android는 톡 우선
       kakao.OAuthToken token;
-      try {
-        token = await kakao.UserApi.instance.loginWithKakaoTalk();
-      } catch (_) {
-        token = await kakao.UserApi.instance.loginWithKakaoAccount();
+      final isIOS = !kIsWeb && Platform.isIOS;
+      if (isIOS) {
+        try {
+          token = await kakao.UserApi.instance.loginWithKakaoAccount();
+        } catch (_) {
+          token = await kakao.UserApi.instance.loginWithKakaoTalk();
+        }
+      } else {
+        try {
+          token = await kakao.UserApi.instance.loginWithKakaoTalk();
+        } catch (_) {
+          token = await kakao.UserApi.instance.loginWithKakaoAccount();
+        }
       }
 
       // 백엔드로 토큰 교환 (타임아웃 설정 + 재시도)

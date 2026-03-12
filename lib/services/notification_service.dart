@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -254,9 +255,22 @@ class NotificationService {
       rethrow;
     }
 
-    // 2. FCM 푸시는 Supabase Database Webhook이 자동 처리
-    // (DB INSERT → Supabase Webhook → Netlify Function → FCM)
-    // Flutter 앱에서 직접 호출 시 Netlify Bot Protection에 차단되므로 제거
+    // 2. FCM 푸시 전송 (백엔드 API 호출)
+    final pushData = <String, String?>{
+      if (type != null) 'type': type,
+      if (jobId != null) 'jobId': jobId,
+      if (jobTitle != null) 'jobTitle': jobTitle,
+      if (region != null) 'region': region,
+      if (orderId != null) 'orderId': orderId,
+      if (estimateId != null) 'estimateId': estimateId,
+      if (chatRoomId != null) 'chatRoomId': chatRoomId,
+    };
+    unawaited(_sendFCMPush(
+      userId: userId,
+      title: title,
+      body: body,
+      data: pushData,
+    ));
   }
 
   /// Netlify Function(/api/notifications/send-push)으로 FCM 푸시 전송
@@ -303,8 +317,7 @@ class NotificationService {
         },
         body: jsonEncode({
           'userId': userId,
-          'title': title,
-          'body': body,
+          'notification': {'title': title, 'body': body},
           'data': safeData,
         }),
       ).timeout(const Duration(seconds: 15));
@@ -312,9 +325,9 @@ class NotificationService {
       debugPrint('📥 [FCM Push] 응답 ${response.statusCode}: ${response.body}');
 
       if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result['sent'] == true) {
-          debugPrint('✅ [FCM Push] 전송 성공: $userId (messageId: ${result['messageId']})');
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        if (result['success'] == true) {
+          debugPrint('✅ [FCM Push] 전송 성공: $userId');
         } else {
           final reason = result['reason'] ?? 'unknown';
           final detail = result['detail'] ?? '';

@@ -498,7 +498,8 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                           final bidder = bid['bidder'] as Map<String, dynamic>?;
                           final status = bid['status']?.toString() ?? 'pending';
                           
-                          final bidderName = bidder?['businessname']?.toString() ?? '알 수 없는 사업자';
+                          final bidderName = bidder?['businessname']?.toString() ?? 
+                              bidder?['name']?.toString() ?? '알 수 없는 사업자';
                           final avatarUrl = bidder?['avatar_url']?.toString();
                           final estimatesCount = bidder?['estimates_created_count'] ?? 0;
                           final jobsCount = bidder?['jobs_accepted_count'] ?? 0;
