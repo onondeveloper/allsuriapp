@@ -73,6 +73,13 @@
   force = false
 
 [[redirects]]
+  # 개인정보처리방침 (App Store / Google Play 제출용)
+  from = "/privacy"
+  to = "/privacy.html"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/"
   to = "/admin.html"
   status = 200
