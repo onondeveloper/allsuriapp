@@ -80,6 +80,20 @@
   force = true
 
 [[redirects]]
+  # 고객 지원 (App Store Support URL 제출용)
+  from = "/support"
+  to = "/support.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  # 홈페이지
+  from = "/home"
+  to = "/home.html"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/"
   to = "/admin.html"
   status = 200

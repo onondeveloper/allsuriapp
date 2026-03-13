@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>올수리 - 공사·수리 매칭 서비스</title>
+    <meta name="description" content="올수리는 공사·수리 업체와 고객을 연결하는 매칭 플랫폼입니다." />
+    <meta property="og:title" content="올수리 - 공사·수리 매칭 서비스" />
+    <meta property="og:description" content="올수리는 공사·수리 업체와 고객을 연결하는 매칭 플랫폼입니다." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://api.allsuri.app/home" />
+    <style>
+      :root {
+        --text: #1f2937;
+        --muted: #6b7280;
+        --bg: #ffffff;
+        --card: #f9fafb;
+        --accent: #1a73e8;
+        --border: #e5e7eb;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+          Ubuntu, Cantarell, 'Helvetica Neue', 'Apple SD Gothic Neo', 'Noto Sans KR',
+          Arial, 'Hiragino Sans', 'Malgun Gothic', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+      }
+      header {
+        padding: 24px 0;
+        margin-bottom: 24px;
+        border-bottom: 1px solid var(--border);
+        text-align: center;
+      }
+      h1 { font-size: 32px; margin: 0 0 8px; }
+      .tagline { color: var(--muted); font-size: 16px; }
+      section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 20px 0; }
+      h2 { font-size: 20px; margin: 0 0 12px; }
+      ul { padding-left: 18px; margin: 8px 0; }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .footer { color: var(--muted); font-size: 13px; margin-top: 32px; text-align: center; }
+      .nav { margin-top: 24px; text-align: center; }
+      .nav a { margin: 0 12px; }
+      .cta { display: inline-block; margin-top: 16px; padding: 12px 24px; background: var(--accent); color: white; border-radius: 8px; font-weight: 600; }
+      .cta:hover { opacity: 0.9; text-decoration: none; color: white; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>올수리</h1>
+        <div class="tagline">공사·수리 업체와 고객을 연결하는 매칭 플랫폼</div>
+      </header>
+
+      <section>
+        <h2>서비스 소개</h2>
+        <p>
+          올수리는 공사·수리 업체(사업자)와 고객을 연결하는 매칭 서비스입니다.
+          고객은 견적을 요청하고, 사업자는 오더에 입찰하여 공사를 수주할 수 있습니다.
+        </p>
+        <ul>
+          <li>견적 요청 및 입찰</li>
+          <li>공사 오더 매칭</li>
+          <li>실시간 채팅</li>
+          <li>푸시 알림</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>앱 다운로드</h2>
+        <p>올수리 앱은 App Store와 Google Play에서 다운로드할 수 있습니다.</p>
+        <p style="color: var(--muted); font-size: 14px;">(출시 준비 중일 수 있습니다)</p>
+      </section>
+
+      <section>
+        <h2>고객 지원</h2>
+        <p>문의사항이 있으시면 아래 링크에서 연락해 주세요.</p>
+        <a href="/support" class="cta">고객 지원 문의</a>
+      </section>
+
+      <div class="nav">
+        <a href="/support">고객 지원</a>
+        <a href="/privacy">개인정보처리방침</a>
+      </div>
+      <div class="footer">© 올수리. All rights reserved.</div>
+    </div>
+  </body>
+</html>

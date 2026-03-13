@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>올수리 - 고객 지원</title>
+    <meta name="description" content="올수리 앱 고객 지원 및 문의" />
+    <meta property="og:title" content="올수리 - 고객 지원" />
+    <meta property="og:description" content="올수리 앱 고객 지원 및 문의" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://api.allsuri.app/support" />
+    <style>
+      :root {
+        --text: #1f2937;
+        --muted: #6b7280;
+        --bg: #ffffff;
+        --card: #f9fafb;
+        --accent: #1a73e8;
+        --border: #e5e7eb;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+          Ubuntu, Cantarell, 'Helvetica Neue', 'Apple SD Gothic Neo', 'Noto Sans KR',
+          Arial, 'Hiragino Sans', 'Malgun Gothic', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+      }
+      header {
+        padding: 16px 0 8px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      h1 { font-size: 28px; margin: 0 0 6px; }
+      .meta { color: var(--muted); font-size: 14px; }
+      section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 16px 0; }
+      h2 { font-size: 18px; margin: 0 0 10px; }
+      ul { padding-left: 18px; margin: 8px 0; }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
+      .nav { margin-top: 24px; }
+      .nav a { margin-right: 16px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>올수리 고객 지원</h1>
+        <div class="meta">앱 문의 및 지원 안내</div>
+      </header>
+
+      <p>
+        올수리 앱을 이용해 주셔서 감사합니다. 서비스 이용 중 문의사항이나 불편한 점이 있으시면
+        아래 연락처로 연락해 주세요.
+      </p>
+
+      <section>
+        <h2>문의 방법</h2>
+        <ul>
+          <li><strong>이메일</strong>: <a href="mailto:support@allsuri.app">support@allsuri.app</a></li>
+          <li>평일 09:00 ~ 18:00 (주말/공휴일 제외)</li>
+          <li>문의 시 앱 버전, 기기 정보를 함께 알려주시면 더 빠른 답변이 가능합니다.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>자주 묻는 질문</h2>
+        <ul>
+          <li><strong>앱이 정상적으로 동작하지 않아요</strong><br />
+            앱을 최신 버전으로 업데이트해 보시고, 문제가 계속되면 위 이메일로 문의해 주세요.</li>
+          <li><strong>푸시 알림이 오지 않아요</strong><br />
+            기기 설정에서 올수리 앱의 알림 권한이 허용되어 있는지 확인해 주세요.</li>
+          <li><strong>계정/로그인 문의</strong><br />
+            카카오 로그인 관련 문의는 support@allsuri.app으로 연락해 주세요.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>관련 링크</h2>
+        <ul>
+          <li><a href="/privacy">개인정보처리방침</a></li>
+          <li><a href="/home">올수리 홈</a></li>
+        </ul>
+      </section>
+
+      <div class="nav">
+        <a href="/home">홈</a>
+        <a href="/privacy">개인정보처리방침</a>
+      </div>
+      <div class="footer">© 올수리. All rights reserved.</div>
+    </div>
+  </body>
+</html>
