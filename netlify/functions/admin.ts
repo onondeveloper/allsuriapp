@@ -38,6 +38,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=role,businessstatus`, { headers })
       const usersRaw = await usersRes.json()
       const users = Array.isArray(usersRaw) ? usersRaw : (usersRaw?.code ? [] : [])
+      const totalUsers = Array.isArray(users) ? users.length : 0
       const totalBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business').length : 0
       const totalCustomers = Array.isArray(users) ? users.filter((u: any) => u.role === 'customer').length : 0
       const pendingBusinessUsers = Array.isArray(users) ? users.filter((u: any) => u.role === 'business' && u.businessstatus === 'pending').length : 0
