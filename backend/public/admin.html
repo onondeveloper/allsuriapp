@@ -1487,6 +1487,9 @@
 
             // Load data for section
             switch(sectionName) {
+                case 'dashboard':
+                    if (typeof loadDashboard === 'function') loadDashboard();
+                    break;
                 case 'users':
                     loadUsers();
                     break;

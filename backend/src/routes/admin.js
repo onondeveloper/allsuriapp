@@ -238,11 +238,11 @@ router.get('/dashboard', async (req, res) => {
       .from('marketplace_listings')
       .select('id, status, claimed_by, budget_amount, createdat');
     
-    listings = listingsResult.data;
-    
     if (listingsResult.error) {
       console.error('[ADMIN DASHBOARD] Listings error:', listingsResult.error);
-      // Listings 에러는 치명적이지 않으므로 계속 진행
+      listings = [];
+    } else {
+      listings = listingsResult.data || [];
     }
 
     console.log('[ADMIN DASHBOARD] Listings count:', listings?.length || 0);
@@ -276,16 +276,17 @@ router.get('/dashboard', async (req, res) => {
     console.log('[ADMIN DASHBOARD] Orders breakdown - Total:', totalOrders, 'Pending:', pendingOrders, 'Completed:', completedOrders);
     console.log('[ADMIN DASHBOARD] Total order amount:', totalOrderAmount);
 
-    // Jobs 테이블 통계 (기존 jobs 테이블)
+    // Jobs 테이블 통계 (기존 jobs 테이블 - 컬럼명 created_at 사용)
     let jobs;
     const jobsResult = await supabase
       .from('jobs')
-      .select('id, status, createdat');
-    
-    jobs = jobsResult.data;
+      .select('id, status, created_at');
     
     if (jobsResult.error) {
       console.error('[ADMIN DASHBOARD] Jobs error:', jobsResult.error);
+      jobs = [];
+    } else {
+      jobs = jobsResult.data || [];
     }
 
     const totalJobs = (jobs || []).length;
@@ -924,14 +925,11 @@ router.get('/listings/:listingId/process', async (req, res) => {
     if (listingErr) throw listingErr;
     if (!listing) return res.status(404).json({ message: '오더를 찾을 수 없습니다' });
 
-    // 2. 입찰 목록 (listing_id OR job_id OR listing_id=jobid 한 번에 or 쿼리로 조회)
-    const jobid = listing.jobid ?? listing.jobId;
-    const orConditions = [`listing_id.eq.${listingId}`];
-    if (jobid) orConditions.push(`job_id.eq.${jobid}`, `listing_id.eq.${jobid}`);
+    // 2. 입찰 목록 (해당 오더의 모든 입찰 - listing_id 기준으로 조회)
     const { data: bids } = await supabase
       .from('order_bids')
-      .select('id, bidder_id, bid_amount, message, status, created_at')
-      .or(orConditions.join(','))
+      .select('id, bidder_id, message, status, created_at')
+      .eq('listing_id', listingId)
       .order('created_at', { ascending: true });
 
     // 3. 후기

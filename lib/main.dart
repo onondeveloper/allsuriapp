@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
+import 'package:flutter_app_badger/flutter_app_badger.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -33,6 +34,18 @@ import 'screens/business/order_marketplace_screen.dart';
 import 'widgets/professional_dashboard.dart';
 import 'widgets/customer_dashboard.dart';
 import 'utils/navigation_utils.dart';
+
+/// 앱 포그라운드 진입 시 앱 아이콘 배지 제거 (iOS/Android)
+class _BadgeLifecycleObserver with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      try {
+        FlutterAppBadger.removeBadge();
+      } catch (_) {}
+    }
+  }
+}
 
 // 전역 네비게이터 키 (딥링크 처리용)
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -117,7 +130,12 @@ void main() async {
       }
     }
   }
-  
+
+  // iOS/Android: 앱 포그라운드 진입 시 앱 아이콘 배지 제거
+  if (!kIsWeb) {
+    WidgetsBinding.instance.addObserver(_BadgeLifecycleObserver());
+  }
+
   runZonedGuarded(() {
     runApp(const MyApp());
   }, (error, stack) {

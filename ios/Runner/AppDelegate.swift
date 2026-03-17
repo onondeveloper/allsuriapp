@@ -17,4 +17,9 @@ import FirebaseMessaging
   override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
     Messaging.messaging().apnsToken = deviceToken
   }
+
+  /// 앱이 포그라운드로 돌아올 때 앱 아이콘 배지 제거
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    application.applicationIconBadgeNumber = 0
+  }
 }
