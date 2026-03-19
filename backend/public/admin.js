@@ -24,6 +24,10 @@ let ADMIN_ROLE = 'developer';
 // 광고 편집 상태 (파일 최상단에 선언해야 TDZ 오류 방지)
 let currentEditingAd = null;
 
+// 공지 배너 (파일 최상단에 선언해야 TDZ 오류 방지)
+let allAnnouncements = [];
+let currentEditingAnnouncement = null;
+
 // 로그인 체크
 function checkLogin() {
     const password = localStorage.getItem('admin_password');
@@ -2660,9 +2664,6 @@ function closeAdModal() {
 }
 
 // ===== 공지 배너 관리 =====
-let allAnnouncements = [];
-let currentEditingAnnouncement = null;
-
 async function loadAnnouncements() {
     try {
         const container = document.getElementById('announcementTableContainer');
