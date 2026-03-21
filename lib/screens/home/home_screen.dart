@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -327,6 +329,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ),
                                 ),
+                              // App Store Guideline 4.8: Sign in with Apple (iOS/iPadOS)
+                              if (!authService.isAuthenticated &&
+                                  !kIsWeb &&
+                                  defaultTargetPlatform == TargetPlatform.iOS) ...[
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: SignInWithAppleButton(
+                                    style: SignInWithAppleButtonStyle.black,
+                                    height: 48,
+                                    onPressed: () => _handleAppleLogin(context),
+                                  ),
+                                ),
+                              ],
                               
                               const SizedBox(height: 40),
                               
@@ -610,6 +626,53 @@ class _HomeScreenState extends State<HomeScreen> {
       return 0; // 임시 반환
     } catch (_) {
       return 0;
+    }
+  }
+
+  Future<void> _handleAppleLogin(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: const Dialog(
+            backgroundColor: Colors.white,
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Apple로 로그인 중…'),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    try {
+      final ok = await Provider.of<AuthService>(context, listen: false).signInWithApple();
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Apple 로그인에 실패했습니다. Supabase에서 Apple 로그인을 설정했는지 확인하세요.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Apple 로그인 오류: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 

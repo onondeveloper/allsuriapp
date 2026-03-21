@@ -496,7 +496,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (session != null) {
       print('✅ [SplashScreen] 기존 세션 발견 - 자동 로그인 시도');
       try {
-        // AuthService에서 사용자 정보 로드
+        // AuthService에서 사용자 정보 로드 (타임아웃은 AuthService.loadUserFromSession 내부)
         await authService.loadUserFromSession();
         
         if (mounted && authService.isAuthenticated) {

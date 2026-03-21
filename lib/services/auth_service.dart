@@ -1,9 +1,13 @@
+import 'dart:async' show TimeoutException;
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:math';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 // Supabase Auth 전환: Firebase/GoogleSignIn 제거
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'api_service.dart';
 import 'fcm_service.dart';
 import 'notification_service.dart';
@@ -26,6 +30,7 @@ class AuthService extends ChangeNotifier {
   String? get accessToken => _sb.auth.currentSession?.accessToken ?? _supabaseAccessToken;
 
   bool _isLoadingFromKakao = false; // 카카오 로그인 중 onAuthStateChange 중복 방지
+  bool _isLoadingFromApple = false; // Sign in with Apple 중 onAuthStateChange 중복 방지
   bool _isLoadingManually = false;  // 수동 loadUserData 호출 중 중복 방지
 
   AuthService() {
@@ -34,7 +39,7 @@ class AuthService extends ChangeNotifier {
       final supaUserId = session?.user.id;
       if (supaUserId != null) {
         // 카카오 로그인 또는 수동 로드 중 중복 호출 방지
-        if (_isLoadingFromKakao || _isLoadingManually) {
+        if (_isLoadingFromKakao || _isLoadingFromApple || _isLoadingManually) {
           debugPrint('ℹ️ [onAuthStateChange] 수동 로드 중 - 중복 _loadUserData 스킵');
           return;
         }
@@ -138,6 +143,62 @@ class AuthService extends ChangeNotifier {
 
   Future<void> signInWithGoogle({String? redirectUrl}) async {
     throw UnsupportedError('Google sign-in is disabled. Use signInWithKakao instead.');
+  }
+
+  /// App Store Guideline 4.8: Sign in with Apple (iOS/iPadOS 전용, Supabase Apple 프로바이더 필요)
+  Future<bool> signInWithApple() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      debugPrint('⚠️ [signInWithApple] iOS에서만 지원됩니다.');
+      return false;
+    }
+    _isLoading = true;
+    _isLoadingFromApple = true;
+    notifyListeners();
+    try {
+      final rawNonce = _generateNonce();
+      final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+
+      final idToken = credential.identityToken;
+      if (idToken == null || idToken.isEmpty) {
+        debugPrint('❌ [signInWithApple] identityToken 없음');
+        return false;
+      }
+
+      await _sb.auth.signInWithIdToken(
+        provider: OAuthProvider.apple,
+        idToken: idToken,
+        nonce: rawNonce,
+      );
+
+      final uid = _sb.auth.currentUser?.id;
+      if (uid != null) {
+        await _loadUserData(uid);
+        return true;
+      }
+      return false;
+    } catch (e, st) {
+      debugPrint('❌ [signInWithApple] $e\n$st');
+      return false;
+    } finally {
+      _isLoading = false;
+      _isLoadingFromApple = false;
+      notifyListeners();
+    }
+  }
+
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
   }
 
   Future<bool> signInWithKakao() async {
@@ -604,15 +665,28 @@ class AuthService extends ChangeNotifier {
       print('🔄 [AuthService] 세션에서 사용자 정보 로드: $userId');
 
       _isLoadingManually = true; // onAuthStateChange 중복 방지
-      await _loadUserData(userId);
-      _isLoadingManually = false;
+      var sessionLoadTimedOut = false;
+      try {
+        // 런치 시 Supabase 지연으로 UI가 멈춘 것처럼 보이는 문제 완화 (iPad 심사 2.1)
+        await _loadUserData(userId).timeout(const Duration(seconds: 15));
+      } on TimeoutException {
+        sessionLoadTimedOut = true;
+        debugPrint('⚠️ [AuthService] 세션 사용자 로드 타임아웃 — 다음 화면으로 진행');
+        _currentUser = null;
+        _needsRoleSelection = false;
+      } finally {
+        _isLoadingManually = false;
+      }
       notifyListeners();
 
-      print('✅ [AuthService] 세션에서 사용자 정보 로드 완료');
+      if (!sessionLoadTimedOut) {
+        print('✅ [AuthService] 세션에서 사용자 정보 로드 완료');
+      }
     } catch (e) {
       print('❌ [AuthService] 세션에서 사용자 정보 로드 실패: $e');
       _currentUser = null;
       _needsRoleSelection = false;
+      _isLoadingManually = false;
       notifyListeners();
     }
   }
