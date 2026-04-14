@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../screens/customer/create_request_screen.dart';
 import '../screens/customer/my_estimates_screen.dart';
-import '../services/auth_service.dart';
-import '../screens/home/home_screen.dart';
+import '../screens/community/community_board_screen.dart';
+import '../screens/notification/notification_screen.dart';
+import '../screens/chat/chat_list_page.dart';
 import '../widgets/bottom_navigation.dart';
 import 'interactive_card.dart';
 
@@ -43,8 +43,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('알림 기능 준비 중입니다')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const NotificationScreen()),
               );
             },
             tooltip: '알림',
@@ -228,13 +229,32 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                           '채팅',
                           '사업자와 대화',
                           () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('채팅 기능 준비 중입니다')),
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const ChatListPage()),
                             );
                           },
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildQuickMenuCard(
+                      context,
+                      Icons.forum_outlined,
+                      '커뮤니티',
+                      '현장 이야기·질문',
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CommunityBoardScreen(),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),

@@ -1,5 +1,5 @@
 buildscript {
-    ext.kotlin_version = '1.9.24' // ✅ 추가
+    ext.kotlin_version = '2.1.0'
     repositories {
         google()
         mavenCentral()
@@ -25,6 +25,30 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(':app')
+}
+
+// AGP 8+에서 namespace가 누락된 서드파티 플러그인을
+// AndroidManifest package 값으로 자동 보정합니다.
+// (compileSdkVersion 문제는 pub cache 파일에서 직접 수정)
+subprojects { subproject ->
+    subproject.plugins.withId("com.android.library") {
+        def androidExt = subproject.extensions.findByName("android")
+        if (androidExt == null) return
+
+        try {
+            def ns = androidExt.namespace
+            if (ns == null || !ns.toString().trim()) {
+                def manifestFile = subproject.file("src/main/AndroidManifest.xml")
+                if (manifestFile.exists()) {
+                    def matcher = manifestFile.getText("UTF-8") =~ /package\s*=\s*"([^"]+)"/
+                    if (matcher.find()) {
+                        androidExt.namespace = matcher.group(1)
+                        println("Applied fallback namespace '${matcher.group(1)}' to ${subproject.path}")
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
 }
 
 tasks.register("clean", Delete) {

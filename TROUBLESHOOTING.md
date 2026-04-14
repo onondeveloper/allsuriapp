@@ -1,5 +1,35 @@
 # 🔧 문제 해결 가이드
 
+## `No host specified in URI /auth/v1/token` 또는 `/rest/v1/...`
+
+**증상**: Sign in with Apple, 광고 API 등 Supabase 호출이 모두 실패하고 로그에 `Invalid argument(s): No host specified in URI` 가 뜸.
+
+**원인**: `SUPABASE_URL` / `SUPABASE_ANON_KEY` 가 **빌드에 주입되지 않음**.  
+`lib/supabase_config.dart`는 `String.fromEnvironment`만 쓰므로, `flutter run --release`만 하면 URL이 빈 문자열이 되고 Supabase 클라이언트가 `https://...` 없이 경로만 붙여 요청합니다.
+
+**해결**:
+1. 프로젝트 루트에 `dart_defines.json` 생성 (저장소에는 없음 — `.gitignore`됨).
+2. `example_dart_defines.json`을 복사한 뒤 Supabase 대시보드의 **Project URL**과 **anon public** 키로 채움.
+3. 실행:
+   ```bash
+   flutter run --release --dart-define-from-file=dart_defines.json
+   ```
+   또는 `./run_release.sh` / `./run_app.sh prod`
+
+Xcode Archive 시에도 동일하게 **dart-define**이 들어가도록 CI/스크립트를 맞춰야 합니다.
+
+---
+
+## 홈 화면 「올수리에서 완료된 공사」가 항상 0
+
+**증상**: 로그인(특히 admin) 후에도 완료 건수가 0.
+
+**원인**: `jobs` 테이블 RLS로 인증 사용자는 **본인 소유/할당 공사**만 SELECT 가능합니다. 홈에서 `jobs`를 전체 count 하면 RLS에 걸려 0이 됩니다.
+
+**해결**: Supabase SQL Editor에서 `database/get_completed_jobs_public_count.sql` 내용을 실행해 **SECURITY DEFINER** RPC `get_completed_jobs_public_count` 를 생성합니다. 앱은 이 RPC를 우선 호출하고, 없으면 기존 `jobs` count로 폴백합니다.
+
+---
+
 ## 🐛 최근 해결된 문제
 
 ### 1. Supabase 컬럼명 불일치 (해결됨 ✅)

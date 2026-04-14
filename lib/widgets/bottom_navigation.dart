@@ -2,13 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
-import '../screens/home/home_screen.dart';
-import '../screens/customer/my_estimates_screen.dart';
-import '../screens/business/estimate_management_screen.dart';
 import '../screens/business/create_job_screen.dart';
 import '../screens/chat/chat_list_page.dart';
 import '../screens/profile/profile_screen.dart';
-import '../widgets/customer_dashboard.dart';
 import '../widgets/professional_dashboard.dart';
 
 class BottomNavigation extends StatelessWidget {
@@ -25,7 +21,6 @@ class BottomNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
-        final isCustomer = authService.currentUser?.role != 'business';
         final userId = authService.currentUser?.id ?? '';
         
         return Container(
@@ -53,15 +48,13 @@ class BottomNavigation extends StatelessWidget {
                     icon: Icons.home_rounded,
                     outlinedIcon: Icons.home_outlined,
                     label: '홈',
-                    isCustomer: isCustomer,
                   ),
                   _buildNavItem(
                     context: context,
                     index: 1,
                     icon: Icons.construction_rounded,
                     outlinedIcon: Icons.construction_outlined,
-                    label: isCustomer ? '내 견적' : '공사 만들기',
-                    isCustomer: isCustomer,
+                    label: '공사 만들기',
                   ),
                   FutureBuilder<int>(
                     future: NotificationService().getUnreadChatCount(userId),
@@ -76,7 +69,6 @@ class BottomNavigation extends StatelessWidget {
                         icon: Icons.chat_bubble_rounded,
                         outlinedIcon: Icons.chat_bubble_outline_rounded,
                         label: '채팅',
-                        isCustomer: isCustomer,
                         badgeCount: chatBadge,
                       );
                     },
@@ -87,7 +79,6 @@ class BottomNavigation extends StatelessWidget {
                     icon: Icons.account_circle_rounded,
                     outlinedIcon: Icons.account_circle_outlined,
                     label: '프로필',
-                    isCustomer: isCustomer,
                   ),
                 ],
               ),
@@ -104,7 +95,6 @@ class BottomNavigation extends StatelessWidget {
     required IconData icon,
     required IconData outlinedIcon,
     required String label,
-    required bool isCustomer,
     int? badgeCount,
   }) {
     final isSelected = currentIndex == index;
@@ -118,8 +108,7 @@ class BottomNavigation extends StatelessWidget {
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      isCustomer ? const CustomerDashboard() : const ProfessionalDashboard(),
+                  builder: (context) => const ProfessionalDashboard(),
                 ),
                 (route) => false,
               );
@@ -128,9 +117,7 @@ class BottomNavigation extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => isCustomer
-                      ? const CustomerMyEstimatesScreen()
-                      : const CreateJobScreen(),
+                  builder: (context) => const CreateJobScreen(),
                 ),
               ).then((_) => onTap(0)); // 돌아오면 홈으로 초기화
               break;

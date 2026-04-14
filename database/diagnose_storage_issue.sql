@@ -16,7 +16,7 @@ WHERE tablename = 'objects'
 AND schemaname = 'storage'
 ORDER BY policyname;
 
--- 2. attachments_messages 버킷 설정 확인
+-- 2. 업로드 대상 버킷(attachments_estimates) 설정 확인
 SELECT 
     id,
     name,
@@ -24,7 +24,7 @@ SELECT
     file_size_limit,
     allowed_mime_types
 FROM storage.buckets
-WHERE name = 'attachments_messages';
+WHERE name IN ('attachments_estimates', 'attachments_messages');
 
 -- 3. storage.objects 테이블의 RLS 활성화 상태 확인
 SELECT 

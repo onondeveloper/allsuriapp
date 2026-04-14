@@ -198,7 +198,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
         final msg = e.toString();
         String friendly = '프로필 저장 중 오류가 발생했습니다.';
         if (msg.contains('invalid input syntax for type uuid')) {
-          friendly = '임시 계정(ID) 형식 문제로 서버 저장을 건너뛰었습니다. 프로필은 기기에 저장되었습니다.';
+          friendly = '계정 식별 형식 문제로 서버에 저장하지 못했습니다. 프로필은 기기에 저장되었습니다. 고객센터로 문의해 주세요.';
         } else if (msg.contains('required') || msg.contains('null value')) {
           friendly = '필수 입력 항목을 확인해 주세요.';
         }

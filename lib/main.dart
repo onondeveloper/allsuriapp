@@ -9,7 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:app_links/app_links.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
 import 'services/order_service.dart';
@@ -26,14 +25,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'providers/user_provider.dart';
-import 'providers/order_provider.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/role_selection_screen.dart';
-import 'screens/business/order_marketplace_screen.dart';
-import 'widgets/professional_dashboard.dart';
-import 'widgets/customer_dashboard.dart';
-import 'utils/navigation_utils.dart';
+import 'utils/app_deep_links.dart';
+import 'app_navigator_key.dart';
 
 /// 앱 포그라운드 진입 시 앱 아이콘 배지 제거 (iOS/Android)
 class _BadgeLifecycleObserver with WidgetsBindingObserver {
@@ -47,8 +42,6 @@ class _BadgeLifecycleObserver with WidgetsBindingObserver {
   }
 }
 
-// 전역 네비게이터 키 (딥링크 처리용)
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 //126e5d87-94e0-4ad2-94ba-51b9c2454a4a
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,9 +60,21 @@ void main() async {
     print('⚠️ [Main] Kakao SDK 키가 없어 초기화를 건너뜁니다.');
   }
   // Supabase 초기화 (Auth 포함)
-  print('🔍 Supabase URL: ${SupabaseConfig.url}');
+  // ⚠️ SUPABASE_URL / SUPABASE_ANON_KEY 는 빌드 시 --dart-define-from-file 로 넣어야 함.
+  //    비어 있으면 "No host specified in URI /auth/v1/token" 등 오류가 난다 (Apple 로그인 포함).
+  print('🔍 Supabase URL: ${SupabaseConfig.url.isNotEmpty ? "${SupabaseConfig.url.length > 40 ? "${SupabaseConfig.url.substring(0, 40)}..." : SupabaseConfig.url}" : "❌ 비어 있음"}');
   print('🔍 Supabase Key: ${SupabaseConfig.anonKey.isNotEmpty ? "✅ 로드됨" : "❌ 비어있음"}');
-  
+
+  if (SupabaseConfig.url.isEmpty || SupabaseConfig.anonKey.isEmpty) {
+    print('');
+    print('❌ [Main] SUPABASE_URL 또는 SUPABASE_ANON_KEY가 주입되지 않았습니다.');
+    print('   → 프로젝트 루트에 dart_defines.json 을 만들고 Supabase 값을 넣은 뒤:');
+    print('   → flutter run --release --dart-define-from-file=dart_defines.json');
+    print('   → 또는 ./run_release.sh / ./run_app.sh 사용');
+    print('   → 템플릿: example_dart_defines.json 참고 (복사 후 dart_defines.json 으로 저장)');
+    print('');
+  }
+
   await Supabase.initialize(
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
@@ -398,89 +403,15 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  late AppLinks _appLinks;
-  StreamSubscription? _deepLinkSub;
-  
   @override
   void initState() {
     super.initState();
-    // iOS: 첫 프레임 렌더 후 딥링크 초기화 (앱 표시 블로킹 방지)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initDeepLinks();
-    });
     _checkAutoLogin();
   }
-  
-  @override
-  void dispose() {
-    _deepLinkSub?.cancel();
-    super.dispose();
-  }
-  
-  // 딥링크 초기화
-  void _initDeepLinks() {
-    _appLinks = AppLinks();
-    
-    // 앱이 실행 중일 때 딥링크 수신
-    _deepLinkSub = _appLinks.uriLinkStream.listen((Uri uri) {
-      print('🔗 [DeepLink] 수신: $uri');
-      _handleDeepLink(uri);
-    }, onError: (err) {
-      print('❌ [DeepLink] 에러: $err');
-    });
-    
-    // 앱이 종료된 상태에서 딥링크로 실행된 경우
-    _appLinks.getInitialLink().then((Uri? uri) {
-      if (uri != null) {
-        print('🔗 [DeepLink] 초기 링크: $uri');
-        _handleDeepLink(uri);
-      }
-    });
-  }
-  
-  // 딥링크 처리
-  void _handleDeepLink(Uri uri) {
-    // 카카오 OAuth 리다이렉트는 Kakao SDK가 처리 - 여기서 무시 (route 에러 방지)
-    if (uri.scheme.startsWith('kakao')) {
-      debugPrint('🔗 [DeepLink] 카카오 리다이렉트 무시 (Kakao SDK 처리)');
-      return;
-    }
-    
-    print('🔗 [DeepLink] 처리 시작: ${uri.toString()}');
-    print('   Scheme: ${uri.scheme}');
-    print('   Host: ${uri.host}');
-    print('   Path: ${uri.path}');
-    
-    // allsuri://order/{orderId} 또는 https://allsuri.app/order/{orderId}
-    if ((uri.scheme == 'allsuri' || uri.scheme == 'https') && 
-        (uri.host == 'order' || uri.path.startsWith('/order'))) {
-      
-      // orderId 추출
-      String? orderId;
-      if (uri.host == 'order') {
-        // allsuri://order/{orderId}
-        orderId = uri.pathSegments.isNotEmpty ? uri.pathSegments[0] : null;
-      } else {
-        // https://allsuri.app/order/{orderId}
-        final segments = uri.pathSegments;
-        orderId = segments.length > 1 ? segments[1] : null;
-      }
-      
-      if (orderId != null) {
-        print('✅ [DeepLink] 오더 ID: $orderId');
-        
-        // 오더 마켓플레이스로 이동
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (navigatorKey.currentContext != null) {
-            Navigator.of(navigatorKey.currentContext!).push(
-              MaterialPageRoute(
-                builder: (_) => const OrderMarketplaceScreen(),
-              ),
-            );
-          }
-        });
-      }
-    }
+
+  /// 홈이 올라온 뒤 딥링크를 붙여 [Splash, 마켓] 같은 잘못된 스택을 방지합니다.
+  void _scheduleDeepLinksAfterHome() {
+    Future.delayed(const Duration(milliseconds: 400), initAppDeepLinksAfterSplash);
   }
 
   Future<void> _checkAutoLogin() async {
@@ -505,6 +436,7 @@ class _SplashScreenState extends State<SplashScreen> {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const HomeScreen()),
           );
+          _scheduleDeepLinksAfterHome();
           return;
         }
       } catch (e) {
@@ -518,6 +450,7 @@ class _SplashScreenState extends State<SplashScreen> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
+      _scheduleDeepLinksAfterHome();
     }
   }
 
@@ -569,12 +502,6 @@ class AuthWrapper extends StatelessWidget {
         }
         if (!authService.isAuthenticated) {
           return const LoginScreen();
-        }
-        final user = authService.currentUser;
-        final role = user?.role.trim() ?? '';
-        final isKnownRole = role == 'admin' || role == 'business' || role == 'customer';
-        if (!isKnownRole) {
-          return const RoleSelectionScreen();
         }
         return const HomeScreen();
       },

@@ -19,13 +19,11 @@ class AuthService extends ChangeNotifier {
   
   app_models.User? _currentUser;
   bool _isLoading = false;
-  bool _needsRoleSelection = false;
   String? _supabaseAccessToken; // Supabase 세션 설정 실패 시 FCM 푸시용 fallback
 
   app_models.User? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
   bool get isLoading => _isLoading;
-  bool get needsRoleSelection => _needsRoleSelection;
   /// FCM 푸시 전송에 사용할 access token (세션이 없을 때 사용)
   String? get accessToken => _sb.auth.currentSession?.accessToken ?? _supabaseAccessToken;
 
@@ -46,7 +44,6 @@ class AuthService extends ChangeNotifier {
         await _loadUserData(supaUserId);
       } else {
         _currentUser = null;
-        _needsRoleSelection = false;
       }
       notifyListeners();
     });
@@ -83,21 +80,12 @@ class AuthService extends ChangeNotifier {
         print('   - businessname: ${row['businessname']}');
         print('   - businessnumber: ${row['businessnumber']}');
         
-        if (userRole != null && userRole.isNotEmpty && userRole != 'customer') {
-          _currentUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
-          _needsRoleSelection = false;
-          print('사용자 역할 로드됨: $userRole, _needsRoleSelection: $_needsRoleSelection');
-          print('🔍 User 객체 생성 후:');
-          print('   - businessStatus: ${_currentUser?.businessStatus}');
-          print('   - businessName: ${_currentUser?.businessName}');
-          print('   - businessNumber: ${_currentUser?.businessNumber}');
-        } else {
-          // 역할이 설정되지 않았거나 customer인 경우 역할 선택 필요
-          final updatedUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
-          _currentUser = updatedUser;
-          _needsRoleSelection = true;
-          print('역할 선택이 필요합니다. 현재 역할: ${userRole ?? "설정되지 않음"}, _needsRoleSelection: $_needsRoleSelection');
-        }
+        _currentUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
+        print('사용자 로드됨: role=$userRole');
+        print('🔍 User 객체 생성 후:');
+        print('   - businessStatus: ${_currentUser?.businessStatus}');
+        print('   - businessName: ${_currentUser?.businessName}');
+        print('   - businessNumber: ${_currentUser?.businessNumber}');
         
         // FCM 토큰 저장 (실패해도 로그인은 성공)
         try {
@@ -120,8 +108,7 @@ class AuthService extends ChangeNotifier {
       );
       await _sb.from('users').insert(fallbackUser.toMap());
       _currentUser = fallbackUser;
-      _needsRoleSelection = true; // 새 사용자는 역할 선택 필요
-      print('새 사용자 생성됨, 기본 역할: customer, _needsRoleSelection: $_needsRoleSelection');
+      print('새 사용자 생성됨, 기본 역할: customer');
       
       // FCM 토큰 저장 (실패해도 로그인은 성공)
       try {
@@ -132,7 +119,6 @@ class AuthService extends ChangeNotifier {
     } catch (e) {
       print('사용자 데이터 로드/생성 오류: $e');
       _currentUser = null;
-      _needsRoleSelection = false;
     }
   }
 
@@ -482,6 +468,32 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// 계정 영구 삭제 (App Store 5.1.1(v)). Supabase에 `delete_my_account` RPC 필요 — `database/delete_my_account.sql`.
+  Future<void> deleteAccount() async {
+    final uid = _currentUser?.id;
+    if (uid == null) return;
+
+    _isLoading = true;
+    notifyListeners();
+    try {
+      try {
+        await FCMService().deleteFCMToken(uid);
+      } catch (_) {}
+
+      await _sb.rpc('delete_my_account');
+    } catch (e, st) {
+      debugPrint('❌ [AuthService] deleteAccount: $e\n$st');
+      rethrow;
+    } finally {
+      _currentUser = null;
+      try {
+        await _sb.auth.signOut();
+      } catch (_) {}
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> updateUserProfile({String? name, String? phoneNumber}) async {
     if (_currentUser == null) return;
     
@@ -542,7 +554,6 @@ class AuthService extends ChangeNotifier {
         role: role,
         businessStatus: shouldUpdateBusinessStatus ? 'pending' : currentBusinessStatus,
       );
-      _needsRoleSelection = false; // 역할 선택 완료
       print('사용자 역할이 업데이트되었습니다(로컬 적용${supaReady ? '' : ' - Supabase 미설정'}): $role');
       print('   - 최종 businessStatus: ${_currentUser!.businessStatus}');
     } catch (e) {
@@ -555,7 +566,6 @@ class AuthService extends ChangeNotifier {
         role: role,
         businessStatus: shouldUpdateBusinessStatus ? 'pending' : currentBusinessStatus,
       );
-      _needsRoleSelection = false;
       print('❌ 역할 업데이트 오류(로컬로 계속): $e');
     } finally {
       _isLoading = false;
@@ -627,7 +637,6 @@ class AuthService extends ChangeNotifier {
         specialties: specialties,
         businessStatus: 'approved',  // 🎉 자동 승인으로 변경
       );
-      _needsRoleSelection = false; // 사업자 프로필 설정이 완료되었으므로 플래그 초기화
       print('🎉 사업자 프로필이 업데이트되었습니다 (자동 승인)');
     } catch (e) {
       // 변환/검증 예외는 상위에서 안내 메시지로 처리될 수 있도록 메시지만 남김
@@ -673,7 +682,6 @@ class AuthService extends ChangeNotifier {
         sessionLoadTimedOut = true;
         debugPrint('⚠️ [AuthService] 세션 사용자 로드 타임아웃 — 다음 화면으로 진행');
         _currentUser = null;
-        _needsRoleSelection = false;
       } finally {
         _isLoadingManually = false;
       }
@@ -685,7 +693,6 @@ class AuthService extends ChangeNotifier {
     } catch (e) {
       print('❌ [AuthService] 세션에서 사용자 정보 로드 실패: $e');
       _currentUser = null;
-      _needsRoleSelection = false;
       _isLoadingManually = false;
       notifyListeners();
     }

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/common_app_bar.dart';
 import '../auth/login_screen.dart';
-import '../role_selection_screen.dart';
 import '../home/home_screen.dart';
 
 class MainScreen extends StatelessWidget {
@@ -15,11 +14,6 @@ class MainScreen extends StatelessWidget {
       builder: (context, authService, child) {
         if (!authService.isAuthenticated) {
           return const LoginScreen();
-        }
-
-        final user = authService.currentUser;
-        if (user == null) {
-          return const RoleSelectionScreen();
         }
 
         return Scaffold(

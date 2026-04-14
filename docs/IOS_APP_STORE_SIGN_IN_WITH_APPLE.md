@@ -26,3 +26,16 @@
 > Sign in with Apple limits data to name/email, supports **Hide My Email**, and does not use the login for third-party advertising without user consent, consistent with Guideline 4.8.
 
 스크린샷은 로그인 화면에 **Apple 로그인 버튼**이 보이도록 업데이트하세요.
+
+## App Store Connect 심사 답변 예시 (영문, 4.8 + 스크린샷)
+
+> The app offers **Sign in with Apple** as an equivalent option to Kakao login.  
+> On the first screen after launch (and on the email login screen), users see **Sign in with Apple** placed **above** Kakao, with the text: “Apple 또는 카카오로 로그인할 수 있습니다.”  
+> Sign in with Apple meets Guideline 4.8: it limits data to name/email, supports **Hide My Email**, and does not use sign-in for third-party advertising without consent.  
+> Please see the updated screenshots showing both login options.
+
+(한글 버전이 필요하면 같은 내용을 한국어로 번역해 회신하세요.)
+
+## Guideline 2.2 (베타/미완성으로 보이는 UI)
+
+앱 내 **「기능 준비 중」** 같은 문구는 미완성 앱으로 오해될 수 있어, 실제 화면(알림 목록, 채팅 목록 등)으로 연결하거나 문구를 제거하는 것이 좋습니다. 고객 홈의 알림·채팅은 실제 화면으로 이동하도록 수정되었습니다.

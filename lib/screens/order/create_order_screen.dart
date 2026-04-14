@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/order.dart' as app_models;
 import '../../services/auth_service.dart';
 import '../../providers/order_provider.dart';
-import '../customer/customer_dashboard.dart';
+import '../home/home_screen.dart';
 
 class CreateOrderScreen extends StatefulWidget {
   const CreateOrderScreen({super.key});
@@ -91,11 +91,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
               CupertinoDialogAction(
                 onPressed: () {
                   Navigator.pop(context); // 다이얼로그 닫기
-                  // 고객 대시보드로 이동
                   Navigator.pushAndRemoveUntil(
                     context,
                     CupertinoPageRoute(
-                      builder: (context) => const CustomerDashboard(),
+                      builder: (context) => const HomeScreen(),
                     ),
                     (route) => false,
                   );

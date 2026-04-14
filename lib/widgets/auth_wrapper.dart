@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../screens/auth/login_screen.dart';
-import '../screens/role_selection_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({Key? key}) : super(key: key);
@@ -20,17 +19,16 @@ class AuthWrapper extends StatelessWidget {
             if (user != null) {
               switch (user.role) {
                 case 'admin':
-                  context.go('/admin');
+                  context.go('/business');
                   break;
                 case 'business':
                   context.go('/business');
                   break;
                 case 'customer':
-                  context.go('/customer');
+                  context.go('/business');
                   break;
                 default:
-                  // 역할이 설정되지 않은 경우 역할 선택 화면으로 이동
-                  context.go('/role-selection');
+                  context.go('/business');
                   break;
               }
             }

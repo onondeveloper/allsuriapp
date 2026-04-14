@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
@@ -11,7 +13,13 @@ class MediaService {
   SupabaseClient get _sb => Supabase.instance.client;
 
   static const int maxBytes = 5 * 1024 * 1024; // 5MB
-  static const List<String> allowedExt = ['.jpg', '.jpeg', '.png', '.heic'];
+  static const List<String> allowedExt = [
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.heic',
+    '.webp',
+  ];
 
   Future<File?> pickImageFromCamera() async {
     final x = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
@@ -49,7 +57,8 @@ class MediaService {
         return false;
       }
       final ext = p.extension(file.path).toLowerCase();
-      if (!allowedExt.contains(ext)) {
+      // iOS/Android 임시 경로에 확장자가 없는 경우가 있어 용량만 통과시 허용
+      if (ext.isNotEmpty && !allowedExt.contains(ext)) {
         debugPrint('허용되지 않은 확장자: $ext');
         return false;
       }
@@ -57,6 +66,21 @@ class MediaService {
     } catch (e) {
       debugPrint('파일 검증 실패: $e');
       return false;
+    }
+  }
+
+  String _contentTypeForExt(String ext) {
+    switch (ext) {
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.heic':
+        return 'image/heic';
+      case '.jpg':
+      case '.jpeg':
+      default:
+        return 'image/jpeg';
     }
   }
 
@@ -187,39 +211,48 @@ class MediaService {
     }
   }
 
-  Future<String?> uploadEstimateImage({required File file}) async {
-    try {
-      debugPrint('🔍 [uploadEstimateImage] 시작');
-      debugPrint('   파일: ${file.path}');
-      debugPrint('   파일 크기: ${file.lengthSync()} bytes');
-      
-      final fileName = 'job_${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
-      debugPrint('   생성된 파일명: $fileName');
-      
-      final path = fileName;
-      debugPrint('   경로: $path');
-      debugPrint('   버킷: attachments_estimates');
-      
-      debugPrint('   → Supabase에 업로드 중...');
-      await _sb.storage.from('attachments_estimates').upload(
-        path, 
-        file,
-        fileOptions: const FileOptions(
-          cacheControl: '3600',
-          upsert: false,
-        ),
-      );
-      debugPrint('   ✅ 업로드 완료');
-      
-      debugPrint('   → Public URL 생성 중...');
-      final publicUrl = _sb.storage.from('attachments_estimates').getPublicUrl(path);
-      debugPrint('   ✅ Public URL: $publicUrl');
-      
-      return publicUrl;
-    } catch (e) {
-      debugPrint('❌ [uploadEstimateImage] 실패: $e');
-      return null;
+  /// 견적/공사 이미지 업로드
+  /// 실패 시 null 대신 예외를 throw하여 호출부에서 실제 원인을 표시할 수 있게 합니다.
+  Future<String> uploadEstimateImage({required File file}) async {
+    debugPrint('🔍 [uploadEstimateImage] 시작');
+    debugPrint('   파일: ${file.path}');
+    debugPrint('   파일 크기: ${file.lengthSync()} bytes');
+
+    final session = _sb.auth.currentSession;
+    debugPrint('🔐 인증 상태: ${session != null ? "인증됨 (${session.user.id})" : "비인증(anon)"}');
+
+    var ext = p.extension(file.path).toLowerCase();
+    if (ext.isEmpty || !allowedExt.contains(ext)) {
+      ext = '.jpg';
     }
+    final fileName =
+        'job_${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 20)}$ext';
+    final storagePath = fileName;
+    debugPrint('   경로: attachments_estimates/$storagePath');
+
+    final fileOptions = FileOptions(
+      cacheControl: '3600',
+      upsert: true, // 중복 파일명 오류 방지
+      contentType: _contentTypeForExt(ext),
+    );
+
+    debugPrint('   → Supabase 업로드 중...');
+    try {
+      await _sb.storage
+          .from('attachments_estimates')
+          .upload(storagePath, file, fileOptions: fileOptions);
+    } catch (uploadErr) {
+      debugPrint('⚠️ upload() 실패, uploadBinary() 재시도: $uploadErr');
+      final Uint8List bytes = await file.readAsBytes();
+      await _sb.storage
+          .from('attachments_estimates')
+          .uploadBinary(storagePath, bytes, fileOptions: fileOptions);
+    }
+
+    final publicUrl =
+        _sb.storage.from('attachments_estimates').getPublicUrl(storagePath);
+    debugPrint('✅ [uploadEstimateImage] 완료: $publicUrl');
+    return publicUrl;
   }
 
   Future<String?> uploadAdImage(File file) async {

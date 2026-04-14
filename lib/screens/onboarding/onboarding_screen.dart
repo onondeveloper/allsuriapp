@@ -34,7 +34,7 @@ class OnboardingScreen extends StatefulWidget {
     return prefs.getBool('onboarding_completed') ?? false;
   }
 
-  /// 온보딩 초기화 (개발/테스트용)
+  /// 온보딩 완료 상태 초기화 (지원·내부 확인용)
   static Future<void> resetOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('onboarding_completed');

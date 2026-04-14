@@ -9,13 +9,11 @@ import '../../services/auth_service.dart';
 import '../../services/order_service.dart';
 import '../../services/ad_service.dart';
 import '../../models/ad.dart';
-import '../../widgets/customer_dashboard.dart';
 import '../../widgets/interactive_card.dart';
 import '../../widgets/business_dashboard.dart';
 import '../../widgets/professional_dashboard.dart';
 import '../business/business_profile_screen.dart';
 import '../business/business_pending_screen.dart';
-import '../role_selection_screen.dart';
 import '../../models/order.dart' as app_models;
 import '../customer/create_request_screen.dart';
 import '../customer/my_estimates_screen.dart';
@@ -44,12 +42,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkOnboarding() async {
     final completed = await OnboardingScreen.isOnboardingCompleted();
-    if (mounted) {
-      setState(() {
-        _shouldShowOnboarding = !completed;
-        _isCheckingOnboarding = false;
-      });
-    }
+    if (!mounted) return;
+    // 이미 로그인된 사용자(자동 로그인 포함)에게는 온보딩을 보이지 않음.
+    // 미로그인 신규 설치만 온보딩 → 로그인 버튼이 있는 홈으로 이어지도록 함.
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final showOnboarding = !completed && !auth.isAuthenticated;
+    setState(() {
+      _shouldShowOnboarding = showOnboarding;
+      _isCheckingOnboarding = false;
+    });
   }
 
   void _completeOnboarding() {
@@ -60,21 +61,35 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadStatistics() async {
     try {
-      // 완료된 공사 수 가져오기
-      final response = await Supabase.instance.client
-          .from('jobs')
-          .select('id')
-          .inFilter('status', ['completed', 'awaiting_confirmation'])
-          .count(CountOption.exact);
-      
+      // 플랫폼 전체 완료 건수: jobs RLS는 본인 관련 행만 보이므로
+      // Supabase에 `get_completed_jobs_public_count` RPC가 있어야 정확함 (database/get_completed_jobs_public_count.sql).
+      int total = 0;
+      try {
+        final raw = await Supabase.instance.client
+            .rpc('get_completed_jobs_public_count');
+        if (raw is int) {
+          total = raw;
+        } else if (raw is num) {
+          total = raw.toInt();
+        }
+      } catch (rpcErr) {
+        debugPrint('⚠️ [HomeScreen] 공개 집계 RPC 없음/실패, RLS 기준 count로 폴백: $rpcErr');
+        final response = await Supabase.instance.client
+            .from('jobs')
+            .select('id')
+            .inFilter('status', ['completed', 'awaiting_confirmation'])
+            .count(CountOption.exact);
+        total = response.count;
+      }
+
       if (mounted) {
         setState(() {
-          _totalCompletedJobs = response.count;
+          _totalCompletedJobs = total;
           _isLoadingStats = false;
         });
       }
     } catch (e) {
-      print('❌ 통계 로드 실패: $e');
+      debugPrint('❌ 통계 로드 실패: $e');
       if (mounted) {
         setState(() {
           _isLoadingStats = false;
@@ -102,32 +117,27 @@ class _HomeScreenState extends State<HomeScreen> {
     // 메인 화면
     return Consumer<AuthService>(
       builder: (context, authService, child) {
-        // 역할 선택이 필요한 경우
-        if (authService.isAuthenticated && authService.needsRoleSelection) {
-          return const RoleSelectionScreen();
-        }
-        
-        // 사업자: 직접 해당 화면 반환
-        if (authService.isAuthenticated && authService.currentUser?.role == 'business') {
+        // 로그인 사용자 전원 사업자 플로우 (고객 대시보드 미사용)
+        if (authService.isAuthenticated) {
           final u = authService.currentUser!;
           final hasBusinessName = (u.businessName != null && u.businessName!.trim().isNotEmpty);
           final status = (u.businessStatus ?? 'pending').toLowerCase();
-          
-          print('🔍 [HomeScreen] 사업자 사용자 정보:');
+
+          print('🔍 [HomeScreen] 로그인 사용자 → 사업자 플로우:');
           print('   - ID: ${u.id}');
           print('   - Business Status: $status');
-          
+
           if (status == 'approved') {
             return const ProfessionalDashboard();
           }
-          
+
           if (!hasBusinessName) {
             return const BusinessProfileScreen();
           }
-          
+
           return const BusinessPendingScreen();
         }
-        
+
         return WillPopScope(
           onWillPop: () async => false,
           child: Scaffold(
@@ -315,10 +325,34 @@ class _HomeScreenState extends State<HomeScreen> {
                               
                               const Spacer(),
                               
-                              // 3. 카카오 로그인 버튼 (전체 너비)
-                              if (!authService.isAuthenticated)
+                              // 3. 로그인 (Guideline 4.8: Apple을 카카오와 동등·상단 배치 — Apple HIG)
+                              if (!authService.isAuthenticated) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: Text(
+                                    'Apple 또는 카카오로 로그인할 수 있습니다',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[800],
+                                    ),
+                                  ),
+                                ),
+                                if (!kIsWeb &&
+                                    defaultTargetPlatform == TargetPlatform.iOS) ...[
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: SignInWithAppleButton(
+                                      style: SignInWithAppleButtonStyle.black,
+                                      height: 48,
+                                      onPressed: () => _handleAppleLogin(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
                                 InkWell(
-                                  onTap: () => _handleKakaoLogin(context), // 바로 로그인 실행
+                                  onTap: () => _handleKakaoLogin(context),
                                   borderRadius: BorderRadius.circular(12),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
@@ -327,19 +361,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       width: double.infinity,
                                       fit: BoxFit.cover,
                                     ),
-                                  ),
-                                ),
-                              // App Store Guideline 4.8: Sign in with Apple (iOS/iPadOS)
-                              if (!authService.isAuthenticated &&
-                                  !kIsWeb &&
-                                  defaultTargetPlatform == TargetPlatform.iOS) ...[
-                                const SizedBox(height: 16),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: SignInWithAppleButton(
-                                    style: SignInWithAppleButtonStyle.black,
-                                    height: 48,
-                                    onPressed: () => _handleAppleLogin(context),
                                   ),
                                 ),
                               ],

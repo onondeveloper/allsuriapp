@@ -1,89 +1,81 @@
--- Storage RLS 정책 수정
--- Supabase SQL Editor에서 실행하세요
+-- Storage 버킷/RLS 정책 일괄 복구
+-- Supabase SQL Editor에서 한 번에 실행하세요.
 
--- 기존 정책 모두 삭제
-DROP POLICY IF EXISTS "Allow authenticated uploads" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public read" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated uploads estimates" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public read estimates" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated uploads profiles" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public read profiles" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated uploads public" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public read public bucket" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated uploads to attachments_messages" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public read from attachments_messages" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated update to attachments_messages" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated delete from attachments_messages" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated uploads to attachments_estimates" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public read from attachments_estimates" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated uploads to profiles" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public read from profiles" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated uploads to public" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public read from public bucket" ON storage.objects;
+-- 1) 버킷 존재 보장 (없으면 생성, 있으면 공개/제한값 갱신)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES
+  (
+    'attachments_messages',
+    'attachments_messages',
+    true,
+    52428800,
+    ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'video/mp4', 'video/quicktime']
+  ),
+  (
+    'attachments_estimates',
+    'attachments_estimates',
+    true,
+    5242880,
+    ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+  ),
+  (
+    'profiles',
+    'profiles',
+    true,
+    5242880,
+    ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+  ),
+  (
+    'public',
+    'public',
+    true,
+    5242880,
+    ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+  )
+ON CONFLICT (id) DO UPDATE
+SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- attachments_messages 버킷 정책
-CREATE POLICY "Allow authenticated uploads to attachments_messages" 
-ON storage.objects
-FOR INSERT 
-TO authenticated
-WITH CHECK (bucket_id = 'attachments_messages');
+-- 2) 권한 문제(42501) 회피:
+--    현재 계정이 storage.objects 테이블 owner가 아니면 정책 DDL(DROP/CREATE POLICY)을 실행할 수 없습니다.
+--    아래 스크립트는 "버킷 존재/설정"만 맞추고, 정책은 조회만 합니다.
 
-CREATE POLICY "Allow public read from attachments_messages" 
-ON storage.objects
-FOR SELECT 
-TO public
-USING (bucket_id = 'attachments_messages');
+-- 3) 현재 권한/소유자/정책 상태 확인
+SELECT current_user AS running_as;
 
-CREATE POLICY "Allow authenticated update to attachments_messages" 
-ON storage.objects
-FOR UPDATE 
-TO authenticated
-USING (bucket_id = 'attachments_messages');
+SELECT
+  n.nspname AS schema_name,
+  c.relname AS table_name,
+  pg_get_userbyid(c.relowner) AS table_owner
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'storage'
+  AND c.relname = 'objects';
 
-CREATE POLICY "Allow authenticated delete from attachments_messages" 
-ON storage.objects
-FOR DELETE 
-TO authenticated
-USING (bucket_id = 'attachments_messages');
+SELECT
+  policyname,
+  cmd,
+  roles,
+  qual,
+  with_check
+FROM pg_policies
+WHERE schemaname = 'storage'
+  AND tablename = 'objects'
+ORDER BY policyname;
 
--- attachments_estimates 버킷 정책
-CREATE POLICY "Allow authenticated uploads to attachments_estimates" 
-ON storage.objects
-FOR INSERT 
-TO authenticated
-WITH CHECK (bucket_id = 'attachments_estimates');
+-- 4) 결과 확인
+SELECT '✅ 버킷 설정 완료 (정책 DDL은 권한 있는 계정으로 별도 실행 필요)' AS status;
 
-CREATE POLICY "Allow public read from attachments_estimates" 
-ON storage.objects
-FOR SELECT 
-TO public
-USING (bucket_id = 'attachments_estimates');
+SELECT id, public, file_size_limit
+FROM storage.buckets
+WHERE id IN ('attachments_messages', 'attachments_estimates', 'profiles', 'public')
+ORDER BY id;
 
--- profiles 버킷 정책
-CREATE POLICY "Allow authenticated uploads to profiles" 
-ON storage.objects
-FOR INSERT 
-TO authenticated
-WITH CHECK (bucket_id = 'profiles');
-
-CREATE POLICY "Allow public read from profiles" 
-ON storage.objects
-FOR SELECT 
-TO public
-USING (bucket_id = 'profiles');
-
--- public 버킷 정책
-CREATE POLICY "Allow authenticated uploads to public" 
-ON storage.objects
-FOR INSERT 
-TO authenticated
-WITH CHECK (bucket_id = 'public');
-
-CREATE POLICY "Allow public read from public bucket" 
-ON storage.objects
-FOR SELECT 
-TO public
-USING (bucket_id = 'public');
-
-SELECT '✅ Storage RLS 정책 설정 완료' AS status;
+SELECT policyname, cmd, roles
+FROM pg_policies
+WHERE schemaname = 'storage'
+  AND tablename = 'objects'
+ORDER BY policyname;
 

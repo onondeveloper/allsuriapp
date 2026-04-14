@@ -209,44 +209,55 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
 
     setState(() => _isUploadingImages = true);
 
-    try {
-      print('🔍 [_uploadImages] ${_selectedImages.length}개 이미지 업로드 시작');
-      final List<String> urls = [];
-      for (int i = 0; i < _selectedImages.length; i++) {
-        final image = _selectedImages[i];
-        print('   이미지 $i: ${image.path}');
+    final pending = List<File>.from(_selectedImages);
+    final List<String> urls = [];
+    final List<File> failed = [];
+    String? lastError;
+
+    for (int i = 0; i < pending.length; i++) {
+      final image = pending[i];
+      try {
         final url = await _mediaService.uploadEstimateImage(file: image);
-        print('   반환된 URL: $url');
-        if (url != null) {
-          urls.add(url);
-        }
-      }
-
-      print('✅ [_uploadImages] 총 ${urls.length}개 URL 수집됨');
-      print('   URLs: $urls');
-      
-      setState(() {
-        _uploadedImageUrls.addAll(urls);
-        _selectedImages.clear();
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${urls.length}개 이미지가 업로드되었습니다')),
-        );
-      }
-    } catch (e) {
-      print('❌ [_uploadImages] 실패: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 업로드 실패: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isUploadingImages = false);
+        urls.add(url);
+        debugPrint('   ✅ 이미지 $i 업로드 성공: $url');
+      } catch (e) {
+        debugPrint('   ❌ 이미지 $i 업로드 실패: $e');
+        lastError = e.toString();
+        failed.add(image);
       }
     }
+
+    if (!mounted) return;
+
+    setState(() {
+      _uploadedImageUrls.addAll(urls);
+      _selectedImages
+        ..clear()
+        ..addAll(failed);
+    });
+
+    if (urls.isNotEmpty && failed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${urls.length}개 이미지가 업로드되었습니다')),
+      );
+    } else if (urls.isNotEmpty && failed.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${urls.length}개 업로드 완료, ${failed.length}개 실패: $lastError'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('이미지 업로드 실패: ${lastError ?? "알 수 없는 오류"}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+
+    if (mounted) setState(() => _isUploadingImages = false);
   }
 
   void _removeImage(int index) {
@@ -465,6 +476,15 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                                         width: 80,
                                         height: 80,
                                         fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 80,
+                                          height: 80,
+                                          color: Colors.grey.shade200,
+                                          child: const Icon(
+                                            Icons.broken_image,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
                                       ),
                                     Positioned(
                                       top: 4,

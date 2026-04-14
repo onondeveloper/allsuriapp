@@ -143,60 +143,9 @@ class LoginRequiredDialog extends StatelessWidget {
             ElevatedButton(
               onPressed: () async {
                 Navigator.of(context).pop();
-                await _showRoleSelectionDialog(context);
-              },
-              child: const Text('로그인'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  static Future<void> _showRoleSelectionDialog(BuildContext context) async {
-    return showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('역할 선택'),
-          content: const Text('어떤 역할로 로그인하시겠습니까?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('취소'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
                 await _performGoogleLogin(context, UserRole.customer);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4F8CFF),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('고객'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _performGoogleLogin(context, UserRole.business);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00C6AE),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('사업자'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _performGoogleLogin(context, UserRole.admin);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6B6B),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('관리자'),
+              child: const Text('로그인'),
             ),
           ],
         );
@@ -224,7 +173,7 @@ class LoginRequiredDialog extends StatelessWidget {
               context.go('/business');
               break;
             case UserRole.customer:
-              context.go('/customer');
+              context.go('/business');
               break;
           }
         }

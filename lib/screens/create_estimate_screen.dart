@@ -117,25 +117,48 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
     if (_selectedImages.isEmpty) return;
 
     setState(() => _isUploadingImages = true);
-    try {
-      final urls = <String>[];
-      for (final image in _selectedImages) {
+
+    final pending = List<File>.from(_selectedImages);
+    final urls = <String>[];
+    final failed = <File>[];
+    String? lastError;
+
+    for (final image in pending) {
+      try {
         final url = await _mediaService.uploadEstimateImage(file: image);
-        if (url != null) urls.add(url);
+        urls.add(url);
+      } catch (e) {
+        debugPrint('❌ [uploadImages] 사진 업로드 실패: $e');
+        lastError = e.toString();
+        failed.add(image);
       }
-      setState(() {
-        _uploadedImageUrls.addAll(urls);
-        _selectedImages.clear();
-      });
-      if (!mounted) return;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _uploadedImageUrls.addAll(urls);
+      _selectedImages
+        ..clear()
+        ..addAll(failed);
+    });
+
+    if (urls.isNotEmpty && failed.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${urls.length}개 사진이 업로드되었습니다')),
       );
-    } catch (e) {
-      _showError('사진 업로드 실패: $e');
-    } finally {
-      if (mounted) setState(() => _isUploadingImages = false);
+    } else if (urls.isNotEmpty && failed.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${urls.length}개 완료, ${failed.length}개 실패: $lastError'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } else {
+      _showError('사진 업로드 실패: ${lastError ?? "알 수 없는 오류"}');
     }
+
+    if (mounted) setState(() => _isUploadingImages = false);
   }
 
   void _removeImage(int index) {
@@ -375,11 +398,31 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
                             Container(
                               margin: const EdgeInsets.only(right: 12),
                               width: 120,
+                              height: 120,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(8),
-                                image: DecorationImage(
-                                  image: NetworkImage(_uploadedImageUrls[index]),
+                                color: CupertinoColors.systemGrey5,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  _uploadedImageUrls[index],
+                                  width: 120,
+                                  height: 120,
                                   fit: BoxFit.cover,
+                                  loadingBuilder: (_, child, progress) =>
+                                      progress == null
+                                          ? child
+                                          : const Center(
+                                              child: CupertinoActivityIndicator(),
+                                            ),
+                                  errorBuilder: (_, __, ___) => const Center(
+                                    child: Icon(
+                                      CupertinoIcons.photo,
+                                      color: CupertinoColors.systemGrey,
+                                      size: 36,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),

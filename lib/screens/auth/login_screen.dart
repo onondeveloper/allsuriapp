@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/common_app_bar.dart';
 import 'signup_page.dart';
@@ -49,11 +51,54 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _appleSignIn() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false,
+        child: const Dialog(
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Apple로 로그인 중…'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    try {
+      final ok = await context.read<AuthService>().signInWithApple();
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Apple 로그인에 실패했습니다. 설정을 확인하거나 이메일로 로그인해 주세요.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const CommonAppBar(title: '로그인'),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
@@ -105,6 +150,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 8),
+              Text(
+                'Apple 또는 카카오로도 로그인할 수 있습니다',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[800]),
+              ),
+              const SizedBox(height: 12),
+              if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
+                SizedBox(
+                  width: double.infinity,
+                  child: SignInWithAppleButton(
+                    style: SignInWithAppleButtonStyle.black,
+                    height: 48,
+                    onPressed: () {
+                      if (!_isLoading) _appleSignIn();
+                    },
+                  ),
+                ),
+              if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: InkWell(

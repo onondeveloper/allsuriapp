@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../app_navigator_key.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
 import '../business/business_profile_screen.dart';
 import '../admin/ad_management_screen.dart';
+import '../home/home_screen.dart';
 import 'my_revenue_screen.dart';
 import 'package:app_settings/app_settings.dart';
+
+/// RPC 실패 시 안내용 (웹에서 마무리 — dart-define으로 교체 가능)
+const String _kAccountDeleteWebUrl = String.fromEnvironment(
+  'ACCOUNT_DELETE_WEB_URL',
+  defaultValue: 'https://allsuri.app',
+);
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -297,6 +306,13 @@ class ProfileScreen extends StatelessWidget {
           ),
         _buildActionTile(
           context,
+          Icons.person_off_outlined,
+          '회원 탈퇴',
+          () => showDeleteAccountDialog(context),
+          isDestructive: true,
+        ),
+        _buildActionTile(
+          context,
           Icons.logout,
           '로그아웃',
           () => _showLogoutDialog(context),
@@ -401,4 +417,92 @@ class ProfileScreen extends StatelessWidget {
       },
     );
   }
-} 
+}
+
+/// 계정 영구 삭제 (앱에서 시작 → Supabase RPC `delete_my_account`)
+Future<void> showDeleteAccountDialog(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) {
+      return AlertDialog(
+        title: const Text('회원 탈퇴'),
+        content: const Text(
+          '탈퇴 시 계정과 연결된 데이터가 삭제되며 복구할 수 없습니다.\n계속하시겠습니까?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('탈퇴'),
+          ),
+        ],
+      );
+    },
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final auth = Provider.of<AuthService>(context, listen: false);
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => const AlertDialog(
+      content: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 20),
+          Expanded(child: Text('탈퇴 처리 중…')),
+        ],
+      ),
+    ),
+  );
+
+  try {
+    await auth.deleteAccount();
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+      (route) => false,
+    );
+  } catch (e) {
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    if (!context.mounted) return;
+    final openWeb = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('탈퇴를 완료할 수 없습니다'),
+        content: Text(
+          '앱에서 계정 삭제 처리에 실패했습니다. 아래 웹 페이지에서 탈퇴를 완료하거나, 잠시 후 다시 시도해 주세요.\n\n$_kAccountDeleteWebUrl',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('닫기'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('웹에서 열기'),
+          ),
+        ],
+      ),
+    );
+    if (openWeb == true) {
+      final uri = Uri.parse(_kAccountDeleteWebUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+}
