@@ -328,6 +328,16 @@ async function handleBidListing(event: any, path: string) {
         }
 
         // 푸시 알림 전송 (Supabase Edge Function)
+        // 웹 오더(posted_by=null)인 경우 → 입찰자(bidder)에게 push 발송
+        // 일반 오더인 경우 → 오더 소유자(owner)에게 push 발송
+        const isWebOrder = !listing.posted_by
+        const pushTargetId = isWebOrder ? businessId : listing.posted_by
+        const pushTitle = isWebOrder
+          ? '입찰이 완료되었습니다'
+          : ownerNotificationTitle
+        const pushBody = isWebOrder
+          ? `${listing.title || '오더'}에 입찰하셨습니다. 고객의 낙찰을 기다리고 있어요.`
+          : ownerNotificationBody
         try {
           await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
             method: 'POST',
@@ -336,16 +346,13 @@ async function handleBidListing(event: any, path: string) {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              userId: listing.posted_by,
-              title: ownerNotificationTitle,
-              body: ownerNotificationBody,
-              data: {
-                type: 'new_bid',
-                listingId: id,
-              },
+              userId: pushTargetId,
+              title: pushTitle,
+              body: pushBody,
+              data: { type: 'new_bid', listingId: id },
             }),
           })
-          console.log('✅ [market] 푸시 알림 전송 완료')
+          console.log(`✅ [market] 푸시 알림 전송 완료 → ${isWebOrder ? '입찰자' : '오더소유자'} (${pushTargetId})`)
         } catch (pushErr: any) {
           console.warn('[market] 푸시 알림 전송 실패 (무시):', pushErr.message)
         }
