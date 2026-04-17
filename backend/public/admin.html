@@ -12,9 +12,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Kakao JavaScript SDK -->
-    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" 
-            integrity="sha384-TiCUE00h+MDOmuWID9wyS8ADlIwnFqCKx/brKfXcY96G4eejVDCI2br7c34h+wTc" 
-            crossorigin="anonymous"></script>
+    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
     <style>
         * {
             margin: 0;
@@ -1687,22 +1685,6 @@
         </div>
     </div>
 
-    <!-- Inject Supabase env for web content management -->
-    <script>
-        // These are set by the admin.ts Netlify function via SSR or fetched from /api/admin/config
-        // For now, fetch from /api/admin/config endpoint
-        (async () => {
-            try {
-                const r = await fetch('/api/admin/config');
-                if (r.ok) {
-                    const cfg = await r.json();
-                    window.__ENV_SUPABASE_URL = cfg.supabaseUrl || '';
-                    window.__ENV_SUPABASE_ANON_KEY = cfg.supabaseAnonKey || '';
-                    window.__ENV_SUPABASE_SERVICE_ROLE_KEY = cfg.supabaseServiceRoleKey || '';
-                }
-            } catch(e) { console.warn('config fetch failed:', e); }
-        })();
-    </script>
     <script src="admin.js?v=7&t=20260417001"></script>
     <script>
         // Kakao SDK 초기화

@@ -652,7 +652,7 @@ async function toggleAdmin(userId) {
             }
             
             // 검색 기능 이벤트 리스너
-            document.getElementById('userSearch').addEventListener('input', debounce(async (e) => {
+            document.getElementById('userSearch')?.addEventListener('input', debounce(async (e) => {
                 const query = e.target.value;
                 if (query.length > 0) {
                     try {
@@ -2281,7 +2281,7 @@ async function copyOrderDeepLink(orderId) {
     }
 }
 
-module.exports = router;
+// module.exports = router; // 브라우저 환경에서 불필요 (제거)
 
 // 견적 상세 보기 함수
 async function showEstimateDetail(estimateId) {
@@ -3236,62 +3236,26 @@ async function loadAll() {
 // 웹 콘텐츠 관리 (Web Content Management)
 // ══════════════════════════════════════════════════════════════
 
-const SUPABASE_URL = window.__ENV_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = window.__ENV_SUPABASE_ANON_KEY || '';
-
-async function supabaseGet(table, params = '') {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-        headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-    });
-    return res.ok ? res.json() : [];
-}
-
-async function supabaseUpsert(table, body) {
-    const serviceKey = window.__ENV_SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-        method: 'POST',
-        headers: {
-            apikey: serviceKey,
-            Authorization: `Bearer ${serviceKey}`,
-            'Content-Type': 'application/json',
-            Prefer: 'resolution=merge-duplicates,return=representation',
-        },
-        body: JSON.stringify(body),
-    });
-    return res.ok ? res.json() : null;
-}
-
-async function supabaseDelete(table, id) {
-    const serviceKey = window.__ENV_SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-        method: 'DELETE',
-        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-    });
-}
-
 // ── 웹 설정 로드 ──────────────────────────────────────────────
 async function loadWebContent() {
     try {
-        const [settings, ads] = await Promise.all([
-            supabaseGet('web_settings', 'select=key,value'),
-            supabaseGet('web_ads', 'select=*&order=sort_order.asc'),
+        const [settingsRes, adsRes] = await Promise.all([
+            apiCall('/web-content/settings'),
+            apiCall('/web-content/ads'),
         ]);
 
         // 설정값 폼에 반영
-        if (Array.isArray(settings)) {
-            settings.forEach(s => {
-                const el = document.getElementById(`setting_${s.key}`);
-                if (!el) return;
-                if (el.tagName === 'SELECT') el.value = s.value;
-                else el.value = s.value || '';
-            });
-        }
+        const settings = Array.isArray(settingsRes) ? settingsRes : (settingsRes?.settings || []);
+        settings.forEach(s => {
+            const el = document.getElementById(`setting_${s.key}`);
+            if (!el) return;
+            if (el.tagName === 'SELECT') el.value = s.value;
+            else el.value = s.value || '';
+        });
 
         // 광고 목록 렌더
-        renderWebAds(Array.isArray(ads) ? ads : []);
+        const ads = Array.isArray(adsRes) ? adsRes : (adsRes?.ads || []);
+        renderWebAds(ads);
     } catch (e) {
         console.error('[loadWebContent]', e);
     }
@@ -3336,10 +3300,9 @@ async function saveWebSettings() {
     const rows = keys.map(k => ({
         key: k,
         value: document.getElementById(`setting_${k}`)?.value || '',
-        updated_at: new Date().toISOString(),
     }));
     try {
-        await supabaseUpsert('web_settings', rows);
+        await apiCall('/web-content/settings', { method: 'POST', body: JSON.stringify({ settings: rows }) });
         showToast('✅ 사이트 설정이 저장되었습니다.');
     } catch (e) {
         alert('저장 실패: ' + e.message);
@@ -3365,8 +3328,8 @@ function openWebAdModal(id = null) {
 }
 
 async function editWebAd(id) {
-    const ads = await supabaseGet('web_ads', `id=eq.${id}&select=*`);
-    const a = Array.isArray(ads) ? ads[0] : null;
+    const res = await apiCall(`/web-content/ads/${id}`);
+    const a = res?.ad || (Array.isArray(res) ? res[0] : null);
     if (!a) return;
     document.getElementById('webAdId').value = a.id;
     document.getElementById('webAdTitle').value = a.title || '';
@@ -3399,13 +3362,11 @@ async function saveWebAd() {
         link_url: document.getElementById('webAdLinkUrl').value,
         position: document.getElementById('webAdPosition').value,
         is_active: document.getElementById('webAdIsActive').value === 'true',
-        updated_at: new Date().toISOString(),
     };
     if (id) payload.id = id;
-    else payload.created_at = new Date().toISOString();
 
     try {
-        await supabaseUpsert('web_ads', payload);
+        await apiCall('/web-content/ads', { method: 'POST', body: JSON.stringify(payload) });
         closeWebAdModal();
         showToast('✅ 광고 배너가 저장되었습니다.');
         await loadWebContent();
@@ -3416,7 +3377,7 @@ async function saveWebAd() {
 
 async function deleteWebAd(id) {
     if (!confirm('이 광고 배너를 삭제하시겠습니까?')) return;
-    await supabaseDelete('web_ads', id);
+    await apiCall(`/web-content/ads/${id}`, { method: 'DELETE' });
     showToast('🗑️ 삭제되었습니다.');
     await loadWebContent();
 }

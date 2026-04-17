@@ -147,18 +147,6 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       return { statusCode: 200, body: JSON.stringify({ role: 'developer', permissions: { canManageUsers: true, canManageAds: true } }), headers: { 'Content-Type': 'application/json' } };
     }
 
-    // Supabase config (for web content manager - anon key only, no service role)
-    if (event.httpMethod === 'GET' && path === '/config') {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          supabaseUrl: SUPABASE_URL,
-          supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
-          supabaseServiceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-      };
-    }
 
     // Users list (from Supabase)
     if (event.httpMethod === 'GET' && path === '/users') {
@@ -952,6 +940,69 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
         statusCode: 200,
         body: JSON.stringify({ success: true, message: '평점이 저장되었습니다' }),
         headers: { 'Content-Type': 'application/json' }
+      }
+    }
+
+    // ── 웹 콘텐츠 관리 (web_settings / web_ads) ─────────────────────
+    if (path.startsWith('/web-content')) {
+      const sub = path.replace(/^\/web-content/, '')
+
+      // GET /web-content/settings
+      if (event.httpMethod === 'GET' && sub === '/settings') {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/web_settings?select=key,value`, { headers: sbHeaders })
+        const json = await res.json()
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // POST /web-content/settings (bulk upsert)
+      if (event.httpMethod === 'POST' && sub === '/settings') {
+        const { settings } = JSON.parse(event.body || '{}')
+        if (!Array.isArray(settings)) return { statusCode: 400, body: JSON.stringify({ error: 'settings array required' }), headers: { 'Content-Type': 'application/json' } }
+        const rows = settings.map((s: { key: string; value: string }) => ({ ...s, updated_at: new Date().toISOString() }))
+        await fetch(`${SUPABASE_URL}/rest/v1/web_settings`, {
+          method: 'POST',
+          headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(rows),
+        })
+        return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // GET /web-content/ads  (모든 광고, 비활성 포함)
+      if (event.httpMethod === 'GET' && (sub === '/ads' || sub === '/ads/')) {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/web_ads?select=*&order=sort_order.asc,created_at.desc`, { headers: sbHeaders })
+        const json = await res.json()
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // GET /web-content/ads/:id
+      if (event.httpMethod === 'GET' && sub.match(/^\/ads\/[^/]+$/)) {
+        const id = sub.split('/').pop()
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/web_ads?id=eq.${id}&select=*&limit=1`, { headers: sbHeaders })
+        const json = await res.json()
+        const ad = Array.isArray(json) ? json[0] : null
+        if (!ad) return { statusCode: 404, body: JSON.stringify({ error: 'Not found' }), headers: { 'Content-Type': 'application/json' } }
+        return { statusCode: 200, body: JSON.stringify({ ad }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // POST /web-content/ads (create or update)
+      if (event.httpMethod === 'POST' && (sub === '/ads' || sub === '/ads/')) {
+        const payload = JSON.parse(event.body || '{}')
+        payload.updated_at = new Date().toISOString()
+        if (!payload.id) payload.created_at = payload.updated_at
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/web_ads`, {
+          method: 'POST',
+          headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' },
+          body: JSON.stringify(payload),
+        })
+        const json = await res.json()
+        return { statusCode: 200, body: JSON.stringify(json), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // DELETE /web-content/ads/:id
+      if (event.httpMethod === 'DELETE' && sub.match(/^\/ads\/[^/]+$/)) {
+        const id = sub.split('/').pop()
+        await fetch(`${SUPABASE_URL}/rest/v1/web_ads?id=eq.${id}`, { method: 'DELETE', headers: sbHeaders })
+        return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } }
       }
     }
 
