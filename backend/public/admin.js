@@ -28,6 +28,12 @@ let currentEditingAd = null;
 let allAnnouncements = [];
 let currentEditingAnnouncement = null;
 
+// 웹 견적 관리 (파일 최상단에 선언해야 TDZ 오류 방지)
+let allWebOrders = [];
+let currentWebOrderId = null;
+let selectedRating = 0;
+let bizSearchTimer = null;
+
 // 로그인 체크
 function checkLogin() {
     const password = localStorage.getItem('admin_password');
@@ -2887,11 +2893,6 @@ async function deleteAnnouncement(id) {
 // ============================================================
 // ===== 웹 견적 관리 (Web Orders) =====
 // ============================================================
-
-let allWebOrders = [];
-let currentWebOrderId = null;
-let selectedRating = 0;
-let bizSearchTimer = null;
 
 async function loadWebOrders() {
     const container = document.getElementById('webOrderTableContainer');
