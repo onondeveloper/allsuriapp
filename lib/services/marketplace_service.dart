@@ -209,21 +209,27 @@ class MarketplaceService extends ChangeNotifier {
     }
   }
 
-  Future<bool> claimListing(String listingId, {required String businessId}) async {
+  Future<bool> claimListing(
+    String listingId, {
+    required String businessId,
+    double? bidAmount,
+    int? estimatedDays,
+    String? message,
+  }) async {
     try {
       debugPrint('🔍 [MarketplaceService.claimListing] 시작: $listingId');
-      debugPrint('   사용자 ID: $businessId');
+      debugPrint('   사용자 ID: $businessId, 금액: $bidAmount, 기일: $estimatedDays');
       
-      // Backend API를 통해 claim (Supabase 세션 없이도 작동)
       final api = ApiService();
       
-      // 입찰 시스템 사용: 즉시 가져가기가 아닌 입찰 후 승인 프로세스
-      final response = await api.post('/market/listings/$listingId/bid', {
+      final payload = <String, dynamic>{
         'businessId': businessId,
-        'message': '이 오더를 맡고 싶습니다.',
-      });
-      
-      debugPrint('   응답: ${response}');
+        'message': message?.isNotEmpty == true ? message : '이 오더를 맡고 싶습니다.',
+      };
+      if (bidAmount != null && bidAmount > 0) payload['bid_amount'] = bidAmount;
+      if (estimatedDays != null && estimatedDays > 0) payload['estimated_days'] = estimatedDays;
+
+      final response = await api.post('/market/listings/$listingId/bid', payload);
       
       if (response['success'] == true) {
         debugPrint('✅ [MarketplaceService.claimListing] 성공');

@@ -43,10 +43,11 @@ CREATE INDEX IF NOT EXISTS idx_marketplace_listings_web_order
   ON public.marketplace_listings(web_order_id);
 
 -- ────────────────────────────────────────────────────
--- 4. order_bids – 입찰 금액 컬럼
+-- 4. order_bids – 입찰 금액 / 공사 기일 컬럼
 -- ────────────────────────────────────────────────────
 ALTER TABLE public.order_bids
-  ADD COLUMN IF NOT EXISTS bid_amount NUMERIC;
+  ADD COLUMN IF NOT EXISTS bid_amount    NUMERIC,
+  ADD COLUMN IF NOT EXISTS estimated_days INTEGER;
 
 -- ────────────────────────────────────────────────────
 -- 5. jobs 테이블 – 웹 오더 연결

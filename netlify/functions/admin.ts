@@ -147,6 +147,19 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       return { statusCode: 200, body: JSON.stringify({ role: 'developer', permissions: { canManageUsers: true, canManageAds: true } }), headers: { 'Content-Type': 'application/json' } };
     }
 
+    // Supabase config (for web content manager - anon key only, no service role)
+    if (event.httpMethod === 'GET' && path === '/config') {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          supabaseUrl: SUPABASE_URL,
+          supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+          supabaseServiceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      };
+    }
+
     // Users list (from Supabase)
     if (event.httpMethod === 'GET' && path === '/users') {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/users?select=*`, {

@@ -177,7 +177,7 @@ async function handleClaimListing(event: any, path: string) {
 async function handleBidListing(event: any, path: string) {
   const id = path.split('/')[2]
   const body = JSON.parse(event.body || '{}')
-  const { businessId, message } = body
+  const { businessId, message, bid_amount, estimated_days } = body
 
   if (!businessId) {
     return { statusCode: 400, body: JSON.stringify({ message: 'businessId는 필수입니다' }), headers: { 'Content-Type': 'application/json' } };
@@ -213,6 +213,8 @@ async function handleBidListing(event: any, path: string) {
         listing_id: id,
         bidder_id: businessId,
         message: message || null,
+        bid_amount: bid_amount ?? null,
+        estimated_days: estimated_days ?? null,
         status: 'pending',
         created_at: now,
         updated_at: now,

@@ -3232,6 +3232,203 @@ async function loadAll() {
     }
 }
 
+// ══════════════════════════════════════════════════════════════
+// 웹 콘텐츠 관리 (Web Content Management)
+// ══════════════════════════════════════════════════════════════
+
+const SUPABASE_URL = window.__ENV_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = window.__ENV_SUPABASE_ANON_KEY || '';
+
+async function supabaseGet(table, params = '') {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+        headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+    });
+    return res.ok ? res.json() : [];
+}
+
+async function supabaseUpsert(table, body) {
+    const serviceKey = window.__ENV_SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+        method: 'POST',
+        headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'resolution=merge-duplicates,return=representation',
+        },
+        body: JSON.stringify(body),
+    });
+    return res.ok ? res.json() : null;
+}
+
+async function supabaseDelete(table, id) {
+    const serviceKey = window.__ENV_SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+    });
+}
+
+// ── 웹 설정 로드 ──────────────────────────────────────────────
+async function loadWebContent() {
+    try {
+        const [settings, ads] = await Promise.all([
+            supabaseGet('web_settings', 'select=key,value'),
+            supabaseGet('web_ads', 'select=*&order=sort_order.asc'),
+        ]);
+
+        // 설정값 폼에 반영
+        if (Array.isArray(settings)) {
+            settings.forEach(s => {
+                const el = document.getElementById(`setting_${s.key}`);
+                if (!el) return;
+                if (el.tagName === 'SELECT') el.value = s.value;
+                else el.value = s.value || '';
+            });
+        }
+
+        // 광고 목록 렌더
+        renderWebAds(Array.isArray(ads) ? ads : []);
+    } catch (e) {
+        console.error('[loadWebContent]', e);
+    }
+}
+
+function renderWebAds(ads) {
+    const container = document.getElementById('webAdsContainer');
+    if (!container) return;
+    if (!ads.length) {
+        container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray-400);">등록된 광고 배너가 없습니다.</div>';
+        return;
+    }
+    const positionLabel = { home_top: '홈 상단', home_middle: '홈 중간', home_bottom: '홈 하단', sidebar: '사이드바' };
+    container.innerHTML = `
+        <table class="table">
+            <thead><tr><th>미리보기</th><th>제목</th><th>위치</th><th>상태</th><th>관리</th></tr></thead>
+            <tbody>
+                ${ads.map(a => `
+                    <tr>
+                        <td style="width:80px;">
+                            ${a.image_url ? `<img src="${a.image_url}" style="width:72px;height:40px;object-fit:cover;border-radius:4px;" onerror="this.style.display='none'"/>` : '-'}
+                        </td>
+                        <td>
+                            <div style="font-weight:600;">${a.title || '-'}</div>
+                            ${a.link_url ? `<div style="font-size:0.8rem;color:var(--gray-500);">${a.link_url.substring(0, 40)}...</div>` : ''}
+                        </td>
+                        <td><span style="background:#eff6ff;color:#1d4ed8;padding:0.2rem 0.6rem;border-radius:4px;font-size:0.8rem;">${positionLabel[a.position] || a.position}</span></td>
+                        <td><span style="background:${a.is_active ? '#dcfce7' : '#fee2e2'};color:${a.is_active ? '#166534' : '#991b1b'};padding:0.2rem 0.6rem;border-radius:4px;font-size:0.8rem;">${a.is_active ? '활성' : '비활성'}</span></td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm" onclick="editWebAd('${a.id}')">수정</button>
+                            <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5;" onclick="deleteWebAd('${a.id}')">삭제</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>`;
+}
+
+// ── 웹 설정 저장 ──────────────────────────────────────────────
+async function saveWebSettings() {
+    const keys = ['hero_title', 'hero_subtitle', 'contact_phone', 'notice_banner', 'notice_banner_active'];
+    const rows = keys.map(k => ({
+        key: k,
+        value: document.getElementById(`setting_${k}`)?.value || '',
+        updated_at: new Date().toISOString(),
+    }));
+    try {
+        await supabaseUpsert('web_settings', rows);
+        showToast('✅ 사이트 설정이 저장되었습니다.');
+    } catch (e) {
+        alert('저장 실패: ' + e.message);
+    }
+}
+
+// ── 웹 광고 모달 ──────────────────────────────────────────────
+let _editingWebAdId = null;
+
+function openWebAdModal(id = null) {
+    _editingWebAdId = id;
+    document.getElementById('webAdModalTitle').textContent = id ? '웹 광고 배너 수정' : '웹 광고 배너 추가';
+    if (!id) {
+        ['webAdId', 'webAdTitle', 'webAdImageUrl', 'webAdLinkUrl'].forEach(eid => {
+            const el = document.getElementById(eid);
+            if (el) el.value = '';
+        });
+        document.getElementById('webAdPosition').value = 'home_top';
+        document.getElementById('webAdIsActive').value = 'true';
+        document.getElementById('webAdImagePreview').innerHTML = '';
+    }
+    document.getElementById('webAdModal').classList.add('active');
+}
+
+async function editWebAd(id) {
+    const ads = await supabaseGet('web_ads', `id=eq.${id}&select=*`);
+    const a = Array.isArray(ads) ? ads[0] : null;
+    if (!a) return;
+    document.getElementById('webAdId').value = a.id;
+    document.getElementById('webAdTitle').value = a.title || '';
+    document.getElementById('webAdImageUrl').value = a.image_url || '';
+    document.getElementById('webAdLinkUrl').value = a.link_url || '';
+    document.getElementById('webAdPosition').value = a.position || 'home_top';
+    document.getElementById('webAdIsActive').value = String(a.is_active !== false);
+    previewWebAdImage();
+    openWebAdModal(id);
+}
+
+function closeWebAdModal() {
+    document.getElementById('webAdModal').classList.remove('active');
+}
+
+function previewWebAdImage() {
+    const url = document.getElementById('webAdImageUrl')?.value;
+    const prev = document.getElementById('webAdImagePreview');
+    if (!prev) return;
+    prev.innerHTML = url
+        ? `<img src="${url}" style="max-width:100%;max-height:120px;border-radius:8px;border:1px solid var(--gray-200);" onerror="this.style.display='none'"/>`
+        : '';
+}
+
+async function saveWebAd() {
+    const id = document.getElementById('webAdId')?.value;
+    const payload = {
+        title: document.getElementById('webAdTitle').value,
+        image_url: document.getElementById('webAdImageUrl').value,
+        link_url: document.getElementById('webAdLinkUrl').value,
+        position: document.getElementById('webAdPosition').value,
+        is_active: document.getElementById('webAdIsActive').value === 'true',
+        updated_at: new Date().toISOString(),
+    };
+    if (id) payload.id = id;
+    else payload.created_at = new Date().toISOString();
+
+    try {
+        await supabaseUpsert('web_ads', payload);
+        closeWebAdModal();
+        showToast('✅ 광고 배너가 저장되었습니다.');
+        await loadWebContent();
+    } catch (e) {
+        alert('저장 실패: ' + e.message);
+    }
+}
+
+async function deleteWebAd(id) {
+    if (!confirm('이 광고 배너를 삭제하시겠습니까?')) return;
+    await supabaseDelete('web_ads', id);
+    showToast('🗑️ 삭제되었습니다.');
+    await loadWebContent();
+}
+
+function showToast(msg) {
+    const div = document.createElement('div');
+    div.textContent = msg;
+    div.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e3a8a;color:#fff;padding:0.75rem 1.5rem;border-radius:12px;font-size:0.9rem;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2);';
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 3000);
+}
+
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Admin page initializing...');

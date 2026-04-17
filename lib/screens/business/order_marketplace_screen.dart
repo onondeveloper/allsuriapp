@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:allsuriapp/services/marketplace_service.dart';
 import 'package:allsuriapp/services/api_service.dart';
@@ -469,6 +470,29 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // 웹 고객 오더 배너
+                              if (postedBy == null || postedBy.isEmpty)
+                                Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.person_outline, color: Colors.white, size: 15),
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        '일반인이 직접 견적을 요청했어요! ',
+                                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               // Header row - Wrap으로 변경하여 오버플로 방지
                               Wrap(
                                 spacing: 8,
@@ -733,11 +757,9 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                       ),
                                     onPressed: () async {
                                       if (hasPendingBid) {
-                                        // 입찰 취소
                                         await _cancelBid(id);
                                       } else if (canBid) {
-                                        // 오더 잡기
-                                        await _claimListing(id);
+                                        await _showBidDialog(id, title);
                                       }
                                     },
                                     icon: Icon(
@@ -935,7 +957,119 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     }
   }
 
-  Future<void> _claimListing(String id) async {
+  // 입찰 다이얼로그: 견적가, 공사 기일, 메시지 입력 후 _claimListing 호출
+  Future<void> _showBidDialog(String id, String title) async {
+    if (_myActiveBidListingIds.contains(id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미 이 오더에 입찰하셨습니다'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    final amountCtrl = TextEditingController();
+    final daysCtrl = TextEditingController();
+    final msgCtrl = TextEditingController();
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          left: 20, right: 20, top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Text('입찰하기', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+            const SizedBox(height: 4),
+            Text(title, style: TextStyle(fontSize: 13, color: Colors.grey[600]), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 20),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: '견적가 (원)',
+                hintText: '예: 500000',
+                prefixIcon: const Icon(Icons.attach_money_rounded, color: Color(0xFF1E3A8A)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true, fillColor: Colors.grey[50],
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: daysCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: '예상 공사 기일 (일)',
+                hintText: '예: 3',
+                prefixIcon: const Icon(Icons.calendar_today_outlined, color: Color(0xFF1E3A8A)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true, fillColor: Colors.grey[50],
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: msgCtrl,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: '메시지 (선택)',
+                hintText: '공사에 대한 간략한 설명',
+                prefixIcon: const Icon(Icons.message_outlined, color: Color(0xFF1E3A8A)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true, fillColor: Colors.grey[50],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('취소'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3A8A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: const Text('입찰하기', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      final bidAmount = double.tryParse(amountCtrl.text.replaceAll(',', ''));
+      final estimatedDays = int.tryParse(daysCtrl.text);
+      final msg = msgCtrl.text.trim();
+      await _claimListing(id, bidAmount: bidAmount, estimatedDays: estimatedDays, message: msg);
+    }
+  }
+
+  Future<void> _claimListing(String id, {double? bidAmount, int? estimatedDays, String? message}) async {
     // 중복 실행 방지
     if (_isClaiming) {
       print('⚠️ [_claimListing] 이미 잡기 작업 진행 중, 무시');
@@ -987,7 +1121,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('입찰이 완료되었습니다! 오더를 만든 사업자의 승인을 기다리고 있어요~'),
+          content: Text('입찰이 완료되었습니다! 고객/오더 소유자의 낙찰을 기다리고 있어요~'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 3),
         ),
@@ -995,7 +1129,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       
       // 백그라운드에서 실제 API 호출
       print('   → marketplace_service에서 오더 잡기 요청 중...');
-      final ok = await _market.claimListing(id, businessId: currentUserId);
+      final ok = await _market.claimListing(id, businessId: currentUserId, bidAmount: bidAmount, estimatedDays: estimatedDays, message: message);
       
       if (!mounted) return;
       
@@ -1172,7 +1306,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.share_outlined, color: Color(0xFF1E3A8A)),
-                onPressed: () {},
+                onPressed: () {
+                  final shareText = '[$category] $title\n📍 지역: $region\n\n$description\n\n올수리 앱에서 입찰하세요!';
+                  Share.share(shareText, subject: title);
+                },
               ),
               if (isOwner)
                 IconButton(
@@ -1265,6 +1402,29 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // 웹 고객 오더 배너 (상세)
+                        if (postedBy.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)]),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.person_pin_outlined, color: Colors.white, size: 18),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    '일반인이 직접 견적을 요청했어요!\n선택되면 고객에게 연락처가 전달됩니다.',
+                                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, height: 1.4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         // 카테고리 & 지역 (프로페셔널 스타일)
                         Row(
                           children: [
@@ -1474,7 +1634,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                 if (hasPendingBid) {
                                   await _cancelBid(data['id'].toString());
                                 } else {
-                                  await _claimListing(data['id'].toString());
+                                  await _showBidDialog(data['id'].toString(), title);
                                 }
                               },
                             ),
