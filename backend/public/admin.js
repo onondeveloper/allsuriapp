@@ -2884,6 +2884,285 @@ async function deleteAnnouncement(id) {
     }
 }
 
+// ============================================================
+// ===== 웹 견적 관리 (Web Orders) =====
+// ============================================================
+
+let allWebOrders = [];
+let currentWebOrderId = null;
+let selectedRating = 0;
+let bizSearchTimer = null;
+
+async function loadWebOrders() {
+    const container = document.getElementById('webOrderTableContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="loading"><div class="spinner"></div>로딩 중...</div>';
+    try {
+        const status = document.getElementById('webOrderStatusFilter')?.value || '';
+        const params = status ? `?status=${encodeURIComponent(status)}` : '';
+        const data = await apiCall(`/web-orders${params}`);
+        allWebOrders = Array.isArray(data) ? data : [];
+        filterWebOrders();
+    } catch (e) {
+        container.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--danger);">불러오기 실패: ${e.message}</div>`;
+    }
+}
+
+function filterWebOrders() {
+    const container = document.getElementById('webOrderTableContainer');
+    if (!container) return;
+    const q = (document.getElementById('webOrderSearchInput')?.value || '').toLowerCase();
+    const status = document.getElementById('webOrderStatusFilter')?.value || '';
+    let filtered = allWebOrders;
+    if (status) filtered = filtered.filter(o => o.status === status);
+    if (q) filtered = filtered.filter(o =>
+        (o.title || '').toLowerCase().includes(q) ||
+        (o.customerName || o.customername || '').toLowerCase().includes(q) ||
+        (o.address || '').toLowerCase().includes(q)
+    );
+    renderWebOrderTable(filtered, container);
+}
+
+function renderWebOrderTable(orders, container) {
+    if (!orders.length) {
+        container.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--gray-500);">견적 요청이 없습니다.</div>';
+        return;
+    }
+    const statusBadge = (s) => {
+        const map = {
+            pending: ['대기중', 'warning'],
+            in_progress: ['매칭완료', 'info'],
+            completed: ['완료', 'success'],
+            cancelled: ['취소', 'danger'],
+        };
+        const [label, cls] = map[s] || [s, ''];
+        const colors = { warning: '#f59e0b', info: '#3b82f6', success: '#10b981', danger: '#ef4444', '': '#6b7280' };
+        const bgs = { warning: '#fffbeb', info: '#eff6ff', success: '#ecfdf5', danger: '#fef2f2', '': '#f9fafb' };
+        return `<span style="padding:0.25rem 0.75rem;border-radius:20px;font-size:0.75rem;font-weight:600;background:${bgs[cls]};color:${colors[cls]};">${label}</span>`;
+    };
+    const rows = orders.map(o => {
+        const name = o.customerName || o.customername || '-';
+        const phone = o.customerPhone || o.customerphone || '-';
+        const date = (o.createdAt || o.createdat || '').slice(0, 10);
+        const hasRating = o.adminRating;
+        return `<tr style="cursor:pointer;" onclick="openWebOrderModal('${o.id}')">
+            <td style="padding:0.875rem 1rem;">${statusBadge(o.status)}</td>
+            <td style="padding:0.875rem 1rem;font-weight:500;">${o.title || '-'}</td>
+            <td style="padding:0.875rem 1rem;">${o.category || '-'}</td>
+            <td style="padding:0.875rem 1rem;">${name}</td>
+            <td style="padding:0.875rem 1rem;">
+                <a href="tel:${phone}" onclick="event.stopPropagation()" style="color:var(--primary);text-decoration:none;font-weight:500;">${phone}</a>
+            </td>
+            <td style="padding:0.875rem 1rem;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${o.address || '-'}</td>
+            <td style="padding:0.875rem 1rem;color:var(--gray-500);font-size:0.875rem;">${date}</td>
+            <td style="padding:0.875rem 1rem;">
+                ${hasRating ? `<span style="color:#f59e0b;">★ ${o.adminRating}</span>` : (o.status === 'in_progress' ? '<span style="color:var(--primary);font-size:0.8rem;">평점 미입력</span>' : '')}
+            </td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="background:var(--gray-50);border-bottom:2px solid var(--gray-200);">
+                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);white-space:nowrap;">상태</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">제목</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">카테고리</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">고객명</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">전화번호</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">주소</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">접수일</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">평점</th>
+                    </tr>
+                </thead>
+                <tbody id="webOrderTbody">
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+        <div style="padding:0.75rem 1rem;color:var(--gray-500);font-size:0.875rem;border-top:1px solid var(--gray-100);">
+            총 ${orders.length}건
+        </div>`;
+}
+
+function openWebOrderModal(orderId) {
+    const order = allWebOrders.find(o => o.id === orderId);
+    if (!order) return;
+    currentWebOrderId = orderId;
+    selectedRating = 0;
+
+    document.getElementById('webOrderModalTitle').textContent = `웹 견적 #${orderId.slice(0, 8)}`;
+
+    // 견적 정보 렌더링
+    const name = order.customerName || order.customername || '-';
+    const phone = order.customerPhone || order.customerphone || '-';
+    const email = order.customerEmail || order.customeremail || '-';
+    const isMatched = order.status === 'in_progress' || order.status === 'completed';
+    const images = Array.isArray(order.images) && order.images.length
+        ? order.images.map(img => `<img src="${img}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;" onclick="window.open('${img}','_blank')">`).join('')
+        : '';
+
+    document.getElementById('webOrderDetail').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div style="background:var(--gray-50);border-radius:10px;padding:1.25rem;">
+                <div style="font-weight:600;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                    <span class="material-icons" style="color:var(--primary);font-size:1.2rem;">person</span>
+                    고객 정보
+                </div>
+                <table style="width:100%;font-size:0.875rem;border-collapse:collapse;">
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);width:80px;">이름</td><td style="padding:0.3rem 0;font-weight:500;">${name}</td></tr>
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);">전화</td><td style="padding:0.3rem 0;"><a href="tel:${phone}" style="color:var(--primary);font-weight:600;">${phone}</a></td></tr>
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);">이메일</td><td style="padding:0.3rem 0;">${email}</td></tr>
+                </table>
+            </div>
+            <div style="background:var(--gray-50);border-radius:10px;padding:1.25rem;">
+                <div style="font-weight:600;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                    <span class="material-icons" style="color:var(--primary);font-size:1.2rem;">assignment</span>
+                    견적 정보
+                </div>
+                <table style="width:100%;font-size:0.875rem;border-collapse:collapse;">
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);width:70px;">제목</td><td style="padding:0.3rem 0;font-weight:500;">${order.title || '-'}</td></tr>
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);">카테고리</td><td style="padding:0.3rem 0;">${order.category || '-'}</td></tr>
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);">주소</td><td style="padding:0.3rem 0;">${order.address || '-'}</td></tr>
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);">방문일</td><td style="padding:0.3rem 0;">${(order.visitDate || order.visitdate || '').slice(0, 10)}</td></tr>
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);">상태</td><td style="padding:0.3rem 0;">${order.status}</td></tr>
+                </table>
+            </div>
+        </div>
+        ${order.description ? `<div style="margin-top:1rem;padding:1rem;background:var(--gray-50);border-radius:8px;font-size:0.875rem;"><b>요청 내용:</b><br>${order.description}</div>` : ''}
+        ${images ? `<div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;">${images}</div>` : ''}
+        ${order.adminNotes ? `<div style="margin-top:0.75rem;padding:0.75rem;background:#fffbeb;border-radius:8px;font-size:0.875rem;color:#92400e;"><b>관리자 메모:</b> ${order.adminNotes}</div>` : ''}
+        ${isMatched ? `<div style="margin-top:0.75rem;padding:0.75rem;background:var(--success-light);border-radius:8px;font-size:0.875rem;color:#166534;"><b>✅ 매칭 완료</b> - 사업자가 앱 '내 공사 관리'에서 확인 가능합니다.</div>` : ''}
+        ${order.adminRating ? `<div style="margin-top:0.75rem;padding:0.75rem;background:#fffbeb;border-radius:8px;font-size:0.875rem;"><b>평점:</b> ${'★'.repeat(order.adminRating)}${'☆'.repeat(5 - order.adminRating)} (${order.adminRating}/5) ${order.adminRatingComment ? `<br><span style="color:var(--gray-600);">${order.adminRatingComment}</span>` : ''}</div>` : ''}
+    `;
+
+    // 매칭 섹션 표시/숨김
+    const matchSection = document.getElementById('webOrderMatchSection');
+    const ratingSection = document.getElementById('webOrderRatingSection');
+    if (isMatched) {
+        matchSection.style.display = 'none';
+        ratingSection.style.display = 'block';
+    } else {
+        matchSection.style.display = 'block';
+        ratingSection.style.display = 'none';
+    }
+
+    // 기본값 세팅
+    document.getElementById('matchAmount').value = order.estimatedPrice || '';
+    document.getElementById('matchNotes').value = '';
+    document.getElementById('bizSearchInput').value = '';
+    document.getElementById('bizCategoryFilter').value = order.category || '';
+    document.getElementById('bizSearchResults').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--gray-500);font-size:0.875rem;">사업자를 검색하세요</div>';
+    document.getElementById('ratingComment').value = '';
+    setRating(0);
+
+    document.getElementById('webOrderModal').classList.add('active');
+}
+
+function closeWebOrderModal() {
+    document.getElementById('webOrderModal').classList.remove('active');
+    currentWebOrderId = null;
+}
+
+function debounceSearchBiz() {
+    clearTimeout(bizSearchTimer);
+    bizSearchTimer = setTimeout(searchBusinessesForMatch, 500);
+}
+
+async function searchBusinessesForMatch() {
+    const q = document.getElementById('bizSearchInput')?.value || '';
+    const category = document.getElementById('bizCategoryFilter')?.value || '';
+    const resultsDiv = document.getElementById('bizSearchResults');
+    resultsDiv.innerHTML = '<div style="padding:1.5rem;text-align:center;color:var(--gray-500);">검색 중...</div>';
+    try {
+        const params = new URLSearchParams();
+        if (q) params.append('q', q);
+        if (category) params.append('category', category);
+        const businesses = await apiCall(`/web-orders/businesses?${params.toString()}`);
+        renderBizSearchResults(Array.isArray(businesses) ? businesses : []);
+    } catch (e) {
+        resultsDiv.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--danger);">오류: ${e.message}</div>`;
+    }
+}
+
+function renderBizSearchResults(businesses) {
+    const resultsDiv = document.getElementById('bizSearchResults');
+    if (!businesses.length) {
+        resultsDiv.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--gray-500);">검색 결과가 없습니다.</div>';
+        return;
+    }
+    resultsDiv.innerHTML = businesses.map(b => {
+        const dispName = b.businessname || b.name || '-';
+        const phone = b.phonenumber || '-';
+        const region = b.region || '-';
+        const cat = b.category || '-';
+        const awarded = b.projects_awarded_count || 0;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.875rem 1rem;border-bottom:1px solid var(--gray-100);transition:background 0.15s;"
+                     onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+            <div>
+                <div style="font-weight:600;font-size:0.9rem;">${dispName}</div>
+                <div style="font-size:0.8rem;color:var(--gray-500);margin-top:0.25rem;">
+                    📞 ${phone} &nbsp;|&nbsp; 📍 ${region} &nbsp;|&nbsp; 🔧 ${cat} &nbsp;|&nbsp; 🏆 낙찰 ${awarded}건
+                </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="confirmMatch('${b.id}','${(dispName).replace(/'/g, "\\'")}')">
+                <span class="material-icons" style="font-size:0.9rem;">handshake</span>매칭
+            </button>
+        </div>`;
+    }).join('');
+}
+
+function confirmMatch(businessId, businessName) {
+    const amount = document.getElementById('matchAmount')?.value || '';
+    const notes = document.getElementById('matchNotes')?.value || '';
+    if (!confirm(`[${businessName}] 에게 이 견적을 매칭하시겠습니까?\n\n매칭 후 해당 사업자의 앱 '내 공사 관리'에 표시됩니다.`)) return;
+    matchWebOrder(currentWebOrderId, businessId, businessName, amount, notes);
+}
+
+async function matchWebOrder(orderId, businessId, businessName, amount, notes) {
+    try {
+        const result = await apiCall(`/web-orders/${orderId}/match`, {
+            method: 'POST',
+            body: JSON.stringify({ businessId, businessName, amount: parseFloat(amount) || 0, notes }),
+        });
+        alert(`✅ ${result.message || '매칭 완료'}\n사업자 앱 '내 공사 관리'에서 확인 가능합니다.`);
+        closeWebOrderModal();
+        await loadWebOrders();
+    } catch (e) {
+        alert(`❌ 매칭 실패: ${e.message}`);
+    }
+}
+
+function setRating(val) {
+    selectedRating = val;
+    const stars = document.querySelectorAll('#ratingStars .star-btn');
+    const labels = ['', '매우 불만족', '불만족', '보통', '만족', '매우 만족'];
+    stars.forEach((s, i) => {
+        s.style.color = i < val ? '#f59e0b' : 'var(--gray-300)';
+    });
+    const label = document.getElementById('ratingLabel');
+    if (label) label.textContent = val ? labels[val] : '';
+}
+
+async function submitWebOrderRating() {
+    if (!selectedRating) { alert('평점을 선택해 주세요.'); return; }
+    if (!currentWebOrderId) return;
+    const comment = document.getElementById('ratingComment')?.value || '';
+    if (!confirm(`평점 ${selectedRating}점을 저장하시겠습니까?`)) return;
+    try {
+        const result = await apiCall(`/web-orders/${currentWebOrderId}/rate`, {
+            method: 'POST',
+            body: JSON.stringify({ rating: selectedRating, comment }),
+        });
+        alert(`✅ ${result.message || '평점이 저장되었습니다.'}`);
+        closeWebOrderModal();
+        await loadWebOrders();
+    } catch (e) {
+        alert(`❌ 평점 저장 실패: ${e.message}`);
+    }
+}
+
 // ===== 초기화 및 전체 로드 =====
 async function loadAll() {
     try {

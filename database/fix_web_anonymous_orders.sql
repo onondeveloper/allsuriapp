@@ -1,60 +1,64 @@
 -- ==========================================
--- 웹 비로그인 견적 요청 활성화
--- allsuri-web (/requests 페이지) 에서 로그인 없이 주문 생성 가능하도록 설정
+-- 웹 비로그인 견적 요청 + 사업자 목록 활성화
+-- allsuri-web 에서 로그인 없이 이용 가능하도록 설정
 --
 -- Supabase Dashboard → SQL Editor 에서 실행하세요.
 -- ==========================================
 
 -- ==========================================
--- 1. orders 테이블: anon INSERT 허용
---    (isAnonymous = true 인 경우만)
+-- 1. users 테이블: anon이 사업자 목록 조회 가능하도록
+--    (role='business', businessstatus='approved' 인 행만 노출)
+-- ==========================================
+DROP POLICY IF EXISTS "anon_read_business_users" ON public.users;
+
+CREATE POLICY "anon_read_business_users" ON public.users
+FOR SELECT
+TO anon
+USING (
+  role = 'business'
+  AND businessstatus = 'approved'
+);
+
+-- ==========================================
+-- 2. business_reviews 테이블: anon SELECT 허용 (평점 표시용)
+-- ==========================================
+DROP POLICY IF EXISTS "anon_read_business_reviews" ON public.business_reviews;
+
+CREATE POLICY "anon_read_business_reviews" ON public.business_reviews
+FOR SELECT
+TO anon
+USING (true);
+
+-- ==========================================
+-- 3. orders 테이블: anon INSERT 허용
+--    (isAnonymous = true 인 웹 견적 요청)
 -- ==========================================
 DROP POLICY IF EXISTS "anon_web_orders_insert" ON public.orders;
-DROP POLICY IF EXISTS "Allow anon insert orders"  ON public.orders;
 
 CREATE POLICY "anon_web_orders_insert" ON public.orders
 FOR INSERT
 TO anon
 WITH CHECK ("isAnonymous" = true);
 
--- ==========================================
--- 2. orders 테이블: authenticated INSERT 도 유지 (앱 사용자)
--- ==========================================
--- 기존 authenticated 정책이 없으면 생성
+-- authenticated INSERT 정책 (없으면 생성)
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE tablename = 'orders'
-      AND cmd = 'INSERT'
+    WHERE tablename = 'orders' AND cmd = 'INSERT'
       AND roles::text LIKE '%authenticated%'
   ) THEN
     EXECUTE $pol$
       CREATE POLICY "authenticated_orders_insert" ON public.orders
-      FOR INSERT
-      TO authenticated
-      WITH CHECK (true);
+      FOR INSERT TO authenticated WITH CHECK (true);
     $pol$;
     RAISE NOTICE 'authenticated_orders_insert 정책 생성됨';
-  ELSE
-    RAISE NOTICE 'authenticated INSERT 정책이 이미 있습니다';
   END IF;
 END $$;
 
 -- ==========================================
--- 3. orders 테이블: anon SELECT (본인 것만, isAnonymous = true 허용)
---    앱에서 조회하는 authenticated SELECT 정책도 확인
--- ==========================================
-DROP POLICY IF EXISTS "anon_web_orders_select" ON public.orders;
-
-CREATE POLICY "anon_web_orders_select" ON public.orders
-FOR SELECT
-TO anon
-USING ("isAnonymous" = true);
-
--- ==========================================
 -- 4. attachments_estimates 스토리지: anon 업로드 허용
---    (웹 폼에서 사진 첨부 기능)
+--    (웹 폼 사진 첨부)
 -- ==========================================
 DROP POLICY IF EXISTS "Allow anon uploads to attachments_estimates" ON storage.objects;
 
@@ -67,28 +71,20 @@ WITH CHECK (bucket_id = 'attachments_estimates');
 -- ==========================================
 -- 5. 결과 확인
 -- ==========================================
-SELECT '=== orders 테이블 RLS 정책 ===' AS info;
-SELECT
-  policyname,
-  cmd,
-  roles,
-  qual,
-  with_check
-FROM pg_policies
-WHERE tablename = 'orders'
-ORDER BY cmd, roles::text;
+SELECT '=== users 테이블 anon 정책 ===' AS info;
+SELECT policyname, cmd, roles
+FROM pg_policies WHERE tablename = 'users' AND roles::text LIKE '%anon%';
 
-SELECT '=== attachments_estimates 스토리지 정책 ===' AS info;
-SELECT
-  policyname,
-  cmd,
-  roles
-FROM pg_policies
-WHERE schemaname = 'storage'
-  AND tablename = 'objects'
-  AND (qual  LIKE '%attachments_estimates%'
-       OR with_check LIKE '%attachments_estimates%')
-ORDER BY cmd;
+SELECT '=== business_reviews anon 정책 ===' AS info;
+SELECT policyname, cmd, roles
+FROM pg_policies WHERE tablename = 'business_reviews' AND roles::text LIKE '%anon%';
 
-SELECT '✅ 웹 비로그인 견적 요청 RLS 설정 완료!' AS status;
-SELECT '👉 이제 allsuri-web /requests 페이지에서 로그인 없이 견적 요청이 가능합니다.' AS note;
+SELECT '=== orders anon 정책 ===' AS info;
+SELECT policyname, cmd, roles
+FROM pg_policies WHERE tablename = 'orders' AND roles::text LIKE '%anon%';
+
+SELECT '=== 등록된 사업자 수 ===' AS info;
+SELECT COUNT(*) AS approved_businesses
+FROM users WHERE role = 'business' AND businessstatus = 'approved';
+
+SELECT '✅ 웹 서비스 RLS 설정 완료!' AS status;

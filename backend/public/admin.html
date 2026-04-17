@@ -782,6 +782,10 @@
                     <span class="material-icons">campaign</span>
                     <span>광고 관리</span>
                 </div>
+                <div class="menu-item" onclick="showSection('web-orders')" style="border-top: 1px solid var(--gray-200); margin-top: 0.5rem; padding-top: 0.5rem;">
+                    <span class="material-icons">assignment_ind</span>
+                    <span>웹 견적 관리</span>
+                </div>
             </nav>
         </aside>
 
@@ -1136,8 +1140,136 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Web Orders Section -->
+                <div id="section-web-orders" class="hidden">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">assignment_ind</span>
+                                웹 견적 요청 관리
+                            </h2>
+                            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                                <select id="webOrderStatusFilter" onchange="filterWebOrders()" style="padding:0.5rem 0.75rem;border:1px solid var(--gray-300);border-radius:8px;font-size:0.875rem;">
+                                    <option value="">전체 상태</option>
+                                    <option value="pending">대기중</option>
+                                    <option value="in_progress">진행중(매칭완료)</option>
+                                    <option value="completed">완료</option>
+                                </select>
+                                <div style="position:relative;">
+                                    <input type="text" id="webOrderSearchInput" placeholder="고객명, 제목, 주소 검색..."
+                                        style="padding:0.5rem 2.5rem 0.5rem 0.75rem;border:1px solid var(--gray-300);border-radius:8px;min-width:220px;"
+                                        oninput="filterWebOrders()"/>
+                                    <span class="material-icons" style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);color:var(--gray-500);pointer-events:none;">search</span>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="loadWebOrders()">
+                                    <span class="material-icons">refresh</span>새로고침
+                                </button>
+                            </div>
+                        </div>
+                        <div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:8px;font-size:0.875rem;color:#92400e;">
+                            📞 웹에서 접수된 익명 견적 요청입니다. 고객 전화번호가 포함되어 있으니 직접 연락 후 사업자와 매칭해 주세요.
+                        </div>
+                        <div id="webOrderTableContainer">
+                            <div class="loading"><div class="spinner"></div>로딩 중...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
+    </div>
+
+    <!-- Web Order Detail & Matching Modal -->
+    <div id="webOrderModal" class="modal">
+        <div class="modal-content" style="max-width:900px;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="webOrderModalTitle">웹 견적 상세 / 사업자 매칭</h3>
+                <button class="modal-close" onclick="closeWebOrderModal()">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- 견적 정보 -->
+                <div id="webOrderDetail" style="margin-bottom:1.5rem;"></div>
+
+                <!-- 매칭 영역 (이미 매칭된 경우 숨김) -->
+                <div id="webOrderMatchSection">
+                    <div style="border-top:2px solid var(--gray-200);padding-top:1.5rem;">
+                        <h4 style="font-size:1rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
+                            <span class="material-icons" style="color:var(--primary);">search</span>
+                            사업자 검색 및 매칭
+                        </h4>
+                        <div style="display:flex;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+                            <input type="text" id="bizSearchInput" placeholder="상호명, 이름, 전화번호..."
+                                style="flex:1;min-width:180px;padding:0.625rem 0.875rem;border:1px solid var(--gray-300);border-radius:8px;"
+                                oninput="debounceSearchBiz()"/>
+                            <select id="bizCategoryFilter" style="padding:0.625rem 0.875rem;border:1px solid var(--gray-300);border-radius:8px;">
+                                <option value="">전체 카테고리</option>
+                                <option value="누수">누수</option>
+                                <option value="배관">배관</option>
+                                <option value="화장실">화장실</option>
+                                <option value="난방">난방</option>
+                                <option value="주방">주방</option>
+                                <option value="리모델링">리모델링</option>
+                                <option value="기타">기타</option>
+                            </select>
+                            <button class="btn btn-primary btn-sm" onclick="searchBusinessesForMatch()">
+                                <span class="material-icons" style="font-size:1rem;">search</span>검색
+                            </button>
+                        </div>
+                        <div style="margin-bottom:1rem;">
+                            <label style="font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;display:block;">공사 금액 (원)</label>
+                            <input type="number" id="matchAmount" placeholder="예: 500000"
+                                style="width:200px;padding:0.625rem 0.875rem;border:1px solid var(--gray-300);border-radius:8px;"/>
+                        </div>
+                        <div style="margin-bottom:1rem;">
+                            <label style="font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;display:block;">관리자 메모 (선택)</label>
+                            <textarea id="matchNotes" rows="2" placeholder="내부 메모..."
+                                style="width:100%;padding:0.625rem 0.875rem;border:1px solid var(--gray-300);border-radius:8px;resize:vertical;"></textarea>
+                        </div>
+                        <div id="bizSearchResults" style="border:1px solid var(--gray-200);border-radius:8px;overflow:hidden;max-height:300px;overflow-y:auto;">
+                            <div style="padding:2rem;text-align:center;color:var(--gray-500);font-size:0.875rem;">
+                                사업자를 검색하세요
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 이미 매칭된 경우: 평점 입력 영역 -->
+                <div id="webOrderRatingSection" style="display:none;border-top:2px solid var(--gray-200);padding-top:1.5rem;">
+                    <h4 style="font-size:1rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
+                        <span class="material-icons" style="color:#f59e0b;">star</span>
+                        고객 평점 입력
+                    </h4>
+                    <p style="font-size:0.875rem;color:var(--gray-600);margin-bottom:1rem;">
+                        고객에게 직접 연락하여 사업자에 대한 평점을 확인 후 입력해 주세요.
+                    </p>
+                    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+                        <label style="font-weight:500;font-size:0.875rem;">평점:</label>
+                        <div id="ratingStars" style="display:flex;gap:0.25rem;">
+                            <span class="star-btn" data-val="1" onclick="setRating(1)" style="font-size:2rem;cursor:pointer;color:var(--gray-300);">★</span>
+                            <span class="star-btn" data-val="2" onclick="setRating(2)" style="font-size:2rem;cursor:pointer;color:var(--gray-300);">★</span>
+                            <span class="star-btn" data-val="3" onclick="setRating(3)" style="font-size:2rem;cursor:pointer;color:var(--gray-300);">★</span>
+                            <span class="star-btn" data-val="4" onclick="setRating(4)" style="font-size:2rem;cursor:pointer;color:var(--gray-300);">★</span>
+                            <span class="star-btn" data-val="5" onclick="setRating(5)" style="font-size:2rem;cursor:pointer;color:var(--gray-300);">★</span>
+                        </div>
+                        <span id="ratingLabel" style="font-size:0.875rem;color:var(--gray-600);"></span>
+                    </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;display:block;">코멘트 (선택)</label>
+                        <textarea id="ratingComment" rows="3" placeholder="고객 피드백 내용..."
+                            style="width:100%;padding:0.625rem 0.875rem;border:1px solid var(--gray-300);border-radius:8px;resize:vertical;"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="submitWebOrderRating()">
+                        <span class="material-icons" style="font-size:1rem;">star</span>
+                        평점 저장
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeWebOrderModal()">닫기</button>
+            </div>
+        </div>
     </div>
 
     <!-- User Detail Modal -->
@@ -1430,7 +1562,7 @@
         </div>
     </div>
 
-    <script src="admin.js?v=6&t=20260303001"></script>
+    <script src="admin.js?v=7&t=20260417001"></script>
     <script>
         // Kakao SDK 초기화
         if (window.Kakao && !Kakao.isInitialized()) {
@@ -1463,7 +1595,7 @@
             if (window.innerWidth <= 768) closeSidebar();
 
             // Hide all sections
-            ['dashboard', 'users', 'estimates', 'calls', 'posts', 'chats', 'announcements', 'ads'].forEach(name => {
+            ['dashboard', 'users', 'estimates', 'calls', 'posts', 'chats', 'announcements', 'ads', 'web-orders'].forEach(name => {
                 const el = document.getElementById(`section-${name}`);
                 if (el) el.classList.add('hidden');
             });
@@ -1481,7 +1613,8 @@
                 posts: '게시물 관리',
                 chats: '채팅 현황',
                 announcements: '공지 배너',
-                ads: '광고 관리'
+                ads: '광고 관리',
+                'web-orders': '웹 견적 관리'
             };
             document.getElementById('page-title').textContent = titles[sectionName] || sectionName;
 
@@ -1510,6 +1643,9 @@
                     break;
                 case 'ads':
                     loadAds();
+                    break;
+                case 'web-orders':
+                    if (typeof loadWebOrders === 'function') loadWebOrders();
                     break;
             }
             

@@ -713,6 +713,206 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       }
     }
 
+    // ─── 웹 견적 요청 관리 ─────────────────────────────────────────────
+
+    // GET /web-orders - 웹에서 접수된 익명 견적 목록
+    if (event.httpMethod === 'GET' && path === '/web-orders') {
+      const qp = event.queryStringParameters || {}
+      const status = qp.status || ''
+      // orders 전체 조회 후 JS에서 isAnonymous 필터 (camelCase 컬럼명 호환성)
+      let url = `${SUPABASE_URL}/rest/v1/orders?select=*&order=createdAt.desc&limit=500`
+      const res = await fetch(url, { headers: sbHeaders })
+      const all = await res.json()
+      if (!Array.isArray(all)) {
+        return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+      }
+      let orders = all.filter((o: any) => o.isAnonymous === true || o['isAnonymous'] === true)
+      if (status && status !== 'all') {
+        orders = orders.filter((o: any) => o.status === status)
+      }
+      return { statusCode: 200, body: JSON.stringify(orders), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // GET /web-orders/businesses - 매칭 가능한 승인된 사업자 목록
+    if (event.httpMethod === 'GET' && path === '/web-orders/businesses') {
+      const qp = event.queryStringParameters || {}
+      const q = (qp.q || '').trim()
+      const category = (qp.category || '').trim()
+      let url = `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,email,category,region,businessstatus,projects_awarded_count,estimates_created_count&role=eq.business&businessstatus=eq.approved&limit=200`
+      if (q) {
+        const like = encodeURIComponent(`%${q}%`)
+        url = `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,email,category,region,businessstatus,projects_awarded_count,estimates_created_count&role=eq.business&businessstatus=eq.approved&or=(businessname.ilike.${like},name.ilike.${like},phonenumber.ilike.${like})&limit=200`
+      }
+      const res = await fetch(url, { headers: sbHeaders })
+      let businesses = await res.json()
+      if (!Array.isArray(businesses)) businesses = []
+      if (category) {
+        businesses = businesses.filter((b: any) => (b.category || '').includes(category))
+      }
+      return { statusCode: 200, body: JSON.stringify(businesses), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // POST /web-orders/:id/match - 웹 견적을 사업자에게 매칭
+    if (event.httpMethod === 'POST' && /^\/web-orders\/[^/]+\/match$/.test(path)) {
+      const orderId = path.split('/')[2]
+      const body = JSON.parse(event.body || '{}')
+      const { businessId, businessName, amount, notes } = body
+
+      if (!orderId || !businessId) {
+        return { statusCode: 400, body: JSON.stringify({ message: '오더 ID와 사업자 ID가 필요합니다' }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // 1. orders 조회
+      const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=*&limit=1`, { headers: sbHeaders })
+      const orderArr = await orderRes.json()
+      const order = Array.isArray(orderArr) ? orderArr[0] : null
+      if (!order) {
+        return { statusCode: 404, body: JSON.stringify({ message: '견적 요청을 찾을 수 없습니다' }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // 2. jobs 테이블에 공사 생성
+      const now = new Date().toISOString()
+      const jobPayload: any = {
+        title: order.title || '웹 견적 요청',
+        description: `[웹 견적] ${order.description || ''}\n고객명: ${order.customerName || ''}\n연락처: ${order.customerPhone || ''}\n주소: ${order.address || ''}`,
+        owner_business_id: businessId,
+        assigned_business_id: businessId,
+        status: 'assigned',
+        location: order.address || '',
+        category: order.category || '',
+        urgency: 'normal',
+        budget_amount: amount || order.estimatedPrice || 0,
+        awarded_amount: amount || order.estimatedPrice || 0,
+        commission_rate: 5,
+        created_at: now,
+        updated_at: now,
+      }
+      if (notes) jobPayload.web_order_id = orderId  // web_order_id 컬럼이 있으면 설정
+
+      const jobRes = await fetch(`${SUPABASE_URL}/rest/v1/jobs`, {
+        method: 'POST',
+        headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify(jobPayload),
+      })
+      const jobText = await jobRes.text()
+      let jobData: any = null
+      try { jobData = JSON.parse(jobText); if (Array.isArray(jobData)) jobData = jobData[0] } catch {}
+
+      // web_order_id 컬럼이 없어 실패한 경우 컬럼 제외 후 재시도
+      if (!jobRes.ok && jobText.includes('web_order_id')) {
+        delete jobPayload.web_order_id
+        const retryRes = await fetch(`${SUPABASE_URL}/rest/v1/jobs`, {
+          method: 'POST',
+          headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+          body: JSON.stringify(jobPayload),
+        })
+        const retryText = await retryRes.text()
+        if (!retryRes.ok) {
+          console.error('[web-orders match] job 생성 실패:', retryText)
+          return { statusCode: 500, body: JSON.stringify({ message: 'job 생성 실패', error: retryText }), headers: { 'Content-Type': 'application/json' } }
+        }
+        try { jobData = JSON.parse(retryText); if (Array.isArray(jobData)) jobData = jobData[0] } catch {}
+      } else if (!jobRes.ok) {
+        console.error('[web-orders match] job 생성 실패:', jobText)
+        return { statusCode: 500, body: JSON.stringify({ message: 'job 생성 실패', error: jobText }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      const jobId = jobData?.id || null
+
+      // 3. orders 업데이트: 낙찰 처리
+      const orderUpdate: any = {
+        isAwarded: true,
+        awardedAt: now,
+        technicianId: businessId,
+        status: 'in_progress',
+      }
+      if (jobId) orderUpdate.matchedJobId = jobId
+      if (notes) orderUpdate.adminNotes = notes
+
+      await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH',
+        headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify(orderUpdate),
+      })
+
+      // 4. 사업자에게 알림
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+          method: 'POST',
+          headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({
+            userid: businessId,
+            title: '새 공사가 배정되었습니다',
+            body: `[${order.title || '웹 견적 요청'}] 관리자가 공사를 배정했습니다. 내 공사 관리에서 확인하세요.`,
+            type: 'web_order_matched',
+            jobid: jobId,
+            isread: false,
+            createdat: now,
+          }),
+        })
+      } catch (notifErr) {
+        console.warn('[web-orders match] 알림 전송 실패 (무시):', notifErr)
+      }
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ success: true, jobId, message: `${businessName || '사업자'}에게 매칭 완료` }),
+        headers: { 'Content-Type': 'application/json' }
+      }
+    }
+
+    // POST /web-orders/:id/rate - 평점 입력
+    if (event.httpMethod === 'POST' && /^\/web-orders\/[^/]+\/rate$/.test(path)) {
+      const orderId = path.split('/')[2]
+      const body = JSON.parse(event.body || '{}')
+      const { rating, comment } = body
+
+      if (!rating || rating < 1 || rating > 5) {
+        return { statusCode: 400, body: JSON.stringify({ message: '평점은 1~5 사이여야 합니다' }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // orders 에서 technicianId 조회
+      const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=technicianId,title&limit=1`, { headers: sbHeaders })
+      const orderArr = await orderRes.json()
+      const order = Array.isArray(orderArr) ? orderArr[0] : null
+
+      const now = new Date().toISOString()
+
+      // orders 에 평점 저장
+      await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH',
+        headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ adminRating: rating, adminRatingComment: comment || '', adminRatedAt: now, status: 'completed' }),
+      })
+
+      // business_reviews 에도 저장 시도
+      const businessId = order?.technicianId || order?.technicianid
+      if (businessId) {
+        try {
+          await fetch(`${SUPABASE_URL}/rest/v1/business_reviews`, {
+            method: 'POST',
+            headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+            body: JSON.stringify({
+              business_id: businessId,
+              order_id: orderId,
+              rating,
+              comment: comment || '',
+              is_admin_review: true,
+              created_at: now,
+            }),
+          })
+        } catch (reviewErr) {
+          console.warn('[web-orders rate] business_reviews 저장 실패 (무시):', reviewErr)
+        }
+      }
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ success: true, message: '평점이 저장되었습니다' }),
+        headers: { 'Content-Type': 'application/json' }
+      }
+    }
+
     return { statusCode: 404, body: JSON.stringify({ message: 'Not Found' }), headers: { 'Content-Type': 'application/json' } };
   } catch (e: any) {
     return { statusCode: 500, body: JSON.stringify({ message: 'Admin function error', error: String(e) }), headers: { 'Content-Type': 'application/json' } };
