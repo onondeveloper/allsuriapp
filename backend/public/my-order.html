@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>내 공사 현황 | 올수리</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #1976D2;
+      --primary-dark: #1557b0;
+      --primary-light: #E3F2FD;
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --warning: #f59e0b;
+      --warning-light: #fffbeb;
+      --danger: #ef4444;
+      --gray-50: #f8fafc;
+      --gray-100: #f1f5f9;
+      --gray-200: #e2e8f0;
+      --gray-500: #64748b;
+      --gray-600: #475569;
+      --gray-800: #1e293b;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.05);
+      --radius: 16px;
+    }
+    body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-800); min-height: 100vh; }
+
+    /* 헤더 */
+    header {
+      background: white; border-bottom: 1px solid var(--gray-200);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-inner {
+      max-width: 480px; margin: 0 auto; padding: 0 1rem;
+      display: flex; align-items: center; justify-content: space-between; height: 56px;
+    }
+    .logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.1rem; color: var(--primary); text-decoration: none; }
+    .logo svg { width: 28px; height: 28px; }
+    nav { display: flex; gap: 1.25rem; }
+    nav a { font-size: 0.875rem; color: var(--gray-600); text-decoration: none; font-weight: 500; }
+    nav a.active { color: var(--primary); font-weight: 700; }
+
+    /* 메인 */
+    main { max-width: 480px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+    /* 카드 */
+    .card {
+      background: white; border-radius: var(--radius);
+      box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
+    }
+    .card-header { padding: 1.25rem 1.25rem 0.75rem; border-bottom: 1px solid var(--gray-100); }
+    .card-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+    .card-body { padding: 1.25rem; }
+
+    /* 로그인 화면 */
+    #loginScreen { }
+    .hero { text-align: center; padding: 2.5rem 0 2rem; }
+    .hero h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .hero p { color: var(--gray-500); font-size: 0.9rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--gray-600); }
+    .form-input {
+      width: 100%; padding: 0.875rem 1rem; border: 1.5px solid var(--gray-200);
+      border-radius: 12px; font-size: 1rem; font-family: inherit; outline: none; transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--primary); }
+    .pin-input { letter-spacing: 0.5rem; font-size: 1.5rem; font-weight: 700; text-align: center; }
+    .btn-primary {
+      width: 100%; padding: 1rem; background: var(--primary); color: white; border: none;
+      border-radius: 14px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s;
+      font-family: inherit;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error-msg { color: var(--danger); font-size: 0.85rem; margin-top: 0.75rem; text-align: center; white-space: pre-line; }
+
+    /* 스테퍼 */
+    .stepper { display: flex; align-items: flex-start; padding: 1.25rem; gap: 0; overflow-x: auto; }
+    .step { display: flex; flex-direction: column; align-items: center; min-width: 64px; }
+    .step-dot {
+      width: 32px; height: 32px; border-radius: 50%; border: 2.5px solid var(--gray-200);
+      background: white; display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700; color: var(--gray-500); transition: all 0.3s; flex-shrink: 0;
+    }
+    .step-dot.done { background: var(--success); border-color: var(--success); color: white; }
+    .step-dot.active { background: var(--primary); border-color: var(--primary); color: white; }
+    .step-label { font-size: 0.7rem; color: var(--gray-500); margin-top: 0.4rem; text-align: center; white-space: nowrap; }
+    .step-label.done { color: var(--success); font-weight: 600; }
+    .step-label.active { color: var(--primary); font-weight: 700; }
+    .step-line { flex: 1; height: 2.5px; background: var(--gray-200); margin-top: 15px; min-width: 12px; }
+    .step-line.done { background: var(--success); }
+
+    /* 견적 카드 */
+    .estimate-card {
+      border: 1.5px solid var(--gray-200); border-radius: 12px; padding: 1rem;
+      margin-bottom: 0.75rem; cursor: pointer; transition: all 0.2s;
+    }
+    .estimate-card:hover { border-color: var(--primary); background: var(--primary-light); }
+    .estimate-card.awarded { border-color: var(--success); background: var(--success-light); }
+    .est-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+    .est-name { font-weight: 700; font-size: 0.95rem; }
+    .est-amount { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+    .est-meta { font-size: 0.8rem; color: var(--gray-500); margin-top: 0.25rem; }
+    .est-desc { font-size: 0.85rem; color: var(--gray-600); margin-top: 0.5rem; line-height: 1.5; }
+    .badge {
+      display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px;
+      font-size: 0.72rem; font-weight: 700;
+    }
+    .badge-primary { background: var(--primary-light); color: var(--primary); }
+    .badge-success { background: var(--success-light); color: var(--success); }
+    .badge-warning { background: var(--warning-light); color: var(--warning); }
+
+    /* 사업자 상세 모달 */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 200; align-items: flex-end; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-sheet {
+      background: white; width: 100%; max-width: 480px; border-radius: 24px 24px 0 0;
+      max-height: 88vh; overflow-y: auto; padding-bottom: env(safe-area-inset-bottom, 1rem);
+    }
+    .modal-handle { width: 40px; height: 4px; background: var(--gray-200); border-radius: 2px; margin: 0.875rem auto; }
+    .modal-inner { padding: 0 1.25rem 1.25rem; }
+    .modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; }
+
+    /* 별점 */
+    .stars { display: flex; gap: 0.2rem; }
+    .star { font-size: 1.25rem; cursor: pointer; transition: color 0.15s; color: var(--gray-200); }
+    .star.filled { color: #f59e0b; }
+    .star-sm { font-size: 1rem; color: #f59e0b; }
+
+    /* 버튼 */
+    .btn-outline {
+      padding: 0.75rem 1.5rem; border: 2px solid var(--primary); color: var(--primary);
+      background: white; border-radius: 12px; font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .btn-success {
+      padding: 0.875rem 1.5rem; background: var(--success); color: white;
+      border: none; border-radius: 12px; font-size: 0.95rem; font-weight: 700; cursor: pointer; font-family: inherit; width: 100%;
+    }
+    .btn-danger {
+      padding: 0.75rem 1.5rem; background: white; border: 2px solid var(--danger); color: var(--danger);
+      border-radius: 12px; font-size: 0.875rem; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .info-row { display: flex; justify-content: space-between; padding: 0.625rem 0; border-bottom: 1px solid var(--gray-100); font-size: 0.875rem; }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: var(--gray-500); }
+    .info-value { font-weight: 600; }
+    .review-item { padding: 0.875rem 0; border-bottom: 1px solid var(--gray-100); }
+    .review-item:last-child { border-bottom: none; }
+    .review-comment { font-size: 0.875rem; color: var(--gray-600); margin-top: 0.35rem; line-height: 1.5; }
+
+    /* 주문 선택 화면 */
+    .order-select-item {
+      padding: 1rem; border: 1.5px solid var(--gray-200); border-radius: 12px;
+      margin-bottom: 0.75rem; cursor: pointer; transition: all 0.2s;
+    }
+    .order-select-item:hover { border-color: var(--primary); background: var(--primary-light); }
+
+    /* 완료/평점 섹션 */
+    .section-title-sm { font-size: 0.875rem; font-weight: 700; color: var(--gray-600); margin-bottom: 0.75rem; }
+    .textarea-input {
+      width: 100%; padding: 0.875rem; border: 1.5px solid var(--gray-200);
+      border-radius: 12px; font-size: 0.9rem; font-family: inherit; resize: vertical; outline: none;
+    }
+    .textarea-input:focus { border-color: var(--primary); }
+
+    /* 로딩 */
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-center { text-align: center; padding: 3rem; color: var(--gray-500); }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a class="logo" href="/home">
+      <svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" fill="#1976D2"/><path d="M6 20V12l8-6 8 6v8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="10" y="14" width="8" height="6" rx="1" fill="white"/></svg>
+      올수리
+    </a>
+    <nav>
+      <a href="/requests">견적 요청</a>
+      <a href="/my-order" class="active">내 공사</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- ① 로그인 화면 -->
+  <div id="loginScreen">
+    <div class="hero">
+      <h1>내 공사 현황 조회</h1>
+      <p>견적 요청 시 입력한 전화번호와<br>4자리 비밀번호로 확인하세요</p>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="form-group">
+          <label>전화번호</label>
+          <input id="loginPhone" class="form-input" type="tel" placeholder="010-0000-0000" inputmode="tel">
+        </div>
+        <div class="form-group">
+          <label>비밀번호 (4자리)</label>
+          <input id="loginPwd" class="form-input pin-input" type="tel" placeholder="0000" maxlength="4" inputmode="numeric">
+        </div>
+        <div id="loginError" class="error-msg hidden"></div>
+        <button id="loginBtn" class="btn-primary" onclick="doLogin()">조회하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 오더 목록 선택 (여러 건인 경우) -->
+  <div id="orderListScreen" class="hidden">
+    <div style="margin-bottom:1rem;">
+      <h2 style="font-size:1.1rem;font-weight:700;">견적 요청 내역</h2>
+      <p style="font-size:0.875rem;color:var(--gray-500);margin-top:0.25rem;">확인할 항목을 선택해 주세요</p>
+    </div>
+    <div id="orderListContainer"></div>
+    <button class="btn-outline" style="width:100%;margin-top:0.5rem;" onclick="showLogin()">← 다시 조회</button>
+  </div>
+
+  <!-- ③ 공사 대시보드 -->
+  <div id="dashboardScreen" class="hidden">
+    <!-- 상단 요약 -->
+    <div id="orderSummaryCard" class="card"></div>
+
+    <!-- 프로세스 스테퍼 -->
+    <div class="card">
+      <div id="stepperContainer" class="stepper"></div>
+    </div>
+
+    <!-- 입찰 사업자 목록 / 낙찰 정보 -->
+    <div id="bidsSection" class="card hidden">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🏢</span>
+          <span id="bidsTitle">접수된 견적</span>
+        </div>
+      </div>
+      <div class="card-body" id="bidsContainer"></div>
+    </div>
+
+    <!-- 공사 완료 확인 버튼 -->
+    <div id="completeSection" class="hidden">
+      <button class="btn-success" onclick="confirmComplete()">✅ 공사 완료 확인</button>
+      <p style="font-size:0.8rem;color:var(--gray-500);text-align:center;margin-top:0.75rem;">공사가 완료되었으면 버튼을 눌러 주세요</p>
+    </div>
+
+    <!-- 평점 입력 -->
+    <div id="ratingSection" class="card hidden">
+      <div class="card-header"><div class="card-title">⭐ 서비스 평점</div></div>
+      <div class="card-body">
+        <div id="alreadyRated" class="hidden" style="text-align:center;padding:1rem;">
+          <div style="font-size:2rem;margin-bottom:0.5rem;">🎉</div>
+          <div style="font-weight:700;margin-bottom:0.25rem;">평점을 남겨주셨습니다</div>
+          <div id="alreadyRatedStars" style="font-size:1.5rem;color:#f59e0b;"></div>
+          <div id="alreadyRatedComment" style="font-size:0.875rem;color:var(--gray-500);margin-top:0.5rem;"></div>
+        </div>
+        <div id="ratingForm">
+          <p style="font-size:0.875rem;color:var(--gray-600);margin-bottom:1rem;">사업자의 서비스는 어떠셨나요?</p>
+          <div class="stars" id="ratingStars" style="justify-content:center;margin-bottom:1rem;">
+            <span class="star" data-v="1" onclick="setRating(1)">★</span>
+            <span class="star" data-v="2" onclick="setRating(2)">★</span>
+            <span class="star" data-v="3" onclick="setRating(3)">★</span>
+            <span class="star" data-v="4" onclick="setRating(4)">★</span>
+            <span class="star" data-v="5" onclick="setRating(5)">★</span>
+          </div>
+          <textarea id="ratingComment" class="textarea-input" rows="3" placeholder="서비스에 대한 의견을 남겨주세요 (선택사항)"></textarea>
+          <button class="btn-primary" style="margin-top:1rem;" onclick="submitRating()">평점 제출</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-outline" style="width:100%;margin-top:0.5rem;" onclick="goBack()">← 목록으로</button>
+  </div>
+</main>
+
+<!-- 사업자 상세 모달 -->
+<div class="modal-backdrop" id="bizModal" onclick="closeBizModal(event)">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-inner">
+      <div id="bizModalContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 낙찰 확인 모달 -->
+<div class="modal-backdrop" id="awardModal" onclick="closeAwardModal(event)">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-inner">
+      <div class="modal-title">사업자 선택</div>
+      <p id="awardConfirmText" style="font-size:0.9rem;color:var(--gray-600);margin-bottom:1.5rem;line-height:1.6;"></p>
+      <div style="background:var(--warning-light);border-radius:10px;padding:1rem;margin-bottom:1.5rem;font-size:0.85rem;color:#92400e;line-height:1.5;">
+        ⚠️ 선택 후 해당 사업자에게 연락처와 상세 주소가 전달됩니다.<br>선택 후 변경은 고객센터를 통해 처리됩니다.
+      </div>
+      <div style="display:flex;gap:0.75rem;">
+        <button class="btn-danger" onclick="closeAwardModal()" style="flex:1;">취소</button>
+        <button class="btn-primary" id="awardConfirmBtn" style="flex:2;" onclick="doAward()">선택 확정</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/customer';
+let authPhone = '';
+let authPwd = '';
+let currentOrderId = '';
+let currentOrderData = null;
+let pendingAward = null; // { estimateId, businessId, bizName }
+let selectedRating = 0;
+
+// ── 로그인 ──────────────────────────────────────────────────
+function showLogin() {
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('orderListScreen').classList.add('hidden');
+  document.getElementById('dashboardScreen').classList.add('hidden');
+}
+
+async function doLogin() {
+  const phone = document.getElementById('loginPhone').value.trim();
+  const pwd = document.getElementById('loginPwd').value.trim();
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+
+  errEl.classList.add('hidden');
+  if (!phone) { showErr('전화번호를 입력해 주세요.'); return; }
+  if (!pwd || pwd.length !== 4) { showErr('4자리 비밀번호를 입력해 주세요.'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const res = await fetch(`${API}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, password: pwd }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '조회 실패');
+
+    authPhone = phone.replace(/[^0-9]/g, '');
+    authPwd = pwd;
+
+    if (data.orders.length === 1) {
+      openOrder(data.orders[0].id);
+    } else {
+      showOrderList(data.orders);
+    }
+  } catch (e) {
+    showErr(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '조회하기';
+  }
+}
+
+function showErr(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+// ── 오더 목록 ──────────────────────────────────────────────
+function showOrderList(orders) {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('orderListScreen').classList.remove('hidden');
+  const statusLabel = { pending: '대기중', in_progress: '진행중', completed: '완료', cancelled: '취소' };
+  document.getElementById('orderListContainer').innerHTML = orders.map(o => `
+    <div class="order-select-item" onclick="openOrder('${o.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:700;">${o.title || '견적 요청'}</div>
+        <span class="badge badge-${o.status==='completed'?'success':o.status==='in_progress'?'primary':'warning'}">
+          ${statusLabel[o.status] || o.status}
+        </span>
+      </div>
+      <div style="font-size:0.8rem;color:var(--gray-500);margin-top:0.35rem;">
+        ${o.category || ''} · ${(o.createdAt||'').slice(0,10)}
+      </div>
+      <div style="font-size:0.85rem;color:var(--gray-600);margin-top:0.25rem;">${o.address||''}</div>
+    </div>
+  `).join('');
+}
+
+// ── 공사 대시보드 ────────────────────────────────────────────
+async function openOrder(orderId) {
+  currentOrderId = orderId;
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('orderListScreen').classList.add('hidden');
+  const dash = document.getElementById('dashboardScreen');
+  dash.classList.remove('hidden');
+  dash.innerHTML = '<div class="loading-center"><span style="font-size:2rem;">⏳</span><br>불러오는 중...</div>';
+
+  try {
+    const res = await fetch(`${API}/order/${orderId}?phone=${encodeURIComponent(authPhone)}&pwd=${encodeURIComponent(authPwd)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '조회 실패');
+    currentOrderData = data;
+
+    // 화면 재구성
+    dash.innerHTML = `
+      <div id="orderSummaryCard" class="card"></div>
+      <div class="card"><div id="stepperContainer" class="stepper"></div></div>
+      <div id="bidsSection" class="card hidden">
+        <div class="card-header"><div class="card-title"><span>🏢</span><span id="bidsTitle">접수된 견적</span></div></div>
+        <div class="card-body" id="bidsContainer"></div>
+      </div>
+      <div id="completeSection" class="hidden" style="margin-bottom:1rem;">
+        <button class="btn-success" onclick="confirmComplete()">✅ 공사 완료 확인</button>
+        <p style="font-size:0.8rem;color:var(--gray-500);text-align:center;margin-top:0.75rem;">공사가 완료되었으면 버튼을 눌러 주세요</p>
+      </div>
+      <div id="ratingSection" class="card hidden">
+        <div class="card-header"><div class="card-title">⭐ 서비스 평점</div></div>
+        <div class="card-body">
+          <div id="alreadyRated" class="hidden" style="text-align:center;padding:1rem;">
+            <div style="font-size:2rem;margin-bottom:0.5rem;">🎉</div>
+            <div style="font-weight:700;margin-bottom:0.25rem;">평점을 남겨주셨습니다</div>
+            <div id="alreadyRatedStars" style="font-size:1.5rem;color:#f59e0b;"></div>
+            <div id="alreadyRatedComment" style="font-size:0.875rem;color:var(--gray-500);margin-top:0.5rem;"></div>
+          </div>
+          <div id="ratingForm">
+            <p style="font-size:0.875rem;color:var(--gray-600);margin-bottom:1rem;">사업자의 서비스는 어떠셨나요?</p>
+            <div class="stars" id="ratingStars" style="justify-content:center;margin-bottom:1rem;">
+              <span class="star" data-v="1" onclick="setRating(1)">★</span>
+              <span class="star" data-v="2" onclick="setRating(2)">★</span>
+              <span class="star" data-v="3" onclick="setRating(3)">★</span>
+              <span class="star" data-v="4" onclick="setRating(4)">★</span>
+              <span class="star" data-v="5" onclick="setRating(5)">★</span>
+            </div>
+            <textarea id="ratingComment" class="textarea-input" rows="3" placeholder="서비스에 대한 의견을 남겨주세요 (선택사항)"></textarea>
+            <button class="btn-primary" style="margin-top:1rem;" onclick="submitRating()">평점 제출</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn-outline" style="width:100%;margin-top:0.5rem;" onclick="goBack()">← 목록으로</button>
+    `;
+
+    selectedRating = 0;
+    renderDashboard(data);
+  } catch (e) {
+    dash.innerHTML = `<div class="loading-center" style="color:var(--danger);">${e.message}<br><br><button class="btn-outline" onclick="goBack()">← 돌아가기</button></div>`;
+  }
+}
+
+function goBack() {
+  if (authPhone) {
+    // 재조회 없이 목록으로 (단일 건이면 로그인 화면)
+    showLogin();
+  }
+}
+
+function renderDashboard(data) {
+  const { order, estimates, awardedBusiness } = data;
+
+  // 요약 카드
+  document.getElementById('orderSummaryCard').innerHTML = `
+    <div class="card-body">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-size:1.1rem;font-weight:700;">${order.title}</div>
+          <div style="font-size:0.8rem;color:var(--gray-500);margin-top:0.3rem;">${order.category} · ${(order.createdAt||'').slice(0,10)}</div>
+        </div>
+        <span class="badge ${statusBadgeClass(order.status)}">${statusLabel(order.status)}</span>
+      </div>
+      <div style="margin-top:0.875rem;font-size:0.875rem;color:var(--gray-600);line-height:1.5;">
+        <div>📍 ${maskAddress(order.address)}</div>
+        <div>📅 방문 희망일: ${(order.visitDate||'').slice(0,10)}</div>
+        ${order.description ? `<div style="margin-top:0.5rem;">${order.description}</div>` : ''}
+      </div>
+    </div>`;
+
+  // 스테퍼
+  renderStepper(order, estimates);
+
+  // 입찰 섹션
+  renderBids(order, estimates, awardedBusiness);
+
+  // 완료 확인 버튼
+  if (order.status === 'in_progress' && order.isAwarded) {
+    document.getElementById('completeSection').classList.remove('hidden');
+  }
+
+  // 평점 섹션
+  if (order.status === 'completed' && order.isAwarded) {
+    document.getElementById('ratingSection').classList.remove('hidden');
+    if (order.adminRating) {
+      document.getElementById('alreadyRated').classList.remove('hidden');
+      document.getElementById('ratingForm').classList.add('hidden');
+      document.getElementById('alreadyRatedStars').textContent = '★'.repeat(order.adminRating) + '☆'.repeat(5-order.adminRating);
+      document.getElementById('alreadyRatedComment').textContent = order.adminRatingComment || '';
+    }
+  }
+}
+
+// 주소 마스킹 (세부 주소 숨김)
+function maskAddress(addr) {
+  if (!addr) return '-';
+  const parts = addr.split(' ');
+  if (parts.length <= 2) return addr;
+  return parts.slice(0, 3).join(' ') + ' ***';
+}
+
+function statusLabel(s) {
+  return { pending: '대기중', in_progress: '진행중', completed: '완료', cancelled: '취소' }[s] || s;
+}
+function statusBadgeClass(s) {
+  return { pending: 'badge-warning', in_progress: 'badge-primary', completed: 'badge-success', cancelled: '' }[s] || '';
+}
+
+function renderStepper(order, estimates) {
+  const steps = [
+    { key: 'requested', label: '견적\n요청' },
+    { key: 'bidding',   label: '입찰\n대기' },
+    { key: 'selected',  label: '업체\n선택' },
+    { key: 'inprogress',label: '공사\n진행' },
+    { key: 'confirmed', label: '완료\n확인' },
+    { key: 'rated',     label: '평점' },
+  ];
+
+  let currentStep = 0;
+  if (estimates.length > 0) currentStep = 1;         // 입찰 대기 → 실제론 "입찰 접수됨"
+  if (order.isAwarded) currentStep = 2;              // 업체 선택
+  if (order.status === 'in_progress') currentStep = 3; // 공사 진행
+  if (order.status === 'completed') currentStep = 4;  // 완료 확인
+  if (order.adminRating) currentStep = 5;            // 평점
+
+  const html = steps.map((s, i) => {
+    const isDone = i < currentStep;
+    const isActive = i === currentStep;
+    const dotCls = isDone ? 'done' : isActive ? 'active' : '';
+    const labelCls = isDone ? 'done' : isActive ? 'active' : '';
+    const lineCls = i < currentStep ? 'done' : '';
+    const icon = isDone ? '✓' : i + 1;
+    return `
+      <div class="step">
+        <div class="step-dot ${dotCls}">${icon}</div>
+        <div class="step-label ${labelCls}" style="white-space:pre-line;">${s.label}</div>
+      </div>
+      ${i < steps.length - 1 ? `<div class="step-line ${lineCls}"></div>` : ''}
+    `;
+  }).join('');
+  document.getElementById('stepperContainer').innerHTML = html;
+}
+
+function renderBids(order, estimates, awardedBusiness) {
+  const section = document.getElementById('bidsSection');
+  const container = document.getElementById('bidsContainer');
+
+  if (order.isAwarded && awardedBusiness) {
+    // 낙찰된 사업자 정보 표시
+    section.classList.remove('hidden');
+    document.getElementById('bidsTitle').textContent = '낙찰된 사업자';
+    container.innerHTML = `
+      <div class="estimate-card awarded" onclick="openBizModal('${awardedBusiness.id}')">
+        <div class="est-header">
+          <div>
+            <div class="est-name">🏆 ${awardedBusiness.businessname || awardedBusiness.name}</div>
+            <div class="est-meta">${awardedBusiness.category||''} ${awardedBusiness.region ? '· '+awardedBusiness.region : ''}</div>
+          </div>
+          <span class="badge badge-success">낙찰</span>
+        </div>
+        <div style="font-size:0.8rem;color:var(--gray-500);margin-top:0.5rem;">클릭하여 상세 정보 보기 →</div>
+      </div>`;
+    return;
+  }
+
+  if (!estimates.length) {
+    section.classList.remove('hidden');
+    document.getElementById('bidsTitle').textContent = '입찰 대기중';
+    container.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--gray-500);">
+      <div style="font-size:2rem;margin-bottom:0.5rem;">⏳</div>
+      <div>아직 접수된 견적이 없습니다.</div>
+      <div style="font-size:0.8rem;margin-top:0.5rem;">사업자들이 견적을 제출하면 여기에 표시됩니다.</div>
+    </div>`;
+    return;
+  }
+
+  section.classList.remove('hidden');
+  document.getElementById('bidsTitle').textContent = `접수된 견적 (${estimates.length}건)`;
+  container.innerHTML = estimates.map(e => `
+    <div class="estimate-card ${e.isAwarded ? 'awarded' : ''}" onclick="openBizModal('${e.businessId}', '${e.id}', ${JSON.stringify(e).replace(/'/g, "\\'")} )">
+      <div class="est-header">
+        <div>
+          <div class="est-name">${e.businessName || '사업자'}</div>
+          <div class="est-meta">${e.equipmentType||''} · 예상 ${e.estimatedDays||'-'}일</div>
+        </div>
+        <div class="est-amount">${e.amount ? Number(e.amount).toLocaleString()+'원' : '협의'}</div>
+      </div>
+      ${e.description ? `<div class="est-desc">${e.description}</div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;">
+        <span style="font-size:0.78rem;color:var(--gray-500);">${(e.createdAt||'').slice(0,10)}</span>
+        ${!order.isAwarded ? `<button class="btn-primary" style="padding:0.5rem 1.25rem;font-size:0.85rem;border-radius:10px;" onclick="event.stopPropagation();openAwardModal('${e.id}','${e.businessId}','${(e.businessName||'사업자').replace(/'/g,"\\'")}')">선택하기</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── 사업자 상세 모달 ─────────────────────────────────────────
+async function openBizModal(bizId, estimateId, estimateData) {
+  document.getElementById('bizModalContent').innerHTML = '<div class="loading-center">로딩 중...</div>';
+  document.getElementById('bizModal').classList.add('open');
+  try {
+    const res = await fetch(`${API}/business/${bizId}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '오류');
+    const { business: b, reviews, avgRating } = data;
+    const stars = avgRating ? '★'.repeat(Math.round(avgRating)) + '☆'.repeat(5-Math.round(avgRating)) : '평점 없음';
+
+    document.getElementById('bizModalContent').innerHTML = `
+      <div class="modal-title">${b.businessname || b.name}</div>
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1.25rem;">
+        <span style="color:#f59e0b;font-size:1.1rem;">${stars}</span>
+        <span style="font-size:0.875rem;color:var(--gray-500);">${avgRating ? avgRating+'점' : ''} · 낙찰 ${b.projects_awarded_count||0}건</span>
+      </div>
+      <div style="margin-bottom:1.25rem;">
+        <div class="info-row"><span class="info-label">카테고리</span><span class="info-value">${b.category||'-'}</span></div>
+        <div class="info-row"><span class="info-label">지역</span><span class="info-value">${b.region||'-'}</span></div>
+        ${b.description ? `<div class="info-row"><span class="info-label">소개</span><span class="info-value" style="text-align:right;max-width:200px;">${b.description}</span></div>` : ''}
+      </div>
+      ${estimateData ? `
+        <div style="background:var(--primary-light);border-radius:10px;padding:1rem;margin-bottom:1.25rem;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--primary);margin-bottom:0.5rem;">제출한 견적</div>
+          <div style="font-size:1.2rem;font-weight:700;">${estimateData.amount ? Number(estimateData.amount).toLocaleString()+'원' : '협의'}</div>
+          <div style="font-size:0.85rem;color:var(--gray-600);margin-top:0.25rem;">예상 ${estimateData.estimatedDays||'-'}일 · ${estimateData.equipmentType||''}</div>
+          ${estimateData.description ? `<div style="font-size:0.85rem;color:var(--gray-600);margin-top:0.5rem;line-height:1.5;">${estimateData.description}</div>` : ''}
+        </div>
+        ${!currentOrderData?.order?.isAwarded ? `
+          <button class="btn-primary" style="margin-bottom:0.75rem;" onclick="openAwardModal('${estimateId}','${bizId}','${(b.businessname||b.name).replace(/'/g,"\\'")}');closeBizModal()">이 사업자 선택하기</button>
+        ` : ''}
+      ` : ''}
+      ${reviews.length ? `
+        <div style="font-weight:700;font-size:0.875rem;margin-bottom:0.75rem;">고객 후기 (${reviews.length}건)</div>
+        ${reviews.map(r => `
+          <div class="review-item">
+            <div style="color:#f59e0b;font-size:0.9rem;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+            ${r.comment ? `<div class="review-comment">${r.comment}</div>` : ''}
+            <div style="font-size:0.75rem;color:var(--gray-500);margin-top:0.25rem;">${(r.created_at||'').slice(0,10)}</div>
+          </div>
+        `).join('')}
+      ` : '<div style="color:var(--gray-500);font-size:0.875rem;">아직 후기가 없습니다.</div>'}
+    `;
+  } catch (e) {
+    document.getElementById('bizModalContent').innerHTML = `<div style="color:var(--danger);">${e.message}</div>`;
+  }
+}
+
+function closeBizModal(e) {
+  if (!e || e.target === document.getElementById('bizModal')) {
+    document.getElementById('bizModal').classList.remove('open');
+  }
+}
+
+// ── 낙찰 확인 모달 ──────────────────────────────────────────
+function openAwardModal(estimateId, businessId, bizName) {
+  pendingAward = { estimateId, businessId, bizName };
+  document.getElementById('awardConfirmText').textContent =
+    `[${bizName}] 사업자를 선택하시겠습니까?\n낙찰 후 연락처와 상세 주소가 해당 사업자에게 전달됩니다.`;
+  document.getElementById('awardModal').classList.add('open');
+}
+
+function closeAwardModal(e) {
+  if (!e || e.target === document.getElementById('awardModal')) {
+    document.getElementById('awardModal').classList.remove('open');
+    pendingAward = null;
+  }
+}
+
+async function doAward() {
+  if (!pendingAward) return;
+  const btn = document.getElementById('awardConfirmBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 처리 중...';
+  try {
+    const res = await fetch(`${API}/order/${currentOrderId}/award`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: authPhone, password: authPwd, estimateId: pendingAward.estimateId, businessId: pendingAward.businessId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '낙찰 처리 실패');
+    closeAwardModal();
+    alert(`✅ ${data.message || '낙찰되었습니다!'}\n사업자에게 연락처가 전달되었습니다.`);
+    openOrder(currentOrderId); // 새로고침
+  } catch (e) {
+    alert('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '선택 확정';
+  }
+}
+
+// ── 공사 완료 확인 ────────────────────────────────────────────
+async function confirmComplete() {
+  if (!confirm('공사가 완료되었음을 확인하시겠습니까?')) return;
+  try {
+    const res = await fetch(`${API}/order/${currentOrderId}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: authPhone, password: authPwd }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '처리 실패');
+    alert('✅ 공사 완료가 확인되었습니다. 서비스는 어떠셨나요?');
+    openOrder(currentOrderId);
+  } catch (e) { alert('❌ ' + e.message); }
+}
+
+// ── 평점 ─────────────────────────────────────────────────────
+function setRating(v) {
+  selectedRating = v;
+  document.querySelectorAll('#ratingStars .star').forEach((s, i) => {
+    s.classList.toggle('filled', i < v);
+  });
+}
+
+async function submitRating() {
+  if (!selectedRating) { alert('별점을 선택해 주세요.'); return; }
+  const comment = document.getElementById('ratingComment').value.trim();
+  try {
+    const res = await fetch(`${API}/order/${currentOrderId}/rate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: authPhone, password: authPwd, rating: selectedRating, comment }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '실패');
+    alert('⭐ 평점을 남겨주셔서 감사합니다!');
+    openOrder(currentOrderId);
+  } catch (e) { alert('❌ ' + e.message); }
+}
+
+// PIN 입력 자동 처리
+document.getElementById('loginPwd').addEventListener('input', function() {
+  this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);
+  if (this.value.length === 4) document.getElementById('loginBtn').focus();
+});
+document.getElementById('loginPhone').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('loginPwd').focus();
+});
+document.getElementById('loginPwd').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>

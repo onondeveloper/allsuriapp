@@ -2932,7 +2932,7 @@ function renderWebOrderTable(orders, container) {
     const statusBadge = (s) => {
         const map = {
             pending: ['대기중', 'warning'],
-            in_progress: ['매칭완료', 'info'],
+            in_progress: ['진행중', 'info'],
             completed: ['완료', 'success'],
             cancelled: ['취소', 'danger'],
         };
@@ -2947,34 +2947,46 @@ function renderWebOrderTable(orders, container) {
         const date = (o.createdAt || o.createdat || '').slice(0, 10);
         const hasRating = o.adminRating;
         return `<tr style="cursor:pointer;" onclick="openWebOrderModal('${o.id}')">
-            <td style="padding:0.875rem 1rem;">${statusBadge(o.status)}</td>
-            <td style="padding:0.875rem 1rem;font-weight:500;">${o.title || '-'}</td>
-            <td style="padding:0.875rem 1rem;">${o.category || '-'}</td>
-            <td style="padding:0.875rem 1rem;">${name}</td>
-            <td style="padding:0.875rem 1rem;">
+            <td style="padding:0.875rem 0.5rem;" onclick="event.stopPropagation()">
+                <input type="checkbox" class="web-order-chk" data-id="${o.id}" onchange="updateWebOrderBulkBar()" style="width:16px;height:16px;cursor:pointer;">
+            </td>
+            <td style="padding:0.875rem 0.75rem;">${statusBadge(o.status)}</td>
+            <td style="padding:0.875rem 0.75rem;font-weight:500;">${o.title || '-'}</td>
+            <td style="padding:0.875rem 0.75rem;">${o.category || '-'}</td>
+            <td style="padding:0.875rem 0.75rem;">${name}</td>
+            <td style="padding:0.875rem 0.75rem;">
                 <a href="tel:${phone}" onclick="event.stopPropagation()" style="color:var(--primary);text-decoration:none;font-weight:500;">${phone}</a>
             </td>
-            <td style="padding:0.875rem 1rem;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${o.address || '-'}</td>
-            <td style="padding:0.875rem 1rem;color:var(--gray-500);font-size:0.875rem;">${date}</td>
-            <td style="padding:0.875rem 1rem;">
+            <td style="padding:0.875rem 0.75rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${o.address || '-'}</td>
+            <td style="padding:0.875rem 0.75rem;color:var(--gray-500);font-size:0.875rem;">${date}</td>
+            <td style="padding:0.875rem 0.75rem;">
                 ${hasRating ? `<span style="color:#f59e0b;">★ ${o.adminRating}</span>` : (o.status === 'in_progress' ? '<span style="color:var(--primary);font-size:0.8rem;">평점 미입력</span>' : '')}
+            </td>
+            <td style="padding:0.875rem 0.75rem;" onclick="event.stopPropagation()">
+                <button onclick="deleteSingleWebOrder('${o.id}')" style="padding:0.3rem 0.6rem;background:none;border:1px solid var(--danger);color:var(--danger);border-radius:6px;font-size:0.75rem;cursor:pointer;">삭제</button>
             </td>
         </tr>`;
     }).join('');
 
     container.innerHTML = `
+        <div id="webOrderBulkBar" style="display:none;padding:0.75rem 1rem;background:var(--primary-light);border-radius:8px;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;">
+            <span id="webOrderSelectedCount" style="font-size:0.875rem;font-weight:600;color:var(--primary);">0건 선택됨</span>
+            <button onclick="bulkDeleteWebOrders()" style="padding:0.4rem 1rem;background:var(--danger);color:white;border:none;border-radius:8px;font-size:0.875rem;font-weight:600;cursor:pointer;">선택 삭제</button>
+        </div>
         <div style="overflow-x:auto;">
             <table style="width:100%;border-collapse:collapse;">
                 <thead>
                     <tr style="background:var(--gray-50);border-bottom:2px solid var(--gray-200);">
-                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);white-space:nowrap;">상태</th>
-                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">제목</th>
-                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">카테고리</th>
-                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">고객명</th>
-                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">전화번호</th>
-                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">주소</th>
-                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">접수일</th>
-                        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">평점</th>
+                        <th style="padding:0.75rem 0.5rem;"><input type="checkbox" id="webOrderChkAll" onchange="toggleAllWebOrders(this.checked)" style="width:16px;height:16px;cursor:pointer;"></th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">상태</th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">제목</th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">카테고리</th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">고객명</th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">전화번호</th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">주소</th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">접수일</th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">평점</th>
+                        <th style="padding:0.75rem 0.75rem;text-align:left;font-size:0.8rem;color:var(--gray-600);">삭제</th>
                     </tr>
                 </thead>
                 <tbody id="webOrderTbody">
@@ -2985,6 +2997,52 @@ function renderWebOrderTable(orders, container) {
         <div style="padding:0.75rem 1rem;color:var(--gray-500);font-size:0.875rem;border-top:1px solid var(--gray-100);">
             총 ${orders.length}건
         </div>`;
+}
+
+function toggleAllWebOrders(checked) {
+    document.querySelectorAll('.web-order-chk').forEach(chk => chk.checked = checked);
+    updateWebOrderBulkBar();
+}
+
+function updateWebOrderBulkBar() {
+    const checked = document.querySelectorAll('.web-order-chk:checked');
+    const bar = document.getElementById('webOrderBulkBar');
+    const countEl = document.getElementById('webOrderSelectedCount');
+    if (!bar) return;
+    if (checked.length > 0) {
+        bar.style.display = 'flex';
+        countEl.textContent = `${checked.length}건 선택됨`;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+async function deleteSingleWebOrder(orderId) {
+    if (!confirm('이 견적 요청을 삭제하시겠습니까?\n관련 입찰 견적도 함께 삭제됩니다.')) return;
+    try {
+        await apiCall(`/web-orders/${orderId}`, { method: 'DELETE' });
+        allWebOrders = allWebOrders.filter(o => o.id !== orderId);
+        filterWebOrders();
+    } catch (e) {
+        alert('삭제 실패: ' + e.message);
+    }
+}
+
+async function bulkDeleteWebOrders() {
+    const checked = document.querySelectorAll('.web-order-chk:checked');
+    const ids = Array.from(checked).map(c => c.dataset.id);
+    if (!ids.length) return;
+    if (!confirm(`선택한 ${ids.length}건을 삭제하시겠습니까?\n관련 입찰 견적도 함께 삭제됩니다.`)) return;
+    try {
+        await apiCall('/web-orders', {
+            method: 'DELETE',
+            body: JSON.stringify({ ids }),
+        });
+        allWebOrders = allWebOrders.filter(o => !ids.includes(o.id));
+        filterWebOrders();
+    } catch (e) {
+        alert('삭제 실패: ' + e.message);
+    }
 }
 
 function openWebOrderModal(orderId) {

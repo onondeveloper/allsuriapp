@@ -715,6 +715,35 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
 
     // ─── 웹 견적 요청 관리 ─────────────────────────────────────────────
 
+    // DELETE /web-orders/:id - 웹 견적 삭제
+    if (event.httpMethod === 'DELETE' && /^\/web-orders\/[^/]+$/.test(path)) {
+      const orderId = path.split('/')[2]
+      // estimates 먼저 삭제
+      await fetch(`${SUPABASE_URL}/rest/v1/estimates?orderId=eq.${encodeURIComponent(orderId)}`, {
+        method: 'DELETE', headers: sbHeaders,
+      })
+      // order 삭제
+      const delRes = await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'DELETE', headers: sbHeaders,
+      })
+      if (!delRes.ok) {
+        const errText = await delRes.text()
+        return { statusCode: 500, body: JSON.stringify({ success: false, error: errText }), headers: { 'Content-Type': 'application/json' } }
+      }
+      return { statusCode: 200, body: JSON.stringify({ success: true, message: '삭제되었습니다' }), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // DELETE /web-orders (bulk) - 여러 견적 일괄 삭제
+    if (event.httpMethod === 'DELETE' && path === '/web-orders') {
+      const body = JSON.parse(event.body || '{}')
+      const ids: string[] = Array.isArray(body.ids) ? body.ids : []
+      if (!ids.length) return { statusCode: 400, body: JSON.stringify({ error: 'ids 배열이 필요합니다' }), headers: { 'Content-Type': 'application/json' } }
+      const idList = ids.map((id: string) => `"${id}"`).join(',')
+      await fetch(`${SUPABASE_URL}/rest/v1/estimates?orderId=in.(${idList})`, { method: 'DELETE', headers: sbHeaders })
+      await fetch(`${SUPABASE_URL}/rest/v1/orders?id=in.(${idList})`, { method: 'DELETE', headers: sbHeaders })
+      return { statusCode: 200, body: JSON.stringify({ success: true, message: `${ids.length}건 삭제되었습니다` }), headers: { 'Content-Type': 'application/json' } }
+    }
+
     // GET /web-orders - 웹에서 접수된 익명 견적 목록
     if (event.httpMethod === 'GET' && path === '/web-orders') {
       const qp = event.queryStringParameters || {}

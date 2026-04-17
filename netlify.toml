@@ -49,6 +49,13 @@
     X-Robots-Tag = "noindex"
 
 [[redirects]]
+  # 고객용 API (웹 내 공사 조회/낙찰/평점)
+  from = "/api/customer/*"
+  to = "/.netlify/functions/customer/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/admin/*"
   to = "/.netlify/functions/admin/:splat"
   status = 200
@@ -83,6 +90,13 @@
   # 고객 지원 (App Store Support URL 제출용)
   from = "/support"
   to = "/support.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  # 고객 내 공사 대시보드
+  from = "/my-order"
+  to = "/my-order.html"
   status = 200
   force = true
 
