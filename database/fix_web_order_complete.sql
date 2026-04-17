@@ -22,11 +22,15 @@ ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS "awardedAt"     TIMESTAMPTZ;
 
 -- ────────────────────────────────────────────────────
--- 2. marketplace_listings – posted_by NULL 허용
---    (웹 고객은 앱 계정이 없으므로 posted_by = null)
+-- 2. marketplace_listings – posted_by / jobid NULL 허용
+--    웹 고객은 앱 계정 없음 → posted_by = null
+--    웹 오더는 낙찰 전 job 없음 → jobid = null
 -- ────────────────────────────────────────────────────
 ALTER TABLE public.marketplace_listings
   ALTER COLUMN posted_by DROP NOT NULL;
+
+ALTER TABLE public.marketplace_listings
+  ALTER COLUMN jobid DROP NOT NULL;
 
 -- ────────────────────────────────────────────────────
 -- 3. marketplace_listings – 웹 오더 연결 컬럼
