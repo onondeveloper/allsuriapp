@@ -1056,7 +1056,7 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
     if (path.startsWith('/featured-businesses')) {
       const sub = path.replace(/^\/featured-businesses/, '')
 
-      // GET /featured-businesses – 추천 업체 목록 (2-step query, join 미사용)
+      // GET /featured-businesses – 추천 업체 목록 (기존 fetchUsers 헬퍼 사용)
       if (event.httpMethod === 'GET' && (sub === '' || sub === '/')) {
         const featRes = await fetch(
           `${SUPABASE_URL}/rest/v1/web_featured_businesses?select=id,sort_order,user_id&order=sort_order.asc`,
@@ -1066,13 +1066,8 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
         const featured = await featRes.json() as { id: string; user_id: string; sort_order: number }[]
         if (!Array.isArray(featured) || featured.length === 0) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
         const ids = featured.map(f => f.user_id).filter(Boolean)
-        const usersRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,category,region,avatar_url&id=in.(${ids.join(',')})`,
-          { headers: sbHeaders }
-        )
-        const users = await usersRes.json() as { id: string; name: string; businessname: string | null; phonenumber: string | null; category: string | null; region: string | null; avatar_url: string | null }[]
-        const usersMap: Record<string, typeof users[0]> = {}
-        if (Array.isArray(users)) users.forEach(u => { usersMap[u.id] = u })
+        // 기존 fetchUsers 헬퍼 사용 (ID 포맷 이슈 방지)
+        const usersMap = await fetchUsers(ids)
         const result = featured.map(f => ({
           id: f.id,
           sort_order: f.sort_order,
@@ -1108,19 +1103,19 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
           `${SUPABASE_URL}/rest/v1/web_featured_businesses?select=id,sort_order,user_id&order=sort_order.asc`,
           { headers: sbHeaders }
         )
+        if (!featRes.ok) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
         const featured = await featRes.json() as { id: string; user_id: string }[]
         if (!Array.isArray(featured) || featured.length === 0) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
-        const ids = featured.map(f => f.user_id)
-        const usersRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,category,region,avatar_url,jobs_accepted_count&id=in.(${ids.join(',')})`,
-          { headers: sbHeaders }
-        )
-        const users = await usersRes.json() as { id: string; name: string; businessname: string | null; phonenumber: string | null; category: string | null; region: string | null; avatar_url: string | null; jobs_accepted_count: number | null }[]
+        const ids = featured.map(f => f.user_id).filter(Boolean)
+        // fetchUsers 헬퍼 사용 (ID 따옴표 포맷 통일)
+        const usersMap = await fetchUsers(ids)
+        // 평점 조회
+        const idList = ids.map(id => `"${id}"`).join(',')
         const reviewsRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/business_reviews?select=business_id,rating&business_id=in.(${ids.join(',')})`,
+          `${SUPABASE_URL}/rest/v1/business_reviews?select=business_id,rating&business_id=in.(${idList})`,
           { headers: sbHeaders }
         )
-        const reviews = await reviewsRes.json() as { business_id: string; rating: number }[]
+        const reviews = reviewsRes.ok ? await reviewsRes.json() as { business_id: string; rating: number }[] : []
         const ratingMap: Record<string, { sum: number; count: number }> = {}
         if (Array.isArray(reviews)) {
           for (const r of reviews) {
@@ -1129,19 +1124,17 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
             ratingMap[r.business_id].count += 1
           }
         }
-        const usersMap: Record<string, typeof users[0]> = {}
-        if (Array.isArray(users)) users.forEach(u => { usersMap[u.id] = u })
         const result = featured.map(f => {
           const u = usersMap[f.user_id]
           if (!u) return null
           const rm = ratingMap[f.user_id]
           return {
             id: f.id, userId: u.id,
-            businessName: u.businessname || u.name,
+            businessName: u.businessname || u.name || '',
             phonenumber: u.phonenumber || '',
             category: u.category || '',
             region: u.region || '',
-            avatarUrl: u.avatar_url,
+            avatarUrl: u.avatar_url || null,
             jobsCount: u.jobs_accepted_count || 0,
             avgRating: rm ? Math.round((rm.sum / rm.count) * 10) / 10 : null,
             reviewCount: rm?.count || 0,
