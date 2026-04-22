@@ -3238,30 +3238,32 @@ async function loadAll() {
 
 // ── 웹 설정 로드 ──────────────────────────────────────────────
 async function loadWebContent() {
+    // 사이트 설정
     try {
-        const [settingsRes, adsRes] = await Promise.all([
-            apiCall('/web-content/settings'),
-            apiCall('/web-content/ads'),
-        ]);
-
-        // 설정값 폼에 반영
-        const settings = Array.isArray(settingsRes) ? settingsRes : (settingsRes?.settings || []);
+        const settingsRes = await apiCall('/web-content/settings');
+        const settings = Array.isArray(settingsRes) ? settingsRes : [];
         settings.forEach(s => {
             const el = document.getElementById(`setting_${s.key}`);
             if (!el) return;
             if (el.tagName === 'SELECT') el.value = s.value;
             else el.value = s.value || '';
         });
-
-        // 광고 목록 렌더
-        const ads = Array.isArray(adsRes) ? adsRes : (adsRes?.ads || []);
-        renderWebAds(ads);
-
-        // 추천 업체 로드
-        await loadFeaturedBusinesses();
     } catch (e) {
-        console.error('[loadWebContent]', e);
+        console.warn('[loadWebContent] 설정 로드 실패 (무시):', e.message);
     }
+
+    // 광고 목록
+    try {
+        const adsRes = await apiCall('/web-content/ads');
+        const ads = Array.isArray(adsRes) ? adsRes : [];
+        renderWebAds(ads);
+    } catch (e) {
+        console.warn('[loadWebContent] 광고 로드 실패 (무시):', e.message);
+        renderWebAds([]);
+    }
+
+    // 추천 업체 (독립 로드 – 위 항목 실패해도 반드시 실행)
+    await loadFeaturedBusinesses();
 }
 
 function renderWebAds(ads) {
@@ -3488,33 +3490,48 @@ async function sendPushNotification() {
 // ══════════════════════════════════════════════════════════════
 
 async function loadFeaturedBusinesses() {
+    const container = document.getElementById('featuredBizList');
+    if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>로딩 중...</div>';
     try {
         const data = await apiCall('/featured-businesses');
         renderFeaturedBusinesses(Array.isArray(data) ? data : []);
     } catch(e) {
         console.error('[loadFeaturedBusinesses]', e);
+        if (container) {
+            // 테이블 미생성 안내
+            const isMissing = e.message && (e.message.includes('42P01') || e.message.includes('does not exist'));
+            container.innerHTML = isMissing
+                ? `<div style="padding:1rem;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:0.85rem;color:#92400e;">
+                     ⚠️ <strong>web_featured_businesses</strong> 테이블이 없습니다.<br>
+                     Supabase SQL Editor에서 <code>database/web_featured_push.sql</code>을 실행해 주세요.
+                   </div>`
+                : `<div style="padding:1rem;color:#991b1b;font-size:0.875rem;">❌ 로드 실패: ${e.message}</div>`;
+        }
     }
 }
 
 function renderFeaturedBusinesses(list) {
     const container = document.getElementById('featuredBizList');
     if (!container) return;
-    if (!list.length) {
-        container.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray-400);">등록된 추천 업체가 없습니다.</div>';
+    if (!list || !list.length) {
+        container.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray-400);">아직 등록된 추천 업체가 없습니다.<br><small>위 검색창에서 사업자를 찾아 추가해 주세요.</small></div>';
         return;
     }
     container.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:0.5rem;">
             ${list.map((item, idx) => {
-                const u = item.users || item;
-                const name = u.businessname || u.name || '-';
-                return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;background:#f9fafb;border:1px solid var(--gray-200);border-radius:10px;">
-                    <span style="background:#1e3a8a;color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">${idx+1}</span>
-                    <div style="flex:1;">
-                        <div style="font-weight:600;">${name}</div>
-                        <div style="font-size:0.8rem;color:var(--gray-500);">${u.category||''} ${u.region||''}</div>
+                const u = item.users || {};
+                const name = u.businessname || u.name || `(ID: ${item.user_id?.slice(0,8)}...)`;
+                const category = u.category || '';
+                const region = u.region || '';
+                const phone = u.phonenumber || '';
+                return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.9rem 1rem;background:#f9fafb;border:1px solid var(--gray-200);border-radius:10px;">
+                    <span style="background:#1e3a8a;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">${idx+1}</span>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+                        <div style="font-size:0.78rem;color:var(--gray-500);">${[category, region, phone].filter(Boolean).join(' · ')}</div>
                     </div>
-                    <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5;" onclick="removeFeaturedBiz('${item.id}')">삭제</button>
+                    <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5;flex-shrink:0;" onclick="removeFeaturedBiz('${item.id}')">삭제</button>
                 </div>`;
             }).join('')}
         </div>`;

@@ -1876,6 +1876,7 @@
                     break;
                 case 'web-content':
                     if (typeof loadWebContent === 'function') loadWebContent();
+                    else if (typeof loadFeaturedBusinesses === 'function') loadFeaturedBusinesses();
                     break;
                 case 'push-notifications':
                     // 별도 로딩 불필요 (정적 UI)

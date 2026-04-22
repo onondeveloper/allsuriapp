@@ -1056,14 +1056,30 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
     if (path.startsWith('/featured-businesses')) {
       const sub = path.replace(/^\/featured-businesses/, '')
 
-      // GET /featured-businesses – 추천 업체 목록 (사업자 정보 JOIN)
+      // GET /featured-businesses – 추천 업체 목록 (2-step query, join 미사용)
       if (event.httpMethod === 'GET' && (sub === '' || sub === '/')) {
-        const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/web_featured_businesses?select=id,sort_order,created_at,users(id,name,businessname,phonenumber,category,region,avatar_url)&order=sort_order.asc`,
+        const featRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/web_featured_businesses?select=id,sort_order,user_id&order=sort_order.asc`,
           { headers: sbHeaders }
         )
-        const json = await res.json()
-        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } }
+        if (!featRes.ok) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+        const featured = await featRes.json() as { id: string; user_id: string; sort_order: number }[]
+        if (!Array.isArray(featured) || featured.length === 0) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+        const ids = featured.map(f => f.user_id).filter(Boolean)
+        const usersRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,category,region,avatar_url&id=in.(${ids.join(',')})`,
+          { headers: sbHeaders }
+        )
+        const users = await usersRes.json() as { id: string; name: string; businessname: string | null; phonenumber: string | null; category: string | null; region: string | null; avatar_url: string | null }[]
+        const usersMap: Record<string, typeof users[0]> = {}
+        if (Array.isArray(users)) users.forEach(u => { usersMap[u.id] = u })
+        const result = featured.map(f => ({
+          id: f.id,
+          sort_order: f.sort_order,
+          user_id: f.user_id,
+          users: usersMap[f.user_id] || null,
+        }))
+        return { statusCode: 200, body: JSON.stringify(result), headers: { 'Content-Type': 'application/json' } }
       }
 
       // POST /featured-businesses – 추천 업체 추가
