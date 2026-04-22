@@ -788,6 +788,10 @@
                     <span class="material-icons">web</span>
                     <span>웹 콘텐츠 관리</span>
                 </div>
+                <div class="menu-item" onclick="showSection('push-notifications')" style="border-top: 1px solid var(--gray-200); margin-top: 0.5rem; padding-top: 0.5rem;">
+                    <span class="material-icons">send</span>
+                    <span>푸시 알림 발송</span>
+                </div>
             </nav>
         </aside>
 
@@ -1143,6 +1147,78 @@
                     </div>
                 </div>
 
+                <!-- Push Notifications Section -->
+                <div id="section-push-notifications" class="hidden">
+                    <div class="section" style="max-width:640px;">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">send</span>
+                                푸시 알림 발송
+                            </h2>
+                        </div>
+                        <div style="background:#f0f7ff;border-left:4px solid #1e3a8a;border-radius:8px;padding:0.9rem 1rem;margin-bottom:1.5rem;font-size:0.875rem;color:#1e3a8a;">
+                            📱 앱을 설치한 사업자에게 직접 푸시 알림을 보냅니다. 제목과 내용은 각각 <strong>30자 이하</strong>로 입력해 주세요.
+                        </div>
+
+                        <!-- 제목 -->
+                        <div style="margin-bottom:1rem;">
+                            <label style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:0.4rem;">
+                                제목 <span id="pushTitleCount" style="font-weight:400;color:var(--gray-400);">0 / 30</span>
+                            </label>
+                            <input id="pushTitle" type="text" maxlength="30" placeholder="예: 올수리 이벤트 안내"
+                                oninput="document.getElementById('pushTitleCount').textContent=this.value.length+' / 30'"
+                                style="width:100%;padding:0.7rem 0.9rem;border:1px solid var(--gray-300);border-radius:10px;font-size:1rem;"/>
+                        </div>
+
+                        <!-- 내용 -->
+                        <div style="margin-bottom:1.5rem;">
+                            <label style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:0.4rem;">
+                                내용 <span id="pushBodyCount" style="font-weight:400;color:var(--gray-400);">0 / 30</span>
+                            </label>
+                            <input id="pushBody" type="text" maxlength="30" placeholder="예: 이번 달 광고비 50% 할인!"
+                                oninput="document.getElementById('pushBodyCount').textContent=this.value.length+' / 30'"
+                                style="width:100%;padding:0.7rem 0.9rem;border:1px solid var(--gray-300);border-radius:10px;font-size:1rem;"/>
+                        </div>
+
+                        <!-- 발송 대상 -->
+                        <div style="margin-bottom:1.5rem;">
+                            <label style="font-weight:600;display:block;margin-bottom:0.6rem;">발송 대상</label>
+                            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                                <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;padding:0.6rem 1rem;border:2px solid var(--gray-200);border-radius:10px;font-size:0.9rem;">
+                                    <input type="radio" name="pushTarget" value="all" checked onchange="togglePushTarget()" style="accent-color:#1e3a8a;"/>
+                                    전체 사업자
+                                </label>
+                                <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;padding:0.6rem 1rem;border:2px solid var(--gray-200);border-radius:10px;font-size:0.9rem;">
+                                    <input type="radio" name="pushTarget" value="specific" onchange="togglePushTarget()" style="accent-color:#1e3a8a;"/>
+                                    특정 사업자 선택
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 특정 사업자 검색 -->
+                        <div id="pushSpecificArea" style="display:none;margin-bottom:1.5rem;">
+                            <div style="position:relative;margin-bottom:0.5rem;">
+                                <input id="pushBizSearch" type="text" placeholder="상호명 또는 이름 검색..."
+                                    oninput="searchPushBiz(this.value)"
+                                    style="width:100%;padding:0.6rem 2.5rem 0.6rem 0.9rem;border:1px solid var(--gray-300);border-radius:10px;"/>
+                                <span class="material-icons" style="position:absolute;right:0.6rem;top:50%;transform:translateY(-50%);color:var(--gray-400);pointer-events:none;">search</span>
+                            </div>
+                            <div id="pushBizResults" style="border:1px solid var(--gray-200);border-radius:10px;max-height:200px;overflow-y:auto;"></div>
+                            <div id="pushSelectedBizList" style="margin-top:0.75rem;display:flex;flex-wrap:wrap;gap:0.5rem;"></div>
+                        </div>
+
+                        <!-- 발송 버튼 -->
+                        <button onclick="sendPushNotification()"
+                            style="width:100%;padding:0.9rem;background:#1e3a8a;color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+                            <span class="material-icons">send</span>
+                            푸시 알림 보내기
+                        </button>
+
+                        <!-- 발송 결과 -->
+                        <div id="pushResult" style="display:none;margin-top:1rem;padding:0.9rem;border-radius:10px;"></div>
+                    </div>
+                </div>
+
                 <!-- Web Content Section -->
                 <div id="section-web-content" class="hidden">
                     <!-- 사이트 설정 -->
@@ -1192,7 +1268,7 @@
                     </div>
 
                     <!-- 웹 광고 배너 관리 -->
-                    <div class="section">
+                    <div class="section" style="margin-bottom:1.5rem;">
                         <div class="section-header">
                             <h2 class="section-title">
                                 <span class="material-icons">image</span>
@@ -1203,6 +1279,32 @@
                             </button>
                         </div>
                         <div id="webAdsContainer">
+                            <div class="loading"><div class="spinner"></div>로딩 중...</div>
+                        </div>
+                    </div>
+
+                    <!-- 이번 달 우수 업체 관리 -->
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">star</span>
+                                이번 달 우수 업체
+                            </h2>
+                        </div>
+                        <div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:#92400e;">
+                            ⭐ 홈페이지와 견적 신청 페이지에 표시됩니다. 최대 3개 권장.
+                        </div>
+                        <!-- 사업자 검색 추가 -->
+                        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+                            <div style="flex:1;position:relative;">
+                                <input id="featuredBizSearch" type="text" placeholder="상호명 또는 이름으로 사업자 검색..."
+                                    oninput="searchFeaturedBiz(this.value)"
+                                    style="width:100%;padding:0.6rem 2.5rem 0.6rem 0.9rem;border:1px solid var(--gray-300);border-radius:10px;"/>
+                                <span class="material-icons" style="position:absolute;right:0.6rem;top:50%;transform:translateY(-50%);color:var(--gray-400);pointer-events:none;">search</span>
+                            </div>
+                        </div>
+                        <div id="featuredBizSearchResults" style="margin-bottom:1rem;"></div>
+                        <div id="featuredBizList">
                             <div class="loading"><div class="spinner"></div>로딩 중...</div>
                         </div>
                     </div>
@@ -1718,7 +1820,7 @@
             if (window.innerWidth <= 768) closeSidebar();
 
             // Hide all sections
-            ['dashboard', 'users', 'estimates', 'calls', 'posts', 'chats', 'announcements', 'ads', 'web-orders', 'web-content'].forEach(name => {
+            ['dashboard', 'users', 'estimates', 'calls', 'posts', 'chats', 'announcements', 'ads', 'web-orders', 'web-content', 'push-notifications'].forEach(name => {
                 const el = document.getElementById(`section-${name}`);
                 if (el) el.classList.add('hidden');
             });
@@ -1738,7 +1840,8 @@
                 announcements: '공지 배너',
                 ads: '광고 관리',
                 'web-orders': '웹 견적 관리',
-                'web-content': '웹 콘텐츠 관리'
+                'web-content': '웹 콘텐츠 관리',
+                'push-notifications': '푸시 알림 발송'
             };
             document.getElementById('page-title').textContent = titles[sectionName] || sectionName;
 
@@ -1773,6 +1876,9 @@
                     break;
                 case 'web-content':
                     if (typeof loadWebContent === 'function') loadWebContent();
+                    break;
+                case 'push-notifications':
+                    // 별도 로딩 불필요 (정적 UI)
                     break;
             }
             

@@ -1006,6 +1006,135 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       }
     }
 
+    // ── 푸시 알림 발송 ──────────────────────────────────────────────
+    if (path.startsWith('/push-notifications')) {
+      const sub = path.replace(/^\/push-notifications/, '')
+
+      // GET /push-notifications/users?q=검색어 – 사업자 목록 (발송 대상 선택용)
+      if (event.httpMethod === 'GET' && sub.startsWith('/users')) {
+        const q = event.queryStringParameters?.q || ''
+        let url = `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname&eq.role=business&order=businessname.asc&limit=50`
+        if (q) url += `&or=(name.ilike.*${encodeURIComponent(q)}*,businessname.ilike.*${encodeURIComponent(q)}*)`
+        const res = await fetch(url, { headers: sbHeaders })
+        const json = await res.json()
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // POST /push-notifications/send
+      if (event.httpMethod === 'POST' && sub === '/send') {
+        const { title, body: msgBody, targetAll, userIds: targetIds } = JSON.parse(event.body || '{}')
+        if (!title || !msgBody) return { statusCode: 400, body: JSON.stringify({ error: 'title, body 필수' }), headers: { 'Content-Type': 'application/json' } }
+        if (title.length > 30 || msgBody.length > 30) return { statusCode: 400, body: JSON.stringify({ error: '텍스트는 30자 이하' }), headers: { 'Content-Type': 'application/json' } }
+
+        // 대상 user ID 목록 결정
+        let userIds: string[] = []
+        if (targetAll) {
+          const usersRes = await fetch(`${SUPABASE_URL}/rest/v1/users?select=id&eq.role=business&limit=500`, { headers: sbHeaders })
+          const users = await usersRes.json() as { id: string }[]
+          userIds = Array.isArray(users) ? users.map(u => u.id) : []
+        } else {
+          userIds = Array.isArray(targetIds) ? targetIds : []
+        }
+        if (userIds.length === 0) return { statusCode: 400, body: JSON.stringify({ error: '발송 대상 없음' }), headers: { 'Content-Type': 'application/json' } }
+
+        // notifications-send-bulk 함수 호출 (같은 Netlify 배포)
+        const baseUrl = process.env.URL || 'https://allsuri.app'
+        const bulkRes = await fetch(`${baseUrl}/.netlify/functions/notifications-send-bulk`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${ADMIN_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userIds, title, body: msgBody, data: { type: 'admin_announcement' } }),
+        })
+        const bulkJson = await bulkRes.json()
+        return { statusCode: 200, body: JSON.stringify({ success: true, ...bulkJson }), headers: { 'Content-Type': 'application/json' } }
+      }
+    }
+
+    // ── 추천 업체 관리 ──────────────────────────────────────────────
+    if (path.startsWith('/featured-businesses')) {
+      const sub = path.replace(/^\/featured-businesses/, '')
+
+      // GET /featured-businesses – 추천 업체 목록 (사업자 정보 JOIN)
+      if (event.httpMethod === 'GET' && (sub === '' || sub === '/')) {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/web_featured_businesses?select=id,sort_order,created_at,users(id,name,businessname,phonenumber,category,region,avatar_url)&order=sort_order.asc`,
+          { headers: sbHeaders }
+        )
+        const json = await res.json()
+        return { statusCode: 200, body: JSON.stringify(Array.isArray(json) ? json : []), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // POST /featured-businesses – 추천 업체 추가
+      if (event.httpMethod === 'POST' && (sub === '' || sub === '/')) {
+        const { userId, sortOrder } = JSON.parse(event.body || '{}')
+        if (!userId) return { statusCode: 400, body: JSON.stringify({ error: 'userId 필수' }), headers: { 'Content-Type': 'application/json' } }
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/web_featured_businesses`, {
+          method: 'POST',
+          headers: { ...sbHeaders, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' },
+          body: JSON.stringify({ user_id: userId, sort_order: sortOrder ?? 0 }),
+        })
+        const json = await res.json()
+        return { statusCode: 200, body: JSON.stringify(json), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // DELETE /featured-businesses/:id
+      if (event.httpMethod === 'DELETE' && sub.match(/^\/[^/]+$/)) {
+        const id = sub.slice(1)
+        await fetch(`${SUPABASE_URL}/rest/v1/web_featured_businesses?id=eq.${id}`, { method: 'DELETE', headers: sbHeaders })
+        return { statusCode: 200, body: JSON.stringify({ success: true }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      // GET /featured-businesses/public – 웹사이트용 (평점 포함 공개 데이터)
+      if (event.httpMethod === 'GET' && sub === '/public') {
+        const featRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/web_featured_businesses?select=id,sort_order,user_id&order=sort_order.asc`,
+          { headers: sbHeaders }
+        )
+        const featured = await featRes.json() as { id: string; user_id: string }[]
+        if (!Array.isArray(featured) || featured.length === 0) return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+        const ids = featured.map(f => f.user_id)
+        const usersRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/users?select=id,name,businessname,phonenumber,category,region,avatar_url,jobs_accepted_count&id=in.(${ids.join(',')})`,
+          { headers: sbHeaders }
+        )
+        const users = await usersRes.json() as { id: string; name: string; businessname: string | null; phonenumber: string | null; category: string | null; region: string | null; avatar_url: string | null; jobs_accepted_count: number | null }[]
+        const reviewsRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/business_reviews?select=business_id,rating&business_id=in.(${ids.join(',')})`,
+          { headers: sbHeaders }
+        )
+        const reviews = await reviewsRes.json() as { business_id: string; rating: number }[]
+        const ratingMap: Record<string, { sum: number; count: number }> = {}
+        if (Array.isArray(reviews)) {
+          for (const r of reviews) {
+            if (!ratingMap[r.business_id]) ratingMap[r.business_id] = { sum: 0, count: 0 }
+            ratingMap[r.business_id].sum += r.rating
+            ratingMap[r.business_id].count += 1
+          }
+        }
+        const usersMap: Record<string, typeof users[0]> = {}
+        if (Array.isArray(users)) users.forEach(u => { usersMap[u.id] = u })
+        const result = featured.map(f => {
+          const u = usersMap[f.user_id]
+          if (!u) return null
+          const rm = ratingMap[f.user_id]
+          return {
+            id: f.id, userId: u.id,
+            businessName: u.businessname || u.name,
+            phonenumber: u.phonenumber || '',
+            category: u.category || '',
+            region: u.region || '',
+            avatarUrl: u.avatar_url,
+            jobsCount: u.jobs_accepted_count || 0,
+            avgRating: rm ? Math.round((rm.sum / rm.count) * 10) / 10 : null,
+            reviewCount: rm?.count || 0,
+          }
+        }).filter(Boolean)
+        return { statusCode: 200, body: JSON.stringify(result), headers: { 'Content-Type': 'application/json' } }
+      }
+    }
+
     return { statusCode: 404, body: JSON.stringify({ message: 'Not Found' }), headers: { 'Content-Type': 'application/json' } };
   } catch (e: any) {
     return { statusCode: 500, body: JSON.stringify({ message: 'Admin function error', error: String(e) }), headers: { 'Content-Type': 'application/json' } };

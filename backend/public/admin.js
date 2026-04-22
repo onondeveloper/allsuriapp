@@ -3256,6 +3256,9 @@ async function loadWebContent() {
         // 광고 목록 렌더
         const ads = Array.isArray(adsRes) ? adsRes : (adsRes?.ads || []);
         renderWebAds(ads);
+
+        // 추천 업체 로드
+        await loadFeaturedBusinesses();
     } catch (e) {
         console.error('[loadWebContent]', e);
     }
@@ -3388,6 +3391,172 @@ function showToast(msg) {
     div.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e3a8a;color:#fff;padding:0.75rem 1.5rem;border-radius:12px;font-size:0.9rem;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2);';
     document.body.appendChild(div);
     setTimeout(() => div.remove(), 3000);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 푸시 알림 발송
+// ══════════════════════════════════════════════════════════════
+
+let _selectedPushUserIds = [];
+
+function togglePushTarget() {
+    const val = document.querySelector('input[name="pushTarget"]:checked')?.value;
+    const area = document.getElementById('pushSpecificArea');
+    if (area) area.style.display = val === 'specific' ? 'block' : 'none';
+    if (val === 'all') {
+        _selectedPushUserIds = [];
+        const list = document.getElementById('pushSelectedBizList');
+        if (list) list.innerHTML = '';
+    }
+}
+
+let _pushBizTimer = null;
+function searchPushBiz(q) {
+    clearTimeout(_pushBizTimer);
+    _pushBizTimer = setTimeout(async () => {
+        if (!q.trim()) { document.getElementById('pushBizResults').innerHTML = ''; return; }
+        try {
+            const res = await apiCall(`/users/search?q=${encodeURIComponent(q)}`);
+            const users = Array.isArray(res) ? res : [];
+            const container = document.getElementById('pushBizResults');
+            if (!container) return;
+            if (!users.length) { container.innerHTML = '<div style="padding:0.7rem 1rem;color:var(--gray-400);font-size:0.875rem;">검색 결과 없음</div>'; return; }
+            container.innerHTML = users.map(u => `
+                <div style="padding:0.6rem 1rem;border-bottom:1px solid var(--gray-100);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:0.875rem;"
+                    onclick="addPushBiz('${u.id}', '${(u.businessname || u.name || '').replace(/'/g,"\\'")}')">
+                    <span>${u.businessname || u.name}</span>
+                    <span class="material-icons" style="font-size:1rem;color:var(--primary);">add_circle_outline</span>
+                </div>`).join('');
+        } catch(e) { console.error(e); }
+    }, 400);
+}
+
+function addPushBiz(id, name) {
+    if (_selectedPushUserIds.includes(id)) return;
+    _selectedPushUserIds.push(id);
+    const list = document.getElementById('pushSelectedBizList');
+    if (!list) return;
+    const chip = document.createElement('div');
+    chip.id = `push_chip_${id}`;
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:0.35rem;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;padding:0.3rem 0.7rem;border-radius:20px;font-size:0.8rem;cursor:pointer;';
+    chip.innerHTML = `${name} <span onclick="removePushBiz('${id}')" style="font-size:0.95rem;color:#9ca3af;">&times;</span>`;
+    list.appendChild(chip);
+    document.getElementById('pushBizResults').innerHTML = '';
+    document.getElementById('pushBizSearch').value = '';
+}
+
+function removePushBiz(id) {
+    _selectedPushUserIds = _selectedPushUserIds.filter(x => x !== id);
+    document.getElementById(`push_chip_${id}`)?.remove();
+}
+
+async function sendPushNotification() {
+    const title = document.getElementById('pushTitle')?.value.trim();
+    const body = document.getElementById('pushBody')?.value.trim();
+    if (!title) { alert('제목을 입력해 주세요.'); return; }
+    if (!body) { alert('내용을 입력해 주세요.'); return; }
+    if (title.length > 30 || body.length > 30) { alert('텍스트는 30자 이하로 입력해 주세요.'); return; }
+    const targetAll = document.querySelector('input[name="pushTarget"]:checked')?.value === 'all';
+    if (!targetAll && _selectedPushUserIds.length === 0) { alert('발송 대상 사업자를 선택해 주세요.'); return; }
+    if (!confirm(`${targetAll ? '전체 사업자' : `${_selectedPushUserIds.length}명`}에게 푸시 알림을 보내시겠습니까?`)) return;
+
+    const resultEl = document.getElementById('pushResult');
+    if (resultEl) { resultEl.style.display = 'block'; resultEl.style.background = '#f0f7ff'; resultEl.style.color = '#1e3a8a'; resultEl.innerHTML = '⏳ 발송 중...'; }
+
+    try {
+        const result = await apiCall('/push-notifications/send', {
+            method: 'POST',
+            body: JSON.stringify({ title, body, targetAll, userIds: _selectedPushUserIds }),
+        });
+        if (resultEl) {
+            resultEl.style.background = '#dcfce7'; resultEl.style.color = '#166534';
+            resultEl.innerHTML = `✅ 발송 완료! 총 ${result.total || 0}명 중 ${result.sent || 0}명 성공`;
+        }
+        document.getElementById('pushTitle').value = '';
+        document.getElementById('pushBody').value = '';
+        document.getElementById('pushTitleCount').textContent = '0 / 30';
+        document.getElementById('pushBodyCount').textContent = '0 / 30';
+        _selectedPushUserIds = [];
+        document.getElementById('pushSelectedBizList').innerHTML = '';
+    } catch(e) {
+        if (resultEl) { resultEl.style.background = '#fee2e2'; resultEl.style.color = '#991b1b'; resultEl.innerHTML = `❌ 발송 실패: ${e.message}`; }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 추천 업체 관리 (이번 달 우수 업체)
+// ══════════════════════════════════════════════════════════════
+
+async function loadFeaturedBusinesses() {
+    try {
+        const data = await apiCall('/featured-businesses');
+        renderFeaturedBusinesses(Array.isArray(data) ? data : []);
+    } catch(e) {
+        console.error('[loadFeaturedBusinesses]', e);
+    }
+}
+
+function renderFeaturedBusinesses(list) {
+    const container = document.getElementById('featuredBizList');
+    if (!container) return;
+    if (!list.length) {
+        container.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray-400);">등록된 추천 업체가 없습니다.</div>';
+        return;
+    }
+    container.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:0.5rem;">
+            ${list.map((item, idx) => {
+                const u = item.users || item;
+                const name = u.businessname || u.name || '-';
+                return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;background:#f9fafb;border:1px solid var(--gray-200);border-radius:10px;">
+                    <span style="background:#1e3a8a;color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">${idx+1}</span>
+                    <div style="flex:1;">
+                        <div style="font-weight:600;">${name}</div>
+                        <div style="font-size:0.8rem;color:var(--gray-500);">${u.category||''} ${u.region||''}</div>
+                    </div>
+                    <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5;" onclick="removeFeaturedBiz('${item.id}')">삭제</button>
+                </div>`;
+            }).join('')}
+        </div>`;
+}
+
+let _featBizTimer = null;
+function searchFeaturedBiz(q) {
+    clearTimeout(_featBizTimer);
+    _featBizTimer = setTimeout(async () => {
+        const container = document.getElementById('featuredBizSearchResults');
+        if (!container) return;
+        if (!q.trim()) { container.innerHTML = ''; return; }
+        try {
+            const res = await apiCall(`/users/search?q=${encodeURIComponent(q)}`);
+            const users = Array.isArray(res) ? res : [];
+            if (!users.length) { container.innerHTML = '<div style="padding:0.5rem;color:var(--gray-400);font-size:0.875rem;">검색 결과 없음</div>'; return; }
+            container.innerHTML = `<div style="border:1px solid var(--gray-200);border-radius:10px;overflow:hidden;">
+                ${users.map(u => `
+                    <div style="padding:0.6rem 1rem;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;font-size:0.875rem;">
+                        <span>${u.businessname || u.name}</span>
+                        <button class="btn btn-primary btn-sm" onclick="addFeaturedBiz('${u.id}')">추가</button>
+                    </div>`).join('')}
+            </div>`;
+        } catch(e) { console.error(e); }
+    }, 400);
+}
+
+async function addFeaturedBiz(userId) {
+    try {
+        await apiCall('/featured-businesses', { method: 'POST', body: JSON.stringify({ userId, sortOrder: 0 }) });
+        showToast('✅ 추천 업체에 추가되었습니다.');
+        document.getElementById('featuredBizSearch').value = '';
+        document.getElementById('featuredBizSearchResults').innerHTML = '';
+        await loadFeaturedBusinesses();
+    } catch(e) { alert('추가 실패: ' + e.message); }
+}
+
+async function removeFeaturedBiz(id) {
+    if (!confirm('추천 업체에서 제거하시겠습니까?')) return;
+    await apiCall(`/featured-businesses/${id}`, { method: 'DELETE' });
+    showToast('🗑️ 제거되었습니다.');
+    await loadFeaturedBusinesses();
 }
 
 // 페이지 로드 시 초기화
