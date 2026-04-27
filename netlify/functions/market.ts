@@ -364,6 +364,7 @@ async function fetchAuthUser(userId: string): Promise<any | null> {
       headers: {
         apikey: SUPABASE_SERVICE_ROLE_KEY,
         Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        // Content-Type 없음 - GET 요청
       }
     })
     if (!res.ok) return null
@@ -397,10 +398,10 @@ async function fetchAuthUser(userId: string): Promise<any | null> {
 async function handleGetBids(event: any, path: string) {
   const listingId = path.split('/')[2]
 
-  const sbHeaders = {
+  // GET 요청용 헤더 — Content-Type 없음 (admin.ts와 동일, PostgREST GET 표준)
+  const getHeaders = {
     apikey: SUPABASE_SERVICE_ROLE_KEY,
     Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    'Content-Type': 'application/json',
   }
 
   const USER_COLS = 'id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,category,description,businessnumber'
@@ -409,7 +410,7 @@ async function handleGetBids(event: any, path: string) {
     // ── 1단계: order_bids 조회 ─────────────────────────────────────
     const bidsRes = await fetch(
       `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=*&order=created_at.desc`,
-      { headers: sbHeaders }
+      { headers: getHeaders }
     )
     const bidsBody = await bidsRes.text()
     let bids: any[]
@@ -419,25 +420,23 @@ async function handleGetBids(event: any, path: string) {
       return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
     }
 
-    // ── 2단계: public.users 조회 ─────────────────────────────────────
+    // ── 2단계: public.users 조회 — admin.ts fetchUsers와 동일한 quoted in.() 방식 ──
     const bidderIds = [...new Set(bids.map((b: any) => b.bidder_id).filter(Boolean))] as string[]
     const usersMap: Record<string, any> = {}
 
     if (bidderIds.length > 0) {
-      // id=eq.UUID 개별 조회 (가장 안전하고 신뢰할 수 있는 형식)
-      const userResults = await Promise.all(
-        bidderIds.map(uid =>
-          fetch(
-            `${SUPABASE_URL}/rest/v1/users?id=eq.${uid}&select=${USER_COLS}&limit=1`,
-            { headers: sbHeaders }
-          )
-            .then(r => r.json())
-            .then((data: any) => (Array.isArray(data) && data[0]) ? data[0] : null)
-            .catch(() => null)
-        )
+      const idList = bidderIds.map(id => `"${id}"`).join(',')
+      const usersRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?select=${USER_COLS}&id=in.(${idList})`,
+        { headers: getHeaders }   // Content-Type 없는 GET 헤더 사용
       )
-      userResults.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
-      console.log(`[market] getBids public.users: ${Object.keys(usersMap).length}/${bidderIds.length} 조회`)
+      const usersData = await usersRes.json()
+      if (Array.isArray(usersData) && !(usersData as any)?.code) {
+        usersData.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
+        console.log(`[market] getBids public.users: ${usersData.length}/${bidderIds.length} 조회 성공`)
+      } else {
+        console.error('[market] getBids public.users 오류 (status:', usersRes.status, '):', JSON.stringify(usersData).slice(0, 200))
+      }
     }
 
     // ── 3단계: public.users에 없거나 이름이 기본값인 경우 auth.users Admin API로 보완 ────
