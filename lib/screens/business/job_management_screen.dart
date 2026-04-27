@@ -1096,23 +1096,11 @@ class _ModernJobsList extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                
-                // Status Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(job.status),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _getStatusText(job.status),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+
+                // 공사 진행 현황 타임라인
+                _buildTimeline(job.status),
+                const SizedBox(height: 20),
+                const Divider(height: 1),
                 const SizedBox(height: 16),
                 
                 // Description
@@ -1199,6 +1187,97 @@ class _ModernJobsList extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // ── 공사 진행 현황 타임라인 ───────────────────────────────────────────
+  static Widget _buildTimeline(String status) {
+    const steps = ['낙찰\n확정', '공사\n진행', '완료\n확인', '완료'];
+    final current = _statusToStep(status);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _getStatusColor(status),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _getStatusText(status),
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('공사 현황', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            for (int i = 0; i < steps.length; i++) ...[
+              Expanded(
+                child: Column(
+                  children: [
+                    Container(
+                      width: 38, height: 38,
+                      decoration: BoxDecoration(
+                        color: i <= current ? const Color(0xFF1E3A8A) : Colors.grey[200],
+                        shape: BoxShape.circle,
+                        boxShadow: i == current
+                            ? [BoxShadow(color: const Color(0xFF1E3A8A).withOpacity(0.35), blurRadius: 8, spreadRadius: 1)]
+                            : null,
+                      ),
+                      child: Center(
+                        child: i < current
+                            ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
+                            : Text(
+                                '${i + 1}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: i == current ? Colors.white : Colors.grey[400],
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      steps[i],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 10,
+                        height: 1.3,
+                        fontWeight: i == current ? FontWeight.bold : FontWeight.normal,
+                        color: i <= current ? const Color(0xFF1E3A8A) : Colors.grey[400],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (i < steps.length - 1)
+                Container(
+                  height: 2, width: 14,
+                  margin: const EdgeInsets.only(bottom: 30),
+                  color: i < current ? const Color(0xFF1E3A8A) : Colors.grey[300],
+                ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  static int _statusToStep(String status) {
+    switch (status) {
+      case 'assigned':              return 0;
+      case 'in_progress':           return 1;
+      case 'awaiting_confirmation': return 2;
+      case 'completed':             return 3;
+      default:                      return 0;
+    }
   }
 
   static Widget _buildDetailRow(IconData icon, String label, String value) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:allsuriapp/services/kakao_share_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:allsuriapp/services/marketplace_service.dart';
 import 'package:allsuriapp/services/api_service.dart';
@@ -759,7 +760,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                       if (hasPendingBid) {
                                         await _cancelBid(id);
                                       } else if (canBid) {
-                                        await _showBidDialog(id, title);
+                                        await _showBidDialog(id, title,
+                                          isWebOrder: postedBy == null || postedBy.isEmpty);
                                       }
                                     },
                                     icon: Icon(
@@ -957,8 +959,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     }
   }
 
-  // 입찰 다이얼로그: 견적가, 공사 기일, 메시지 입력 후 _claimListing 호출
-  Future<void> _showBidDialog(String id, String title) async {
+  // 입찰 다이얼로그
+  // isWebOrder=true  → 고객 웹 오더: 견적가·공사일 필드 표시 (전체 폼)
+  // isWebOrder=false → B2B 오더   : '바로 입찰하기' 버튼 추가, 필드는 선택
+  Future<void> _showBidDialog(String id, String title, {bool isWebOrder = false}) async {
     if (_myActiveBidListingIds.contains(id)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('이미 이 오더에 입찰하셨습니다'), backgroundColor: Colors.orange),
@@ -969,7 +973,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     final daysCtrl = TextEditingController();
     final msgCtrl = TextEditingController();
 
-    final confirmed = await showModalBottomSheet<bool>(
+    final result = await showModalBottomSheet<dynamic>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -990,12 +994,42 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
             Text('입찰하기', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
             const SizedBox(height: 4),
             Text(title, style: TextStyle(fontSize: 13, color: Colors.grey[600]), maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            // B2B 전용: 바로 입찰하기 (견적가 없이 즉시 입찰)
+            if (!isWebOrder) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(ctx, 'quick'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.flash_on_rounded),
+                  label: const Text('바로 입찰하기', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey[300])),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('또는 견적가 포함 입찰', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey[300])),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
             TextField(
               controller: amountCtrl,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: '견적가 (원)',
+                labelText: isWebOrder ? '견적가 (원)' : '견적가 (원, 선택)',
                 hintText: '예: 500000',
                 prefixIcon: const Icon(Icons.attach_money_rounded, color: Color(0xFF1E3A8A)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -1007,7 +1041,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
               controller: daysCtrl,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: '예상 공사 기일 (일)',
+                labelText: isWebOrder ? '예상 공사 기일 (일)' : '예상 공사 기일 (일, 선택)',
                 hintText: '예: 3',
                 prefixIcon: const Icon(Icons.calendar_today_outlined, color: Color(0xFF1E3A8A)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -1051,7 +1085,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
                     ),
-                    child: const Text('입찰하기', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: Text(
+                      isWebOrder ? '입찰하기' : '가격 포함 입찰',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
@@ -1061,7 +1098,10 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       ),
     );
 
-    if (confirmed == true) {
+    if (result == 'quick') {
+      // B2B 바로 입찰 (견적가 없이)
+      await _claimListing(id);
+    } else if (result == true) {
       final bidAmount = double.tryParse(amountCtrl.text.replaceAll(',', ''));
       final estimatedDays = int.tryParse(daysCtrl.text);
       final msg = msgCtrl.text.trim();
@@ -1306,9 +1346,35 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.share_outlined, color: Color(0xFF1E3A8A)),
-                onPressed: () {
-                  final shareText = '[$category] $title\n📍 지역: $region\n\n$description\n\n올수리 앱에서 입찰하세요!';
-                  Share.share(shareText, subject: title);
+                onPressed: () async {
+                  final imageUrl = mediaUrls.isNotEmpty ? mediaUrls[0] : null;
+                  final budgetRaw = data['estimate_amount']
+                      ?? data['budget_amount']
+                      ?? data['estimateAmount']
+                      ?? data['budgetAmount'];
+                  final double? budgetAmount =
+                      budgetRaw != null ? (budgetRaw as num).toDouble() : null;
+                  final commRaw = data['commission_rate'] ?? data['commissionRate'];
+                  final double? commissionRate =
+                      commRaw != null ? (commRaw as num).toDouble() : null;
+
+                  final kakaoService = KakaoShareService();
+                  final success = await kakaoService.shareOrder(
+                    orderId: listingId.isNotEmpty ? listingId : jobId,
+                    title: title,
+                    region: region,
+                    category: category,
+                    budgetAmount: budgetAmount,
+                    commissionRate: commissionRate,
+                    imageUrl: imageUrl,
+                    description: description,
+                  );
+                  // 카카오톡 공유 실패 시 시스템 공유로 폴백
+                  if (!success) {
+                    final shareText =
+                        '[$category] $title\n📍 지역: $region\n\n$description\n\n올수리 앱에서 입찰하세요!';
+                    Share.share(shareText, subject: title);
+                  }
                 },
               ),
               if (isOwner)
@@ -1634,7 +1700,8 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                 if (hasPendingBid) {
                                   await _cancelBid(data['id'].toString());
                                 } else {
-                                  await _showBidDialog(data['id'].toString(), title);
+                                  await _showBidDialog(data['id'].toString(), title,
+                                    isWebOrder: postedBy.isEmpty);
                                 }
                               },
                             ),
