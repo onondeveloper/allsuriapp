@@ -370,6 +370,36 @@ async function handleBidListing(event: any, path: string) {
   }
 }
 
+// auth.users Admin API에서 사용자 정보 가져오기 (public.users에 없는 경우 폴백)
+async function fetchAuthUser(userId: string): Promise<any | null> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      }
+    })
+    if (!res.ok) return null
+    const u = await res.json()
+    if (!u?.id) return null
+    const meta = u.user_metadata || {}
+    return {
+      id: u.id,
+      name: meta.name || meta.full_name || u.email?.split('@')[0] || '사용자',
+      businessname: meta.businessname || meta.business_name || meta.name || meta.full_name || '사업자',
+      avatar_url: meta.avatar_url || null,
+      estimates_created_count: meta.estimates_created_count || 0,
+      jobs_accepted_count: meta.jobs_accepted_count || 0,
+      region: meta.region || '',
+      category: meta.category || '',
+      description: meta.description || '',
+      businessnumber: meta.businessnumber || meta.business_number || '',
+    }
+  } catch {
+    return null
+  }
+}
+
 async function handleGetBids(event: any, path: string) {
   const listingId = path.split('/')[2]
 
@@ -382,38 +412,7 @@ async function handleGetBids(event: any, path: string) {
   const USER_COLS = 'id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,category,description,businessnumber'
 
   try {
-    // ── 방법 1: PostgREST FK 자동 감지 조인 (가장 효율적) ────────────
-    const joinRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=*,bidder:users(${USER_COLS})&order=created_at.desc`,
-      { headers: sbHeaders }
-    )
-    const joinBody = await joinRes.text()
-    let joinData: any
-    try { joinData = JSON.parse(joinBody) } catch { joinData = null }
-
-    if (Array.isArray(joinData)) {
-      console.log(`[market] getBids FK-join: ${joinData.length}건`)
-      return { statusCode: 200, body: JSON.stringify(joinData), headers: { 'Content-Type': 'application/json' } }
-    }
-
-    // FK 자동감지 실패 → FK 이름 명시 재시도
-    console.warn('[market] getBids FK-auto failed, trying explicit FK:', joinBody.slice(0, 150))
-    const joinRes2 = await fetch(
-      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=*,bidder:users!order_bids_bidder_id_fkey(${USER_COLS})&order=created_at.desc`,
-      { headers: sbHeaders }
-    )
-    const joinBody2 = await joinRes2.text()
-    let joinData2: any
-    try { joinData2 = JSON.parse(joinBody2) } catch { joinData2 = null }
-
-    if (Array.isArray(joinData2)) {
-      console.log(`[market] getBids FK-explicit: ${joinData2.length}건`)
-      return { statusCode: 200, body: JSON.stringify(joinData2), headers: { 'Content-Type': 'application/json' } }
-    }
-
-    // ── 방법 2: 2단계 조회 폴백 ──────────────────────────────────────
-    console.warn('[market] getBids FK-explicit failed, fallback 2-step:', joinBody2.slice(0, 150))
-
+    // ── 1단계: order_bids 조회 ─────────────────────────────────────
     const bidsRes = await fetch(
       `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=*&order=created_at.desc`,
       { headers: sbHeaders }
@@ -426,35 +425,46 @@ async function handleGetBids(event: any, path: string) {
       return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
     }
 
+    // ── 2단계: public.users 조회 ─────────────────────────────────────
     const bidderIds = [...new Set(bids.map((b: any) => b.bidder_id).filter(Boolean))] as string[]
-    let usersMap: Record<string, any> = {}
+    const usersMap: Record<string, any> = {}
 
     if (bidderIds.length > 0) {
-      // admin.ts와 동일한 quoted 방식 사용
       const idList = bidderIds.map(id => `"${id}"`).join(',')
       const usersRes = await fetch(
         `${SUPABASE_URL}/rest/v1/users?id=in.(${idList})&select=${USER_COLS}`,
         { headers: sbHeaders }
       )
       const usersBody = await usersRes.text()
-      let usersArr: any[]
       try {
         const parsed = JSON.parse(usersBody)
-        usersArr = Array.isArray(parsed) ? parsed : []
-        if (!Array.isArray(parsed)) {
-          console.error('[market] getBids users-query error:', usersBody.slice(0, 200))
+        if (Array.isArray(parsed)) {
+          parsed.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
+          console.log(`[market] getBids public.users: ${parsed.length}/${bidderIds.length} 조회`)
+        } else {
+          console.error('[market] getBids public.users error:', usersBody.slice(0, 200))
         }
-      } catch {
-        usersArr = []
-      }
-      usersArr.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
-      console.log(`[market] getBids 2-step: ${bids.length} bids, ${usersArr.length}/${bidderIds.length} users`)
+      } catch { /* ignore */ }
     }
 
+    // ── 3단계: public.users에 없는 경우 auth.users Admin API 폴백 ────
+    const missingIds = bidderIds.filter(id => !usersMap[id])
+    if (missingIds.length > 0) {
+      console.warn(`[market] getBids auth-fallback for ${missingIds.length} users:`, missingIds)
+      await Promise.all(missingIds.map(async (uid) => {
+        const authUser = await fetchAuthUser(uid)
+        if (authUser) usersMap[uid] = authUser
+      }))
+    }
+
+    // ── 병합 ─────────────────────────────────────────────────────────
     const merged = bids.map((b: any) => ({
       ...b,
       bidder: usersMap[b.bidder_id] || null,
     }))
+
+    const foundCount = merged.filter((b: any) => b.bidder !== null).length
+    console.log(`[market] getBids done: ${merged.length} bids, ${foundCount} with bidder info`)
 
     return { statusCode: 200, body: JSON.stringify(merged), headers: { 'Content-Type': 'application/json' } }
 
