@@ -374,22 +374,44 @@ async function handleGetBids(event: any, path: string) {
   const id = path.split('/')[2]
 
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${id}&select=*,bidder:users!order_bids_bidder_id_fkey(id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,phonenumber,category,description,businessnumber,businessregistrationnumber,serviceareas,specialties)&order=created_at.desc`,
-      {
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        }
-      }
+    const headers = {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    }
+
+    // ── 1. 입찰 목록 조회 ─────────────────────────────────────────
+    const bidsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${id}&select=*&order=created_at.desc`,
+      { headers }
     )
+    const bids: any[] = await bidsRes.json()
+    if (!Array.isArray(bids) || bids.length === 0) {
+      return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
+    }
 
-    const data = await response.json()
+    // ── 2. 입찰자 사용자 정보 별도 조회 (FK 조인 없이 안전하게) ──
+    const bidderIds = [...new Set(bids.map((b: any) => b.bidder_id).filter(Boolean))]
+    const idList = bidderIds.map(id => `"${id}"`).join(',')
+    const usersRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=in.(${idList})&select=id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,phonenumber,category,description,businessnumber`,
+      { headers }
+    )
+    const users: any[] = await usersRes.json()
+    const usersMap: Record<string, any> = {}
+    if (Array.isArray(users)) {
+      users.forEach((u: any) => { usersMap[u.id] = u })
+    }
 
-    return { statusCode: 200, body: JSON.stringify(data || []), headers: { 'Content-Type': 'application/json' } };
+    // ── 3. 입찰 + 사용자 정보 병합 ──────────────────────────────
+    const merged = bids.map((b: any) => ({
+      ...b,
+      bidder: usersMap[b.bidder_id] || null,
+    }))
+
+    return { statusCode: 200, body: JSON.stringify(merged), headers: { 'Content-Type': 'application/json' } }
   } catch (error: any) {
     console.error('[market] get bids error:', error.message)
-    return { statusCode: 500, body: JSON.stringify({ message: '입찰 목록 조회 실패', error: error.message }), headers: { 'Content-Type': 'application/json' } };
+    return { statusCode: 500, body: JSON.stringify({ message: '입찰 목록 조회 실패', error: error.message }), headers: { 'Content-Type': 'application/json' } }
   }
 }
 
