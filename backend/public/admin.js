@@ -964,19 +964,23 @@ async function toggleAdmin(userId) {
                 // 모달 footer 버튼 조건부 표시
                 const modalFooter = document.querySelector('#userModal .modal-footer');
                 if (userStatus === 'approved') {
-                    // 승인된 사용자: 관리자 권한 토글 버튼, 삭제 버튼
                     modalFooter.innerHTML = `
                         <button class="btn btn-secondary" onclick="closeUserModal()">닫기</button>
                         <button class="btn ${user.is_admin ? 'btn-warning' : 'btn-primary'} btn-sm" onclick="toggleAdminFromModal()" style="margin-right: auto;">
                             <span class="material-icons" style="font-size: 1rem;">${user.is_admin ? 'remove_moderator' : 'admin_panel_settings'}</span>
                             ${user.is_admin ? '관리자 해제' : '관리자 지정'}
                         </button>
+                        <button class="btn btn-info btn-sm" onclick="showEditUserForm()">
+                            <span class="material-icons" style="font-size:1rem;">edit</span> 정보 수정
+                        </button>
                         <button class="btn btn-danger btn-sm" onclick="deleteUserFromModal()">삭제</button>
                     `;
                 } else {
-                    // 승인 대기 중: 승인, 거절 버튼
                     modalFooter.innerHTML = `
                         <button class="btn btn-secondary" onclick="closeUserModal()">닫기</button>
+                        <button class="btn btn-info btn-sm" onclick="showEditUserForm()">
+                            <span class="material-icons" style="font-size:1rem;">edit</span> 정보 수정
+                        </button>
                         <button class="btn btn-danger btn-sm" onclick="rejectUserFromModal()">거절</button>
                         <button class="btn btn-success btn-sm" onclick="approveUserFromModal()">승인</button>
                     `;
@@ -986,6 +990,104 @@ async function toggleAdmin(userId) {
             } catch (error) {
                 console.error('사용자 상세 정보 로드 오류:', error);
                 alert('사용자 상세 정보를 불러오는데 실패했습니다.');
+            }
+        }
+
+        // 사업자 정보 수정 폼 표시 (모달 내 인라인)
+        function showEditUserForm() {
+            if (!currentUserId) return;
+            const user = allUsers.find(u => u.id === currentUserId);
+            if (!user) return;
+
+            const modalBody = document.getElementById('userModalBody');
+            modalBody.innerHTML = `
+                <div style="display:grid; gap:0.75rem;">
+                    <div>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">상호명</label>
+                        <input id="editBusinessname" type="text" value="${(user.businessname || user.businessName || '').replace(/"/g,'&quot;')}"
+                            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;" />
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">대표자 이름</label>
+                        <input id="editName" type="text" value="${(user.name || '').replace(/"/g,'&quot;')}"
+                            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;" />
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">전화번호</label>
+                        <input id="editPhone" type="tel" value="${(user.phonenumber || user.phoneNumber || '').replace(/"/g,'&quot;')}"
+                            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;" />
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">지역</label>
+                        <input id="editRegion" type="text" value="${(user.region || '').replace(/"/g,'&quot;')}"
+                            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;" />
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">카테고리 / 전문분야</label>
+                        <input id="editCategory" type="text" value="${(user.category || '').replace(/"/g,'&quot;')}"
+                            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;" />
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">사업자등록번호</label>
+                        <input id="editBusinessnumber" type="text" value="${(user.businessnumber || user.businessNumber || '').replace(/"/g,'&quot;')}"
+                            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;" />
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">소개</label>
+                        <textarea id="editDescription" rows="3"
+                            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem; resize:vertical;">${(user.description || '').replace(/</g,'&lt;')}</textarea>
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">승인 상태</label>
+                        <select id="editStatus"
+                            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;">
+                            <option value="pending" ${(user.businessstatus||user.businessStatus)==='pending'?'selected':''}>대기중</option>
+                            <option value="approved" ${(user.businessstatus||user.businessStatus)==='approved'?'selected':''}>승인됨</option>
+                            <option value="rejected" ${(user.businessstatus||user.businessStatus)==='rejected'?'selected':''}>거절됨</option>
+                        </select>
+                    </div>
+                </div>
+            `;
+            document.getElementById('userModalTitle').textContent = '사업자 정보 수정';
+            const modalFooter = document.querySelector('#userModal .modal-footer');
+            modalFooter.innerHTML = `
+                <button class="btn btn-secondary" onclick="showUserDetail('${currentUserId}')">← 취소</button>
+                <button class="btn btn-primary" onclick="saveUserEdit()">
+                    <span class="material-icons" style="font-size:1rem;">save</span> 저장
+                </button>
+            `;
+        }
+
+        // 사업자 정보 수정 저장
+        async function saveUserEdit() {
+            if (!currentUserId) return;
+            const payload = {
+                businessname: document.getElementById('editBusinessname')?.value.trim() || undefined,
+                name: document.getElementById('editName')?.value.trim() || undefined,
+                phonenumber: document.getElementById('editPhone')?.value.trim() || undefined,
+                region: document.getElementById('editRegion')?.value.trim() || undefined,
+                category: document.getElementById('editCategory')?.value.trim() || undefined,
+                businessnumber: document.getElementById('editBusinessnumber')?.value.trim() || undefined,
+                description: document.getElementById('editDescription')?.value.trim() || undefined,
+                businessstatus: document.getElementById('editStatus')?.value || undefined,
+            };
+            // 빈 문자열 제거
+            Object.keys(payload).forEach(k => { if (!payload[k]) delete payload[k]; });
+
+            try {
+                const res = await apiCall(`/users/${currentUserId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify(payload),
+                });
+                if (res.success) {
+                    alert('✅ 정보가 수정되었습니다.');
+                    await loadUsers();
+                    showUserDetail(currentUserId);
+                } else {
+                    alert('❌ 수정 실패: ' + (res.message || '알 수 없는 오류'));
+                }
+            } catch (e) {
+                alert('❌ 수정 중 오류: ' + e.message);
             }
         }
 

@@ -523,6 +523,19 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                             specialtiesList = [specialties];
                           }
 
+                          // 추가 정보
+                          final region = bidder?['region']?.toString() ?? '';
+                          final category = bidder?['category']?.toString() ?? '';
+                          final description = bidder?['description']?.toString() ?? '';
+                          final businessNum = (bidder?['businessnumber']
+                              ?? bidder?['businessregistrationnumber'])?.toString() ?? '';
+                          final bidAmount = bid['bid_amount'];
+                          final estimatedDays = bid['estimated_days'];
+                          final double? bidAmountVal = bidAmount != null
+                              ? (bidAmount as num).toDouble() : null;
+                          final int? estimatedDaysVal = estimatedDays != null
+                              ? (estimatedDays as num).toInt() : null;
+
                           return _buildBidderCard(
                             bidderId: bid['bidder_id']?.toString() ?? '',
                             bidderName: bidderName,
@@ -533,6 +546,12 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                             status: status,
                             serviceAreas: serviceAreasList,
                             specialties: specialtiesList,
+                            region: region,
+                            category: category,
+                            description: description,
+                            businessNum: businessNum,
+                            bidAmount: bidAmountVal,
+                            estimatedDays: estimatedDaysVal,
                           );
                         },
                       ),
@@ -550,23 +569,26 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
     required String status,
     List<String> serviceAreas = const [],
     List<String> specialties = const [],
+    String region = '',
+    String category = '',
+    String description = '',
+    String businessNum = '',
+    double? bidAmount,
+    int? estimatedDays,
   }) {
     final isPending = status == 'pending';
     final isSelected = status == 'selected';
     final isRejected = status == 'rejected';
+    final hasBusinessReg = businessNum.isNotEmpty && businessNum != '등록번호 없음';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
+      elevation: isSelected ? 4 : 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isSelected
-              ? Colors.green
-              : isRejected
-                  ? Colors.grey[300]!
-                  : Colors.transparent,
-          width: 2,
+          color: isSelected ? const Color(0xFF10B981) : isRejected ? Colors.grey[300]! : Colors.transparent,
+          width: isSelected ? 2 : 1,
         ),
       ),
       child: Padding(
@@ -574,18 +596,63 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 프로필 섹션
+
+            // ── 견적가 배너 (있을 때만) ─────────────────────────
+            if (bidAmount != null && bidAmount > 0)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)]),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.attach_money_rounded, color: Colors.white, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      '견적가  ₩${bidAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    if (estimatedDays != null && estimatedDays > 0) ...[
+                      const Spacer(),
+                      const Icon(Icons.calendar_today_outlined, color: Colors.white70, size: 14),
+                      const SizedBox(width: 4),
+                      Text('$estimatedDays일', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    ],
+                  ],
+                ),
+              ),
+
+            // ── 프로필 헤더 ────────────────────────────────────
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GestureDetector(
                   onTap: () => _showBidderProfile(bidderId, bidderName),
-                  child: CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.blue[100],
-                    backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                    child: avatarUrl == null
-                        ? Icon(Icons.person, size: 32, color: Colors.blue[700])
-                        : null,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 32,
+                        backgroundColor: Colors.blue[100],
+                        backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                            ? NetworkImage(avatarUrl) : null,
+                        child: avatarUrl == null || avatarUrl.isEmpty
+                            ? Icon(Icons.person, size: 34, color: Colors.blue[700]) : null,
+                      ),
+                      if (hasBusinessReg)
+                        Positioned(
+                          right: 0, bottom: 0,
+                          child: Container(
+                            width: 18, height: 18,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF10B981), shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.verified, color: Colors.white, size: 12),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -595,50 +662,60 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          bidderName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(bidderName,
+                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (hasBusinessReg)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.green),
+                                ),
+                                child: const Text('사업자등록',
+                                  style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold)),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 4),
-                        // 평점 평균 표시
+                        // 평점
                         FutureBuilder<Map<String, dynamic>>(
                           future: _getBidderRating(bidderId),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              final avgRating = snapshot.data!['average'] ?? 0.0;
-                              final count = snapshot.data!['count'] ?? 0;
-                              return Row(
-                                children: [
-                                  Icon(Icons.star, size: 16, color: Colors.amber[700]),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    count > 0 ? '${avgRating.toStringAsFixed(1)} ($count개 후기)' : '후기 없음',
-                                    style: TextStyle(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w600),
-                                  ),
-                                ],
-                              );
-                            }
-                            return Row(
-                              children: [
-                                Icon(Icons.star_outline, size: 16, color: Colors.grey[400]),
+                          builder: (context, snap) {
+                            if (snap.hasData) {
+                              final avg = snap.data!['average'] as double? ?? 0.0;
+                              final cnt = snap.data!['count'] as int? ?? 0;
+                              return Row(children: [
+                                ...List.generate(5, (i) => Icon(
+                                  i < avg.round() ? Icons.star : Icons.star_border,
+                                  size: 14, color: Colors.amber[700],
+                                )),
                                 const SizedBox(width: 4),
-                                Text('평가 중...', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                              ],
-                            );
+                                Text(cnt > 0 ? '${avg.toStringAsFixed(1)} ($cnt건)' : '후기 없음',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                              ]);
+                            }
+                            return Text('평가 로딩 중...', style: TextStyle(fontSize: 12, color: Colors.grey[500]));
                           },
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(Icons.work_outline, size: 14, color: Colors.grey[600]),
-                            const SizedBox(width: 4),
-                            Text(
-                              '완료 $jobsCount건',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                            ),
+                            Icon(Icons.work_outline, size: 13, color: Colors.grey[500]),
+                            const SizedBox(width: 3),
+                            Text('완료 $jobsCount건', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                            if (category.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Icon(Icons.category_outlined, size: 13, color: Colors.grey[500]),
+                              const SizedBox(width: 3),
+                              Text(category, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                            ],
                           ],
                         ),
                       ],
@@ -647,158 +724,163 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
-            // 활동 지역 & 전문 분야
-            if (serviceAreas.isNotEmpty || specialties.isNotEmpty) ...[
+
+            // ── 지역 / 카테고리 정보 ─────────────────────────────
+            if (region.isNotEmpty || serviceAreas.isNotEmpty || specialties.isNotEmpty)
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
                   color: Colors.blue[50],
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (region.isNotEmpty)
+                      _infoRow(Icons.location_on_outlined, '활동 지역', region, Colors.blue),
+                    if (region.isNotEmpty && serviceAreas.isNotEmpty) const SizedBox(height: 4),
                     if (serviceAreas.isNotEmpty)
-                      Row(
-                        children: [
-                          Icon(Icons.location_on, size: 14, color: Colors.blue[700]),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              serviceAreas.take(2).join(', ') + (serviceAreas.length > 2 ? ' 외 ${serviceAreas.length - 2}곳' : ''),
-                              style: TextStyle(fontSize: 12, color: Colors.grey[800]),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    if (serviceAreas.isNotEmpty && specialties.isNotEmpty)
+                      _infoRow(Icons.map_outlined, '서비스 지역',
+                        serviceAreas.take(3).join(', ') + (serviceAreas.length > 3 ? ' 외 ${serviceAreas.length-3}곳' : ''),
+                        Colors.blue),
+                    if (specialties.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                    if (specialties.isNotEmpty)
-                      Row(
-                        children: [
-                          Icon(Icons.work, size: 14, color: Colors.orange[700]),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              specialties.take(2).join(', ') + (specialties.length > 2 ? ' 외 ${specialties.length - 2}개' : ''),
-                              style: TextStyle(fontSize: 12, color: Colors.grey[800]),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
+                      _infoRow(Icons.build_outlined, '전문 분야',
+                        specialties.take(2).join(', ') + (specialties.length > 2 ? ' 외 ${specialties.length-2}개' : ''),
+                        Colors.orange),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-            ],
 
-            // 메시지
-            if (message.isNotEmpty) ...[
+            // ── 사업자 소개 ──────────────────────────────────────
+            if (description.isNotEmpty) ...[
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
                   color: Colors.grey[50],
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey[200]!),
                 ),
-                child: Text(
-                  message,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[800]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('사업자 소개', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600])),
+                    const SizedBox(height: 4),
+                    Text(description, style: TextStyle(fontSize: 13, color: Colors.grey[800]), maxLines: 3, overflow: TextOverflow.ellipsis),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
             ],
 
-            // 입찰 시간
+            // ── 입찰 메시지 ──────────────────────────────────────
+            if (message.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.indigo[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('입찰 메시지', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo[600])),
+                    const SizedBox(height: 4),
+                    Text(message, style: TextStyle(fontSize: 13, color: Colors.grey[800])),
+                  ],
+                ),
+              ),
+            ],
+
+            // ── 입찰 시각 ────────────────────────────────────────
             Row(
               children: [
-                Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                Icon(Icons.access_time, size: 13, color: Colors.grey[500]),
                 const SizedBox(width: 4),
-                Text(
-                  _formatTime(createdAt),
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                Text(_formatTime(createdAt), style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => _showBidderProfile(bidderId, bidderName),
+                  icon: Icon(Icons.reviews_outlined, size: 14, color: Colors.blue[700]),
+                  label: Text('후기 보기', style: TextStyle(fontSize: 12, color: Colors.blue[700])),
+                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
                 ),
               ],
             ),
 
-            // 선택됨 배지
+            // ── 상태 배지 / 선택 버튼 ────────────────────────────
             if (isSelected) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.green),
                 ),
-                child: const Center(
-                  child: Text(
-                    '선택됨',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 18),
+                    SizedBox(width: 6),
+                    Text('낙찰 확정', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 15)),
+                  ],
                 ),
               ),
-            ],
-
-            // 미선택 배지
-            if (isRejected) ...[
-              const SizedBox(height: 16),
+            ] else if (isRejected) ...[
+              const SizedBox(height: 8),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.grey[400]!),
                 ),
-                child: Center(
-                  child: Text(
-                    '미선택',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
+                child: const Center(child: Text('미선택', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))),
               ),
-            ],
-
-            // 선택 버튼 (대기 상태일 때만)
-            if (isPending) ...[
-              const SizedBox(height: 16),
+            ] else if (isPending) ...[
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () => _selectBidder(bidderId, bidderName),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: const Color(0xFF1E3A8A),
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
                   ),
-                  icon: const Icon(Icons.check_circle, size: 20, color: Colors.white),
-                  label: const Text(
-                    '이 사업자 선택하기',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
+                  icon: const Icon(Icons.check_circle_outline, size: 20),
+                  label: const Text('이 사업자 낙찰하기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value, MaterialColor color) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 13, color: color[700]),
+        const SizedBox(width: 4),
+        Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+        Expanded(child: Text(value, style: TextStyle(fontSize: 12, color: Colors.grey[800]), overflow: TextOverflow.ellipsis)),
+      ],
     );
   }
 

@@ -237,6 +237,40 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       return { statusCode: 200, body: JSON.stringify({ success: true, user: Array.isArray(updated) ? updated[0] : updated }), headers: { 'Content-Type': 'application/json' } };
     }
 
+    // PATCH /users/:id  – 사업자 프로필 수정 (상태 변경 엔드포인트와 충돌 방지)
+    if (event.httpMethod === 'PATCH' && path.match(/^\/users\/[^/]+$/)
+        && !path.endsWith('/admin') && !path.endsWith('/status')) {
+      const userId = path.split('/')[2]
+      const body = JSON.parse(event.body || '{}')
+      const allowed = ['businessname', 'name', 'phonenumber', 'region', 'category', 'description', 'businessnumber', 'businessstatus']
+      const updatePayload: Record<string, string> = {}
+      for (const key of allowed) {
+        if (body[key] !== undefined) updatePayload[key] = body[key]
+      }
+      if (Object.keys(updatePayload).length === 0) {
+        return { statusCode: 400, body: JSON.stringify({ success: false, message: '수정할 필드가 없습니다.' }), headers: { 'Content-Type': 'application/json' } }
+      }
+      updatePayload['updatedat'] = new Date().toISOString()
+      const upRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify(updatePayload),
+      })
+      if (!upRes.ok) {
+        const errText = await upRes.text()
+        console.error('❌ 사용자 정보 수정 실패:', upRes.status, errText)
+        return { statusCode: 500, body: JSON.stringify({ success: false, message: '정보 수정 실패', error: errText }), headers: { 'Content-Type': 'application/json' } }
+      }
+      const updated = await upRes.json()
+      console.log('✅ 사용자 정보 수정 완료:', userId)
+      return { statusCode: 200, body: JSON.stringify({ success: true, message: '정보가 수정되었습니다.', data: Array.isArray(updated) ? updated[0] : updated }), headers: { 'Content-Type': 'application/json' } }
+    }
+
     // DELETE user (CASCADE 삭제 사용)
     if (event.httpMethod === 'DELETE' && path.startsWith('/users/')) {
       const userId = path.split('/')[2]

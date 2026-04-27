@@ -375,7 +375,7 @@ async function handleGetBids(event: any, path: string) {
 
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${id}&select=*,bidder:users!order_bids_bidder_id_fkey(id,businessname,avatar_url,estimates_created_count,jobs_accepted_count)&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${id}&select=*,bidder:users!order_bids_bidder_id_fkey(id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,phonenumber,category,description,businessnumber,businessregistrationnumber,serviceareas,specialties)&order=created_at.desc`,
       {
         headers: {
           apikey: SUPABASE_SERVICE_ROLE_KEY,
