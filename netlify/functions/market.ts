@@ -390,16 +390,17 @@ async function fetchAuthUser(userId: string): Promise<any | null> {
     const u = await res.json()
     if (!u?.id) return null
     const meta = u.user_metadata || {}
-    // Kakao OAuth는 preferred_username, nickname, full_name 등 다양한 필드 사용
-    const bestName = [
-      meta.businessname, meta.business_name,
-      meta.preferred_username, meta.nickname,
-      meta.full_name, meta.name,
-    ].find(v => v && !isGenericName(v)) || u.email?.split('@')[0] || '사용자'
+    // 상호명: businessname/business_name 전용 필드만 사용 (개인 이름 필드와 구분)
+    const businessname = [meta.businessname, meta.business_name]
+      .find(v => v && !isGenericName(v)) || ''
+    // 개인 이름: preferred_username, nickname, full_name, name 순
+    const personName = [
+      meta.preferred_username, meta.nickname, meta.full_name, meta.name,
+    ].find(v => v && !isGenericName(v)) || u.email?.split('@')[0] || ''
     return {
       id: u.id,
-      name: bestName,
-      businessname: bestName,
+      name: personName,
+      businessname: businessname,
       avatar_url: meta.avatar_url || meta.picture || null,
       estimates_created_count: meta.estimates_created_count || 0,
       jobs_accepted_count: meta.jobs_accepted_count || 0,
@@ -471,8 +472,16 @@ async function handleGetBids(event: any, path: string) {
       await Promise.all(needsEnhance.map(async (uid) => {
         const authUser = await fetchAuthUser(uid)
         if (authUser) {
-          // 기존 public.users 데이터를 auth 데이터로 보완 (이름만 덮어씀)
-          usersMap[uid] = { ...(usersMap[uid] || {}), ...authUser }
+          const existing = usersMap[uid] || {}
+          // 상호명: 기존 public.users 값이 좋으면 유지, 아니면 auth 값 사용
+          const mergedBusinessname = !isGenericName(existing.businessname)
+            ? existing.businessname
+            : authUser.businessname
+          // 개인 이름: 기존 값 우선
+          const mergedName = !isGenericName(existing.name)
+            ? existing.name
+            : authUser.name
+          usersMap[uid] = { ...existing, ...authUser, businessname: mergedBusinessname, name: mergedName }
         }
       }))
     }

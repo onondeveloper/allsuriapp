@@ -507,11 +507,10 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                           final bidder = bid['bidder'] as Map<String, dynamic>?;
                           final status = bid['status']?.toString() ?? 'pending';
                           
-                          // 상호명 우선, 없으면 이름
-                          final bidderName = bidder?['businessname']?.toString()?.isNotEmpty == true
-                              ? bidder!['businessname'].toString()
-                              : bidder?['name']?.toString() ?? '알 수 없는 사업자';
-                          // 대표자 이름 (상호명과 다를 때만 표시)
+                          // 상호명(businessname) 우선 표시, 없으면 '상호명 미입력'
+                          final rawBizName = bidder?['businessname']?.toString() ?? '';
+                          final bidderName = rawBizName.isNotEmpty ? rawBizName : '상호명 미입력';
+                          // 대표자 개인 이름 (상호명과 다를 때만 표시)
                           final personName = bidder?['name']?.toString() ?? '';
                           final avatarUrl = bidder?['avatar_url']?.toString();
                           final estimatesCount = bidder?['estimates_created_count'] ?? 0;
