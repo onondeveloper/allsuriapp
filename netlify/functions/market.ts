@@ -445,7 +445,8 @@ async function handleGetBids(event: any, path: string) {
     const needsEnhance = bidderIds.filter(uid => {
       const u = usersMap[uid]
       if (!u) return true  // public.users에 없음
-      return isGenericName(u.businessname) && isGenericName(u.name)  // 기본값 이름
+      // 상호명이 비어있거나 기본값이면 auth에서 보완 시도 (이름 여부와 무관)
+      return isGenericName(u.businessname)
     })
     if (needsEnhance.length > 0) {
       console.warn(`[market] getBids auth-enhance for ${needsEnhance.length} users:`, needsEnhance)

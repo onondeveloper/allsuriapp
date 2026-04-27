@@ -442,7 +442,7 @@ async function loadEstimates() {
                             ${paginatedEstimates.map(e => {
                                 const title = e.title || e.description || '제목 없음';
                                 const customerName = e.customerName || e.customername || '고객명 없음';
-                                const businessName = e.businessName || e.businessname || '사업자명 없음';
+                                const businessName = e.businessName || e.businessname || '상호명 없음';
                                 const amountRaw = (e.amount !== undefined && e.amount !== null) ? e.amount : (e.estimatedPrice !== undefined ? e.estimatedPrice : null);
                                 const amountText = (typeof amountRaw === 'number') ? amountRaw.toLocaleString() + '원' : '금액 없음';
                                 const createdAt = e.createdAt || e.createdat;
@@ -926,7 +926,7 @@ async function toggleAdmin(userId) {
                     </div>
                     ${user.role === 'business' ? `
                         <div style="margin-bottom: 1rem;">
-                            <strong>사업자명:</strong> ${user.businessName || user.businessname || '사업자명 없음'}
+                            <strong>상호명:</strong> ${user.businessName || user.businessname || '상호명 없음'}
                         </div>
                         <div style="margin-bottom: 1rem;">
                             <strong>사업자등록번호:</strong> ${user.businessNumber || user.businessnumber || '등록번호 없음'}
@@ -1262,7 +1262,7 @@ async function toggleAdmin(userId) {
                                     <tr>
                                         <td class="clickable-title" onclick="showEstimateDetail('${estimate.id}')" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${estimate.title || '제목 없음'}</td>
                                         <td>${estimate.customerName || '고객명 없음'}</td>
-                                        <td>${estimate.businessName || '사업자명 없음'}</td>
+                                        <td>${estimate.businessName || '상호명 없음'}</td>
                                         <td>${estimate.estimatedPrice ? estimate.estimatedPrice.toLocaleString() + '원' : '금액 없음'}</td>
                                         <td>
                                             <span class="status-badge status-${estimate.status}">
@@ -2409,7 +2409,7 @@ async function showEstimateDetail(estimateId) {
                     <span class="detail-value">${estimate.customerName || estimate.customername || '-'}</span>
                 </div>
                 <div class="detail-item">
-                    <span class="detail-label">사업자명:</span>
+                    <span class="detail-label">상호명:</span>
                     <span class="detail-value">${estimate.businessName || estimate.businessname || '-'}</span>
                 </div>
                 <div class="detail-item">

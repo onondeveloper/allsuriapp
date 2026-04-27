@@ -110,7 +110,7 @@ class PendingApprovalScreen extends StatelessWidget {
                     _buildInfoRow(
                       context,
                       Icons.person,
-                      '사업자명',
+                      '상호명',
                       user?.businessName ?? user?.name ?? '미등록',
                     ),
                     const SizedBox(height: 8),
