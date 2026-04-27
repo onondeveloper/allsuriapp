@@ -424,9 +424,11 @@ async function handleGetBids(event: any, path: string) {
     const usersMap: Record<string, any> = {}
 
     if (bidderIds.length > 0) {
-      const idList = bidderIds.map(id => `"${id}"`).join(',')
+      // UUID는 따옴표 없이 or=(id.eq.uuid1,id.eq.uuid2) 형식 사용
+      // (id=in.("uuid") 방식은 URL의 " 문자로 인해 PostgREST 오류 발생)
+      const orConditions = bidderIds.map(id => `id.eq.${id}`).join(',')
       const usersRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/users?id=in.(${idList})&select=${USER_COLS}`,
+        `${SUPABASE_URL}/rest/v1/users?or=(${orConditions})&select=${USER_COLS}`,
         { headers: sbHeaders }
       )
       const usersBody = await usersRes.text()
@@ -436,7 +438,7 @@ async function handleGetBids(event: any, path: string) {
           parsed.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
           console.log(`[market] getBids public.users: ${parsed.length}/${bidderIds.length} 조회`)
         } else {
-          console.error('[market] getBids public.users error:', usersBody.slice(0, 200))
+          console.error('[market] getBids public.users query failed (status:', usersRes.status, '):', usersBody.slice(0, 300))
         }
       } catch { /* ignore */ }
     }
