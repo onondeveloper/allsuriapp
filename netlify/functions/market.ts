@@ -420,23 +420,38 @@ async function handleGetBids(event: any, path: string) {
       return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
     }
 
-    // ── 2단계: public.users 조회 — admin.ts fetchUsers와 동일한 quoted in.() 방식 ──
+    // ── 2단계: public.users 조회 — 개별 id=eq.UUID 병렬 조회 (가장 확실한 방식) ──
     const bidderIds = [...new Set(bids.map((b: any) => b.bidder_id).filter(Boolean))] as string[]
     const usersMap: Record<string, any> = {}
+    console.log(`[market] getBids: ${bidderIds.length}명 입찰자 조회 시작 ─ ${JSON.stringify(bidderIds)}`)
 
     if (bidderIds.length > 0) {
-      const idList = bidderIds.map(id => `"${id}"`).join(',')
-      const usersRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/users?select=${USER_COLS}&id=in.(${idList})`,
-        { headers: getHeaders }   // Content-Type 없는 GET 헤더 사용
+      const userResults = await Promise.all(
+        bidderIds.map(async (uid) => {
+          const url = `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(uid)}&select=${USER_COLS}&limit=1`
+          try {
+            const res = await fetch(url, { headers: getHeaders })
+            const text = await res.text()
+            let data: any
+            try { data = JSON.parse(text) } catch { data = null }
+            if (!res.ok) {
+              console.error(`[market] users[${uid}] HTTP ${res.status}:`, text.slice(0, 200))
+              return null
+            }
+            if (Array.isArray(data) && data[0]) {
+              console.log(`[market] users[${uid}] 성공: businessname="${data[0].businessname}", name="${data[0].name}"`)
+              return data[0]
+            }
+            console.warn(`[market] users[${uid}] 데이터 없음:`, text.slice(0, 100))
+            return null
+          } catch (e: any) {
+            console.error(`[market] users[${uid}] fetch 예외:`, e.message)
+            return null
+          }
+        })
       )
-      const usersData = await usersRes.json()
-      if (Array.isArray(usersData) && !(usersData as any)?.code) {
-        usersData.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
-        console.log(`[market] getBids public.users: ${usersData.length}/${bidderIds.length} 조회 성공`)
-      } else {
-        console.error('[market] getBids public.users 오류 (status:', usersRes.status, '):', JSON.stringify(usersData).slice(0, 200))
-      }
+      userResults.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
+      console.log(`[market] public.users 조회 완료: ${Object.keys(usersMap).length}/${bidderIds.length}`)
     }
 
     // ── 3단계: public.users에 없거나 이름이 기본값인 경우 auth.users Admin API로 보완 ────
