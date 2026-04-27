@@ -334,29 +334,8 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
           SnackBar(content: Text('$bidderName님이 선택되었습니다. 채팅방으로 이동합니다.')),
         );
 
-        // 1️⃣ 낙찰 알림 발송
-        try {
-          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          print('📤 [OrderBiddersScreen] 낙찰 알림 발송 시작');
-          print('   수신자 ID: $bidderId');
-          print('   오더 제목: ${widget.orderTitle}');
-          print('   오더 ID: ${widget.listingId}');
-          
-          final notificationService = NotificationService();
-          await notificationService.sendNotification(
-            userId: bidderId, // 낙찰받은 사업자에게
-            title: '🎉 낙찰 축하드립니다!',
-            body: '[${widget.orderTitle}] 오더에 낙찰되었습니다.',
-            type: 'bid_selected', // ⚠️ bid_awarded → bid_selected로 변경
-            orderId: widget.listingId,
-            jobTitle: widget.orderTitle,
-          );
-          print('✅ [OrderBiddersScreen] 낙찰 알림 발송 완료!');
-          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        } catch (notiErr) {
-          print('❌ [OrderBiddersScreen] 낙찰 알림 발송 실패: $notiErr');
-          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        }
+        // 낙찰 알림은 서버(handleSelectBidder)에서 DB INSERT → webhook으로 처리
+        // 중복 방지를 위해 Flutter 측 직접 발송 제거
 
         // 2️⃣ 채팅방 생성/이동
         try {

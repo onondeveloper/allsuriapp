@@ -329,35 +329,8 @@ async function handleBidListing(event: any, path: string) {
           console.log(`[market] ✅ 입찰자 알림 생성 완료:`, bidderNotifData)
         }
 
-        // 푸시 알림 전송 (Supabase Edge Function)
-        // 웹 오더(posted_by=null)인 경우 → 입찰자(bidder)에게 push 발송
-        // 일반 오더인 경우 → 오더 소유자(owner)에게 push 발송
-        const isWebOrder = !listing.posted_by
-        const pushTargetId = isWebOrder ? businessId : listing.posted_by
-        const pushTitle = isWebOrder
-          ? '입찰이 완료되었습니다'
-          : ownerNotificationTitle
-        const pushBody = isWebOrder
-          ? `${listing.title || '오더'}에 입찰하셨습니다. 고객의 낙찰을 기다리고 있어요.`
-          : ownerNotificationBody
-        try {
-          await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              userId: pushTargetId,
-              title: pushTitle,
-              body: pushBody,
-              data: { type: 'new_bid', listingId: id },
-            }),
-          })
-          console.log(`✅ [market] 푸시 알림 전송 완료 → ${isWebOrder ? '입찰자' : '오더소유자'} (${pushTargetId})`)
-        } catch (pushErr: any) {
-          console.warn('[market] 푸시 알림 전송 실패 (무시):', pushErr.message)
-        }
+        // 📌 DB INSERT로 알림 저장 → Supabase DB Webhook이 자동으로 FCM push 발송
+        // Edge Function 직접 호출 제거 (중복 push 방지)
       }
     } catch (e: any) {
       console.warn('[market] notification failed:', e.message)
@@ -615,24 +588,7 @@ async function handleSelectBidder(event: any, path: string) {
           console.log('[market] 선택 알림 생성 완료')
         }
 
-        // 선택된 사업자에게 푸시 알림
-        try {
-          await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              userId: bidderId,
-              title: selectedTitle,
-              body: selectedBody,
-              data: { type: 'bid_selected', listingId: id },
-            }),
-          })
-        } catch (pushErr: any) {
-          console.warn('[market] 푸시 알림 실패:', pushErr.message)
-        }
+        // 📌 DB INSERT → Supabase DB Webhook이 자동으로 FCM push 발송 (중복 방지)
 
         // 거절된 입찰자들에게 알림
         const rejectedResponse = await fetch(
@@ -647,12 +603,11 @@ async function handleSelectBidder(event: any, path: string) {
         const rejectedBids = await rejectedResponse.json()
 
         if (Array.isArray(rejectedBids) && rejectedBids.length > 0) {
-          const rejectedTitle = '오더가 다른 사업자에게 이관되었습니다'
-          const rejectedBody = `${listing.title || '오더'}가 다른 사업자에게 이관되었습니다. 다음 기회를 노려보시기 바랍니다.`
-          
-          // 각 거절된 입찰자에게 알림
+          const rejectedTitle = '입찰 결과 안내'
+          const rejectedBody = '입찰하신 견적이 다른 사업자께 낙찰 되었어요.. 다른 견적에 입찰을 시도해 보세요!'
+
+          // 각 거절된 입찰자에게 DB 알림 (webhook이 자동으로 FCM push 발송)
           for (const bid of rejectedBids) {
-            // DB 알림
             const rejectedNotifResponse = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
               method: 'POST',
               headers: {
@@ -671,28 +626,8 @@ async function handleSelectBidder(event: any, path: string) {
                 createdat: nowIso,
               })
             })
-            
             if (!rejectedNotifResponse.ok) {
               console.warn('[market] 거절 알림 생성 실패:', await rejectedNotifResponse.text())
-            }
-
-            // 푸시 알림
-            try {
-              await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  userId: bid.bidder_id,
-                  title: rejectedTitle,
-                  body: rejectedBody,
-                  data: { type: 'bid_rejected', listingId: id },
-                }),
-              })
-            } catch (pushErr: any) {
-              console.warn('[market] 푸시 알림 실패:', pushErr.message)
             }
           }
         }
