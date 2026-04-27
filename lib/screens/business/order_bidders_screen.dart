@@ -509,7 +509,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                           
                           // 상호명(businessname) 우선 표시, 없으면 '상호명 미입력'
                           final rawBizName = bidder?['businessname']?.toString() ?? '';
-                          final bidderName = rawBizName.isNotEmpty ? rawBizName : '상호명 미입력';
+                          final bidderName = rawBizName.isNotEmpty ? rawBizName : '상호명 없음';
                           // 대표자 개인 이름 (상호명과 다를 때만 표시)
                           final personName = bidder?['name']?.toString() ?? '';
                           final avatarUrl = bidder?['avatar_url']?.toString();
