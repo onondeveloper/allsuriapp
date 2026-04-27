@@ -514,10 +514,12 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                             specialtiesList = [specialties];
                           }
 
-                          // 추가 정보
-                          final region = bidder?['region']?.toString() ?? '';
+                          // 추가 정보 (region 컬럼이 users 테이블에 없어 address로 폴백)
+                          final region = (bidder?['address']
+                              ?? bidder?['region'])?.toString() ?? '';
                           final category = bidder?['category']?.toString() ?? '';
-                          final description = bidder?['description']?.toString() ?? '';
+                          final description = (bidder?['bio']
+                              ?? bidder?['description'])?.toString() ?? '';
                           final businessNum = (bidder?['businessnumber']
                               ?? bidder?['businessregistrationnumber'])?.toString() ?? '';
                           final bidAmount = bid['bid_amount'];

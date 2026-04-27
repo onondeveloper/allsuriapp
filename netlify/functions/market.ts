@@ -404,7 +404,8 @@ async function handleGetBids(event: any, path: string) {
     Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
   }
 
-  const USER_COLS = 'id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,category,description,businessnumber'
+  // 안전한 기본 컬럼만 사용 (users.region 컬럼 없음)
+  const USER_COLS = 'id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,category,businessnumber,address,serviceareas,specialties,bio'
 
   try {
     // ── 1단계: order_bids 조회 ─────────────────────────────────────
