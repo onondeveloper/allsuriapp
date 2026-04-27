@@ -488,8 +488,13 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                       const Icon(Icons.person_outline, color: Colors.white, size: 15),
                                       const SizedBox(width: 6),
                                       const Text(
-                                        '일반인이 직접 견적을 요청했어요! ',
-                                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                        '소비자 견적',
+                                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        '· 고객이 직접 요청한 견적입니다',
+                                        style: TextStyle(color: Colors.white70, fontSize: 11),
                                       ),
                                     ],
                                   ),
@@ -1484,7 +1489,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                                 const SizedBox(width: 8),
                                 const Expanded(
                                   child: Text(
-                                    '일반인이 직접 견적을 요청했어요!\n선택되면 고객에게 연락처가 전달됩니다.',
+                                    '소비자 견적\n고객이 직접 요청한 견적입니다. 낙찰 시 연락처가 전달됩니다.',
                                     style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, height: 1.4),
                                   ),
                                 ),
