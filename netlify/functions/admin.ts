@@ -460,15 +460,9 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       const listing = Array.isArray(listingArr) ? listingArr[0] : null
       if (!listing) return { statusCode: 404, body: JSON.stringify({ message: '오더를 찾을 수 없습니다' }), headers: { 'Content-Type': 'application/json' } }
 
-      const jobid = listing.jobid ?? listing.jobId
-      // 입찰 조회: listing_id=listingId OR job_id=jobid OR listing_id=jobid (한 번에 or 쿼리로 조회)
-      const orParts = [`listing_id.eq.${listingId}`]
-      if (jobid) {
-        orParts.push(`job_id.eq.${jobid}`, `listing_id.eq.${jobid}`)
-      }
-      const orFilter = encodeURIComponent(`or(${orParts.join(',')})`)
+      // 입찰 조회: listing_id로만 필터 (order_bids에는 job_id 컬럼 없음)
       const bidsRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/order_bids?${orFilter}&select=id,bidder_id,bid_amount,message,status,created_at&order=created_at.asc`,
+        `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=id,bidder_id,bid_amount,estimated_days,message,status,created_at&order=created_at.asc`,
         { headers: sbHeaders }
       )
       const bidsRaw = await bidsRes.json()
