@@ -346,8 +346,15 @@ async function handleBidListing(event: any, path: string) {
 // 이름이 의미없는 기본값인지 확인
 function isGenericName(name: string | null | undefined): boolean {
   if (!name || name.trim() === '') return true
+  const t = name.trim().toLowerCase()
+  // 고정 기본값 목록
   const generics = ['카카오 사용자', '카카오유저', 'kakao user', '사용자', '사업자', 'undefined', 'null']
-  return generics.some(g => name.trim().toLowerCase() === g.toLowerCase())
+  if (generics.some(g => t === g.toLowerCase())) return true
+  // kakao-숫자, kakao_숫자 형식 (카카오 자동생성 ID)
+  if (/^kakao[-_]\d+$/i.test(t)) return true
+  // 숫자만 있는 이름
+  if (/^\d+$/.test(t)) return true
+  return false
 }
 
 // auth.users Admin API에서 사용자 정보 가져오기 (public.users에 없거나 기본값인 경우 폴백)
