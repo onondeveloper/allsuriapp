@@ -192,8 +192,10 @@ export const handler = async (event: any) => {
     const ADMIN_TOKEN =
       process.env.ADMIN_TOKEN || process.env.ADMIN_DEVELOPER_TOKEN || ''
     const isAdminToken = ADMIN_TOKEN && token === ADMIN_TOKEN
+    // allsuri-web 등 서버 간 호출: Supabase service_role 키도 허용
+    const isServiceRole = SUPABASE_SERVICE_ROLE_KEY && token === SUPABASE_SERVICE_ROLE_KEY
 
-    if (!isAdminToken) {
+    if (!isAdminToken && !isServiceRole) {
       const verifyRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
         headers: {
           apikey: SUPABASE_SERVICE_ROLE_KEY,
