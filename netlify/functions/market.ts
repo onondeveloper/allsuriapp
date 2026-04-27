@@ -424,23 +424,20 @@ async function handleGetBids(event: any, path: string) {
     const usersMap: Record<string, any> = {}
 
     if (bidderIds.length > 0) {
-      // UUID는 따옴표 없이 or=(id.eq.uuid1,id.eq.uuid2) 형식 사용
-      // (id=in.("uuid") 방식은 URL의 " 문자로 인해 PostgREST 오류 발생)
-      const orConditions = bidderIds.map(id => `id.eq.${id}`).join(',')
-      const usersRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/users?or=(${orConditions})&select=${USER_COLS}`,
-        { headers: sbHeaders }
+      // id=eq.UUID 개별 조회 (가장 안전하고 신뢰할 수 있는 형식)
+      const userResults = await Promise.all(
+        bidderIds.map(uid =>
+          fetch(
+            `${SUPABASE_URL}/rest/v1/users?id=eq.${uid}&select=${USER_COLS}&limit=1`,
+            { headers: sbHeaders }
+          )
+            .then(r => r.json())
+            .then((data: any) => (Array.isArray(data) && data[0]) ? data[0] : null)
+            .catch(() => null)
+        )
       )
-      const usersBody = await usersRes.text()
-      try {
-        const parsed = JSON.parse(usersBody)
-        if (Array.isArray(parsed)) {
-          parsed.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
-          console.log(`[market] getBids public.users: ${parsed.length}/${bidderIds.length} 조회`)
-        } else {
-          console.error('[market] getBids public.users query failed (status:', usersRes.status, '):', usersBody.slice(0, 300))
-        }
-      } catch { /* ignore */ }
+      userResults.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
+      console.log(`[market] getBids public.users: ${Object.keys(usersMap).length}/${bidderIds.length} 조회`)
     }
 
     // ── 3단계: public.users에 없거나 이름이 기본값인 경우 auth.users Admin API로 보완 ────
