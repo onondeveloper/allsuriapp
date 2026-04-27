@@ -50,7 +50,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
   }
 
   // 사업자 프로필 및 후기 보기
-  Future<void> _showBidderProfile(String bidderId, String bidderName) async {
+  Future<void> _showBidderProfile(String bidderId, String bidderName, {String personName = ''}) async {
     // 후기 목록 가져오기
     List<Map<String, dynamic>> reviews = [];
     try {
@@ -72,9 +72,18 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.person, color: Colors.blue, size: 28),
+            const Icon(Icons.storefront, color: Colors.blue, size: 28),
             const SizedBox(width: 12),
-            Expanded(child: Text(bidderName, style: const TextStyle(fontSize: 18))),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(bidderName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                  if (personName.isNotEmpty && personName != bidderName)
+                    Text('대표자: $personName', style: TextStyle(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.normal)),
+                ],
+              ),
+            ),
           ],
         ),
         content: SizedBox(
@@ -498,8 +507,12 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                           final bidder = bid['bidder'] as Map<String, dynamic>?;
                           final status = bid['status']?.toString() ?? 'pending';
                           
-                          final bidderName = bidder?['businessname']?.toString() ?? 
-                              bidder?['name']?.toString() ?? '알 수 없는 사업자';
+                          // 상호명 우선, 없으면 이름
+                          final bidderName = bidder?['businessname']?.toString()?.isNotEmpty == true
+                              ? bidder!['businessname'].toString()
+                              : bidder?['name']?.toString() ?? '알 수 없는 사업자';
+                          // 대표자 이름 (상호명과 다를 때만 표시)
+                          final personName = bidder?['name']?.toString() ?? '';
                           final avatarUrl = bidder?['avatar_url']?.toString();
                           final estimatesCount = bidder?['estimates_created_count'] ?? 0;
                           final jobsCount = bidder?['jobs_accepted_count'] ?? 0;
@@ -539,6 +552,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                           return _buildBidderCard(
                             bidderId: bid['bidder_id']?.toString() ?? '',
                             bidderName: bidderName,
+                            personName: personName,
                             avatarUrl: avatarUrl,
                             jobsCount: jobsCount is int ? jobsCount : int.tryParse(jobsCount.toString()) ?? 0,
                             message: message,
@@ -562,6 +576,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
   Widget _buildBidderCard({
     required String bidderId,
     required String bidderName,
+    String personName = '',
     String? avatarUrl,
     required int jobsCount,
     required String message,
@@ -576,6 +591,8 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
     double? bidAmount,
     int? estimatedDays,
   }) {
+    // 상호명과 대표자명이 다를 때만 대표자명 표시
+    final showPersonName = personName.isNotEmpty && personName != bidderName;
     final isPending = status == 'pending';
     final isSelected = status == 'selected';
     final isRejected = status == 'rejected';
@@ -630,7 +647,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GestureDetector(
-                  onTap: () => _showBidderProfile(bidderId, bidderName),
+                  onTap: () => _showBidderProfile(bidderId, bidderName, personName: personName),
                   child: Stack(
                     children: [
                       CircleAvatar(
@@ -658,16 +675,27 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => _showBidderProfile(bidderId, bidderName),
+                    onTap: () => _showBidderProfile(bidderId, bidderName, personName: personName),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
                             Expanded(
-                              child: Text(bidderName,
-                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // 상호명 (주표시)
+                                  Text(bidderName,
+                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  // 대표자명 (상호명과 다를 때만)
+                                  if (showPersonName)
+                                    Text('대표자: $personName',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    ),
+                                ],
                               ),
                             ),
                             if (hasBusinessReg)
@@ -808,7 +836,7 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
                 Text(_formatTime(createdAt), style: TextStyle(fontSize: 11, color: Colors.grey[500])),
                 const Spacer(),
                 TextButton.icon(
-                  onPressed: () => _showBidderProfile(bidderId, bidderName),
+                  onPressed: () => _showBidderProfile(bidderId, bidderName, personName: personName),
                   icon: Icon(Icons.reviews_outlined, size: 14, color: Colors.blue[700]),
                   label: Text('후기 보기', style: TextStyle(fontSize: 12, color: Colors.blue[700])),
                   style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
