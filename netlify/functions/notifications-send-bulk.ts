@@ -213,7 +213,7 @@ export const handler = async (event: any) => {
 
     // ── 2. 요청 파싱 ─────────────────────────────────────────────────
     const body = JSON.parse(event.body || '{}')
-    const { userIds, title, body: msgBody, data = {} } = body
+    const { userIds, title, body: msgBody, data = {}, skipDbInsert = false } = body
 
     if (
       !Array.isArray(userIds) ||
@@ -234,7 +234,7 @@ export const handler = async (event: any) => {
     const ids = userIds.slice(0, 500)
     const now = new Date().toISOString()
 
-    // ── 3. DB 일괄 저장 ─────────────────────────────────────────────
+    // ── 3. DB 일괄 저장 (skipDbInsert=true 이면 호출자가 이미 저장한 것) ──
     const safeData = data as Record<string, string>
     const rows = ids.map((uid: string) => ({
       userid: uid,
@@ -248,32 +248,34 @@ export const handler = async (event: any) => {
       ...(safeData.region && { region: safeData.region }),
     }))
 
-    try {
-      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify(rows),
-      })
-      if (!insertRes.ok) {
-        const err = await insertRes.text()
-        console.error('[FCM Bulk] DB insert 실패:', err)
+    if (!skipDbInsert) {
+      try {
+        const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify(rows),
+        })
+        if (!insertRes.ok) {
+          const err = await insertRes.text()
+          console.error('[FCM Bulk] DB insert 실패:', err)
+          return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'DB insert failed' }),
+            headers: JSON_HEADERS,
+          }
+        }
+      } catch (e: any) {
+        console.error('[FCM Bulk] DB insert 예외:', e.message)
         return {
           statusCode: 500,
-          body: JSON.stringify({ error: 'DB insert failed' }),
+          body: JSON.stringify({ error: e.message }),
           headers: JSON_HEADERS,
         }
-      }
-    } catch (e: any) {
-      console.error('[FCM Bulk] DB insert 예외:', e.message)
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: e.message }),
-        headers: JSON_HEADERS,
       }
     }
 
