@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:intl/date_symbol_data_local.dart';
 import 'dart:io' show Platform;
 import 'package:flutter_app_badger/flutter_app_badger.dart';
 import 'package:flutter/cupertino.dart';
@@ -45,6 +46,8 @@ class _BadgeLifecycleObserver with WidgetsBindingObserver {
 //126e5d87-94e0-4ad2-94ba-51b9c2454a4a
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // ko_KR 로케일 초기화 (NumberFormat.currency, DateFormat에서 LocaleDataException 방지)
+  await initializeDateFormatting('ko_KR', null);
   FlutterError.onError = (FlutterErrorDetails details) {
     // 무시 가능한 외부 딥링크 예외(Supabase OAuth 등)를 앱 크래시 없이 로그만 남김
     debugPrint('FlutterError: \\n${details.exceptionAsString()}');

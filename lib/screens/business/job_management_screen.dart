@@ -918,7 +918,7 @@ class _ModernJobsList extends StatelessWidget {
                   budget: job.awardedAmount ?? job.budgetAmount, // 낙찰 금액 우선 표시
                   status: job.status,
                   bidCount: bidCount > 0 ? bidCount : null,
-                  onTap: () => _showJobDetail(context, job, listing),
+                  onTap: () async => await _showJobDetail(context, job, listing),
                   actionButton: actionButton,
                   badges: badges,
                   customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
@@ -1055,7 +1055,7 @@ class _ModernJobsList extends StatelessWidget {
             status: job.status,
             customBudgetLabel: job.awardedAmount != null ? '견적 금액' : null,
             bidCount: bidCount > 0 ? bidCount : null,
-            onTap: () => _showJobDetail(context, job, listing),
+            onTap: () async => await _showJobDetail(context, job, listing),
             actionButton: actionButton,
             badges: badges,
           ),
@@ -1064,9 +1064,28 @@ class _ModernJobsList extends StatelessWidget {
     );
   }
 
-  static void _showJobDetail(BuildContext context, Job job, Map<String, dynamic>? listing) {
+  static Future<void> _showJobDetail(BuildContext context, Job job, Map<String, dynamic>? listing) async {
     // ── 웹 고객 낙찰 여부 파싱 ──────────────────────────────────────
-    final desc = job.description;
+    String desc = job.description;
+    print('🔍 [_showJobDetail] job.title=${job.title}, desc="${desc.length > 60 ? desc.substring(0, 60) : desc}"');
+
+    // description이 없거나 [웹 고객 낙찰]이 없으면 DB에서 직접 조회
+    if (!desc.contains('[웹 고객 낙찰]') && job.id != null) {
+      try {
+        final data = await Supabase.instance.client
+            .from('jobs')
+            .select('description')
+            .eq('id', job.id!)
+            .maybeSingle();
+        if (data != null && (data['description'] ?? '').contains('[웹 고객 낙찰]')) {
+          desc = data['description'] as String;
+          print('✅ [_showJobDetail] DB에서 description 로드 성공');
+        }
+      } catch (e) {
+        print('⚠️ [_showJobDetail] DB description 조회 실패: $e');
+      }
+    }
+
     final isWebOrder = desc.contains('[웹 고객 낙찰]');
     String webCustomerContact = '';  // "이름 / 전화번호"
     String webCustomerAddress = '';
@@ -1085,6 +1104,7 @@ class _ModernJobsList extends StatelessWidget {
       }
     }
 
+    if (!context.mounted) return;
     showDialog(
       context: context,
       builder: (context) => Dialog(
