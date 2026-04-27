@@ -371,44 +371,93 @@ async function handleBidListing(event: any, path: string) {
 }
 
 async function handleGetBids(event: any, path: string) {
-  const id = path.split('/')[2]
+  const listingId = path.split('/')[2]
+
+  const sbHeaders = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    'Content-Type': 'application/json',
+  }
+
+  const USER_COLS = 'id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,category,description,businessnumber'
 
   try {
-    const headers = {
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    // ── 방법 1: PostgREST FK 자동 감지 조인 (가장 효율적) ────────────
+    const joinRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=*,bidder:users(${USER_COLS})&order=created_at.desc`,
+      { headers: sbHeaders }
+    )
+    const joinBody = await joinRes.text()
+    let joinData: any
+    try { joinData = JSON.parse(joinBody) } catch { joinData = null }
+
+    if (Array.isArray(joinData)) {
+      console.log(`[market] getBids FK-join: ${joinData.length}건`)
+      return { statusCode: 200, body: JSON.stringify(joinData), headers: { 'Content-Type': 'application/json' } }
     }
 
-    // ── 1. 입찰 목록 조회 ─────────────────────────────────────────
-    const bidsRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${id}&select=*&order=created_at.desc`,
-      { headers }
+    // FK 자동감지 실패 → FK 이름 명시 재시도
+    console.warn('[market] getBids FK-auto failed, trying explicit FK:', joinBody.slice(0, 150))
+    const joinRes2 = await fetch(
+      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=*,bidder:users!order_bids_bidder_id_fkey(${USER_COLS})&order=created_at.desc`,
+      { headers: sbHeaders }
     )
-    const bids: any[] = await bidsRes.json()
+    const joinBody2 = await joinRes2.text()
+    let joinData2: any
+    try { joinData2 = JSON.parse(joinBody2) } catch { joinData2 = null }
+
+    if (Array.isArray(joinData2)) {
+      console.log(`[market] getBids FK-explicit: ${joinData2.length}건`)
+      return { statusCode: 200, body: JSON.stringify(joinData2), headers: { 'Content-Type': 'application/json' } }
+    }
+
+    // ── 방법 2: 2단계 조회 폴백 ──────────────────────────────────────
+    console.warn('[market] getBids FK-explicit failed, fallback 2-step:', joinBody2.slice(0, 150))
+
+    const bidsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/order_bids?listing_id=eq.${listingId}&select=*&order=created_at.desc`,
+      { headers: sbHeaders }
+    )
+    const bidsBody = await bidsRes.text()
+    let bids: any[]
+    try { bids = JSON.parse(bidsBody) } catch { bids = [] }
+
     if (!Array.isArray(bids) || bids.length === 0) {
       return { statusCode: 200, body: JSON.stringify([]), headers: { 'Content-Type': 'application/json' } }
     }
 
-    // ── 2. 입찰자 사용자 정보 별도 조회 (FK 조인 없이 안전하게) ──
-    const bidderIds = [...new Set(bids.map((b: any) => b.bidder_id).filter(Boolean))]
-    const idList = bidderIds.join(',')
-    const usersRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=in.(${idList})&select=id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,phonenumber,category,description,businessnumber`,
-      { headers }
-    )
-    const users: any[] = await usersRes.json()
-    const usersMap: Record<string, any> = {}
-    if (Array.isArray(users)) {
-      users.forEach((u: any) => { usersMap[u.id] = u })
+    const bidderIds = [...new Set(bids.map((b: any) => b.bidder_id).filter(Boolean))] as string[]
+    let usersMap: Record<string, any> = {}
+
+    if (bidderIds.length > 0) {
+      // admin.ts와 동일한 quoted 방식 사용
+      const idList = bidderIds.map(id => `"${id}"`).join(',')
+      const usersRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=in.(${idList})&select=${USER_COLS}`,
+        { headers: sbHeaders }
+      )
+      const usersBody = await usersRes.text()
+      let usersArr: any[]
+      try {
+        const parsed = JSON.parse(usersBody)
+        usersArr = Array.isArray(parsed) ? parsed : []
+        if (!Array.isArray(parsed)) {
+          console.error('[market] getBids users-query error:', usersBody.slice(0, 200))
+        }
+      } catch {
+        usersArr = []
+      }
+      usersArr.forEach((u: any) => { if (u?.id) usersMap[u.id] = u })
+      console.log(`[market] getBids 2-step: ${bids.length} bids, ${usersArr.length}/${bidderIds.length} users`)
     }
 
-    // ── 3. 입찰 + 사용자 정보 병합 ──────────────────────────────
     const merged = bids.map((b: any) => ({
       ...b,
       bidder: usersMap[b.bidder_id] || null,
     }))
 
     return { statusCode: 200, body: JSON.stringify(merged), headers: { 'Content-Type': 'application/json' } }
+
   } catch (error: any) {
     console.error('[market] get bids error:', error.message)
     return { statusCode: 500, body: JSON.stringify({ message: '입찰 목록 조회 실패', error: error.message }), headers: { 'Content-Type': 'application/json' } }
