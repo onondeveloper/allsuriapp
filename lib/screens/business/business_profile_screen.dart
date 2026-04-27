@@ -96,7 +96,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     final bizName = _businessNameController.text.trim();
     if (name.isEmpty || phone.isEmpty || bizName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이름, 전화번호, 상호명은 필수입니다.')),
+        const SnackBar(content: Text('사장님 성함, 전화번호, 상호명은 필수입니다.')),
       );
       return;
     }
@@ -415,12 +415,12 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                   TextFormField(
                     controller: _nameController,
                     decoration: const InputDecoration(
-                      labelText: '이름 *',
-                      hintText: '사업자 이름을 입력하세요',
+                      labelText: '사장님 성함 *',
+                      hintText: '사장님 성함을 입력하세요',
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return '이름을 입력해주세요';
+                        return '사장님 성함을 입력해주세요';
                       }
                       return null;
                     },

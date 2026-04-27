@@ -285,7 +285,7 @@ function filterUsers(searchTerm) {
                         <thead>
                             <tr>
                                 <th>상호</th>
-                                <th>이름</th>
+                                <th>사장님 성함</th>
                                 <th>카카오 ID</th>
                                 <th>관리자</th>
                                 <th>상태</th>
@@ -299,7 +299,7 @@ function filterUsers(searchTerm) {
                                     <td><strong>${user.businessName || user.businessname || '-'}</strong></td>
                                     <td>
                                         <span class="clickable" data-user-id="${user.id}" style="color: #1a73e8; cursor: pointer; text-decoration: underline;">
-                                            ${user.name || '이름 없음'}
+                                            ${user.name || '성함 없음'}
                                         </span>
                                     </td>
                                     <td><code>${user.kakao_id || user.external_id || '-'}</code></td>
@@ -907,13 +907,13 @@ async function toggleAdmin(userId) {
                     return;
                 }
 
-                document.getElementById('userModalTitle').textContent = `사용자 상세 정보 - ${user.name || '이름 없음'}`;
+                document.getElementById('userModalTitle').textContent = `사용자 상세 정보 - ${user.name || '성함 없음'}`;
                 
                 const modalBody = document.getElementById('userModalBody');
                 const userStatus = user.businessStatus || user.businessstatus || 'pending';
                 modalBody.innerHTML = `
                     <div style="margin-bottom: 1rem;">
-                        <strong>이름:</strong> ${user.name || '이름 없음'}
+                        <strong>사장님 성함:</strong> ${user.name || '성함 없음'}
                     </div>
                     <div style="margin-bottom: 1rem;">
                         <strong>이메일:</strong> ${user.email || '이메일 없음'}
@@ -1008,7 +1008,7 @@ async function toggleAdmin(userId) {
                             style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;" />
                     </div>
                     <div>
-                        <label style="font-size:0.8rem; color:#666; font-weight:600;">대표자 이름</label>
+                        <label style="font-size:0.8rem; color:#666; font-weight:600;">사장님 성함</label>
                         <input id="editName" type="text" value="${(user.name || '').replace(/"/g,'&quot;')}"
                             style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; margin-top:0.25rem;" />
                     </div>
@@ -1180,7 +1180,7 @@ async function toggleAdmin(userId) {
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>이름</th>
+                                    <th>사장님 성함</th>
                                     <th>이메일</th>
                                     <th>역할</th>
                                     <th>상태</th>
@@ -1191,7 +1191,7 @@ async function toggleAdmin(userId) {
                             <tbody>
                                 ${filteredUsers.map(user => `
                                     <tr>
-                                        <td class="clickable-cell" onclick="showUserDetail('${user.id}')" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${user.name || '이름 없음'}</td>
+                                        <td class="clickable-cell" onclick="showUserDetail('${user.id}')" style="cursor: pointer; color: #1a73e8; text-decoration: underline;">${user.name || '성함 없음'}</td>
                                         <td>${user.email}</td>
                                         <td>${user.role === 'business' ? '사업자' : '고객'}</td>
                                         <td>
@@ -3172,7 +3172,7 @@ function openWebOrderModal(orderId) {
                     고객 정보
                 </div>
                 <table style="width:100%;font-size:0.875rem;border-collapse:collapse;">
-                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);width:80px;">이름</td><td style="padding:0.3rem 0;font-weight:500;">${name}</td></tr>
+                    <tr><td style="padding:0.3rem 0;color:var(--gray-600);width:80px;">사장님 성함</td><td style="padding:0.3rem 0;font-weight:500;">${name}</td></tr>
                     <tr><td style="padding:0.3rem 0;color:var(--gray-600);">전화</td><td style="padding:0.3rem 0;"><a href="tel:${phone}" style="color:var(--primary);font-weight:600;">${phone}</a></td></tr>
                     <tr><td style="padding:0.3rem 0;color:var(--gray-600);">이메일</td><td style="padding:0.3rem 0;">${email}</td></tr>
                 </table>

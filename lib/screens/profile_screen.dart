@@ -35,7 +35,7 @@ class ProfileScreen extends StatelessWidget {
             SizedBox(height: 20),
             ListTile(
               leading: Icon(Icons.person_outline),
-              title: Text('사용자 이름'),
+              title: Text('사장님 성함'),
               subtitle: Text('홍길동'),
             ),
             ListTile(
