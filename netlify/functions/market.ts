@@ -370,7 +370,14 @@ async function handleBidListing(event: any, path: string) {
   }
 }
 
-// auth.users Admin API에서 사용자 정보 가져오기 (public.users에 없는 경우 폴백)
+// 이름이 의미없는 기본값인지 확인
+function isGenericName(name: string | null | undefined): boolean {
+  if (!name || name.trim() === '') return true
+  const generics = ['카카오 사용자', '카카오유저', 'kakao user', '사용자', '사업자', 'undefined', 'null']
+  return generics.some(g => name.trim().toLowerCase() === g.toLowerCase())
+}
+
+// auth.users Admin API에서 사용자 정보 가져오기 (public.users에 없거나 기본값인 경우 폴백)
 async function fetchAuthUser(userId: string): Promise<any | null> {
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
@@ -383,11 +390,17 @@ async function fetchAuthUser(userId: string): Promise<any | null> {
     const u = await res.json()
     if (!u?.id) return null
     const meta = u.user_metadata || {}
+    // Kakao OAuth는 preferred_username, nickname, full_name 등 다양한 필드 사용
+    const bestName = [
+      meta.businessname, meta.business_name,
+      meta.preferred_username, meta.nickname,
+      meta.full_name, meta.name,
+    ].find(v => v && !isGenericName(v)) || u.email?.split('@')[0] || '사용자'
     return {
       id: u.id,
-      name: meta.name || meta.full_name || u.email?.split('@')[0] || '사용자',
-      businessname: meta.businessname || meta.business_name || meta.name || meta.full_name || '사업자',
-      avatar_url: meta.avatar_url || null,
+      name: bestName,
+      businessname: bestName,
+      avatar_url: meta.avatar_url || meta.picture || null,
       estimates_created_count: meta.estimates_created_count || 0,
       jobs_accepted_count: meta.jobs_accepted_count || 0,
       region: meta.region || '',
@@ -447,13 +460,20 @@ async function handleGetBids(event: any, path: string) {
       } catch { /* ignore */ }
     }
 
-    // ── 3단계: public.users에 없는 경우 auth.users Admin API 폴백 ────
-    const missingIds = bidderIds.filter(id => !usersMap[id])
-    if (missingIds.length > 0) {
-      console.warn(`[market] getBids auth-fallback for ${missingIds.length} users:`, missingIds)
-      await Promise.all(missingIds.map(async (uid) => {
+    // ── 3단계: public.users에 없거나 이름이 기본값인 경우 auth.users Admin API로 보완 ────
+    const needsEnhance = bidderIds.filter(uid => {
+      const u = usersMap[uid]
+      if (!u) return true  // public.users에 없음
+      return isGenericName(u.businessname) && isGenericName(u.name)  // 기본값 이름
+    })
+    if (needsEnhance.length > 0) {
+      console.warn(`[market] getBids auth-enhance for ${needsEnhance.length} users:`, needsEnhance)
+      await Promise.all(needsEnhance.map(async (uid) => {
         const authUser = await fetchAuthUser(uid)
-        if (authUser) usersMap[uid] = authUser
+        if (authUser) {
+          // 기존 public.users 데이터를 auth 데이터로 보완 (이름만 덮어씀)
+          usersMap[uid] = { ...(usersMap[uid] || {}), ...authUser }
+        }
       }))
     }
 
