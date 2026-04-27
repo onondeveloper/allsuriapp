@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:lottie/lottie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1064,6 +1065,26 @@ class _ModernJobsList extends StatelessWidget {
   }
 
   static void _showJobDetail(BuildContext context, Job job, Map<String, dynamic>? listing) {
+    // ── 웹 고객 낙찰 여부 파싱 ──────────────────────────────────────
+    final desc = job.description;
+    final isWebOrder = desc.contains('[웹 고객 낙찰]');
+    String webCustomerContact = '';  // "이름 / 전화번호"
+    String webCustomerAddress = '';
+    String webOriginalRequest = '';
+
+    if (isWebOrder) {
+      for (final line in desc.split('\n')) {
+        final t = line.trim();
+        if (t.startsWith('📞 고객:')) {
+          webCustomerContact = t.replaceFirst('📞 고객:', '').trim();
+        } else if (t.startsWith('📍 주소:')) {
+          webCustomerAddress = t.replaceFirst('📍 주소:', '').trim();
+        } else if (t.startsWith('요청:')) {
+          webOriginalRequest = t.replaceFirst('요청:', '').trim();
+        }
+      }
+    }
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -1079,12 +1100,27 @@ class _ModernJobsList extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        job.title,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isWebOrder)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0EA5E9).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                '🌐 웹 고객 낙찰',
+                                style: TextStyle(fontSize: 11, color: Color(0xFF0369A1), fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          Text(
+                            job.title,
+                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                          ),
+                        ],
                       ),
                     ),
                     IconButton(
@@ -1102,24 +1138,118 @@ class _ModernJobsList extends StatelessWidget {
                 const SizedBox(height: 20),
                 const Divider(height: 1),
                 const SizedBox(height: 16),
-                
+
+                // ── 웹 고객 연락처 (웹 낙찰일 때만) ──────────────────────
+                if (isWebOrder) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.person_pin_circle, color: Colors.white, size: 18),
+                            SizedBox(width: 6),
+                            Text(
+                              '고객 연락처',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (webCustomerContact.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          GestureDetector(
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: webCustomerContact));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('연락처가 클립보드에 복사됐습니다'), duration: Duration(seconds: 2)),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.phone_outlined, color: Colors.white70, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      webCustomerContact,
+                                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                  const Icon(Icons.copy_outlined, color: Colors.white54, size: 16),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (webCustomerAddress.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: webCustomerAddress));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('주소가 클립보드에 복사됐습니다'), duration: Duration(seconds: 2)),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.location_on_outlined, color: Colors.white70, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      webCustomerAddress,
+                                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                                    ),
+                                  ),
+                                  const Icon(Icons.copy_outlined, color: Colors.white54, size: 16),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 // Description
                 const Text(
                   '설명',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  job.description,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                    height: 1.5,
-                  ),
+                  isWebOrder && webOriginalRequest.isNotEmpty
+                      ? webOriginalRequest
+                      : desc,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.5),
                 ),
                 const SizedBox(height: 16),
                 
@@ -1144,11 +1274,7 @@ class _ModernJobsList extends StatelessWidget {
                   const SizedBox(height: 16),
                   const Text(
                     '오더 정보',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
                   ),
                   const SizedBox(height: 8),
                   _buildDetailRow(Icons.info_outline, '오더 상태', listing['status']?.toString() ?? '알 수 없음'),
@@ -1168,17 +1294,9 @@ class _ModernJobsList extends StatelessWidget {
                       backgroundColor: const Color(0xFF1976D2),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text(
-                      '닫기',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: const Text('닫기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
