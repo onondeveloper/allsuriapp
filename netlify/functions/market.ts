@@ -391,7 +391,7 @@ async function handleGetBids(event: any, path: string) {
 
     // ── 2. 입찰자 사용자 정보 별도 조회 (FK 조인 없이 안전하게) ──
     const bidderIds = [...new Set(bids.map((b: any) => b.bidder_id).filter(Boolean))]
-    const idList = bidderIds.map(id => `"${id}"`).join(',')
+    const idList = bidderIds.join(',')
     const usersRes = await fetch(
       `${SUPABASE_URL}/rest/v1/users?id=in.(${idList})&select=id,name,businessname,avatar_url,estimates_created_count,jobs_accepted_count,region,phonenumber,category,description,businessnumber`,
       { headers }
