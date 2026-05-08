@@ -903,8 +903,12 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
         iconColor = Colors.orange;
         break;
       case BusinessVerifyCode.unauthorized:
+        title = '로그인이 만료되었습니다';
+        icon = Icons.login_rounded;
+        iconColor = Colors.orange;
+        break;
       case BusinessVerifyCode.forbidden:
-        title = '권한 확인이 필요합니다';
+        title = '사업자 회원만 이용할 수 있어요';
         icon = Icons.lock_outline_rounded;
         iconColor = Colors.orange;
         break;

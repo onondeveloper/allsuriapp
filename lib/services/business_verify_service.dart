@@ -147,14 +147,43 @@ class BusinessVerifyService {
     };
 
     final uri = Uri.parse('${ApiService.baseUrl}/business/verify');
-    final token = ApiService.currentBearerToken;
+
+    // 서버는 Supabase JWT(access_token)를 검증하므로,
+    // 항상 현재 활성 Supabase 세션의 토큰을 직접 사용한다.
+    // (ApiService.currentBearerToken은 stale 가능성이 있음)
+    String? token;
+    String tokenSource = 'none';
+    try {
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null && session.accessToken.isNotEmpty) {
+        token = session.accessToken;
+        tokenSource = 'supabase_session';
+      }
+    } catch (e) {
+      debugPrint('[BusinessVerifyService] supabase session lookup error: $e');
+    }
+    if (token == null || token.isEmpty) {
+      // fallback: ApiService 정적 캐시
+      token = ApiService.currentBearerToken;
+      if (token != null && token.isNotEmpty) tokenSource = 'api_service_cache';
+    }
+
+    if (token == null || token.isEmpty) {
+      debugPrint('[BusinessVerifyService] no auth token available');
+      return const BusinessVerifyResult(
+        success: false,
+        code: BusinessVerifyCode.unauthorized,
+        message: '로그인이 만료되었습니다. 앱을 다시 시작해 주세요.',
+      );
+    }
+
     final headers = <String, String>{
       'Content-Type': 'application/json',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      'Authorization': 'Bearer $token',
     };
 
     debugPrint('[BusinessVerifyService] POST $uri keys=${payload.keys.toList()} '
-        'auth=${token != null && token.isNotEmpty}');
+        'tokenSource=$tokenSource tokenLen=${token.length}');
 
     http.Response resp;
     try {
@@ -281,7 +310,10 @@ class BusinessVerifyService {
       case BusinessVerifyCode.rateLimited:
         return '진위확인 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.';
       case BusinessVerifyCode.unauthorized:
-        return '로그인 정보가 만료되었습니다. 다시 로그인 후 시도해 주세요.';
+        return r.message.isNotEmpty
+            ? r.message
+            : '로그인이 만료되어 진위확인 요청을 보낼 수 없습니다.\n'
+                '앱을 종료한 뒤 다시 실행하여 카카오 로그인을 갱신한 후 시도해 주세요.';
       case BusinessVerifyCode.forbidden:
         return r.message.isNotEmpty
             ? r.message
