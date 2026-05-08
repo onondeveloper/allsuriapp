@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.web_featured_businesses (
 
 -- 동일 사업자 중복 등록 방지
 ALTER TABLE public.web_featured_businesses
-  DROP CONSTRAINT IF EXISTS web_featured_businesses_user_id_key;
+  DROP CONSTRAINT IF EXISTS web_featured_businesses_user_id_key;a
 ALTER TABLE public.web_featured_businesses
   ADD CONSTRAINT web_featured_businesses_user_id_key UNIQUE (user_id);
 

@@ -347,36 +347,39 @@ class ChatService extends ChangeNotifier {
         }
       }
       
-      // 3. 모든 사용자 정보 병렬로 가져오기
+      // 3. 모든 사용자 정보 병렬로 가져오기 (한 번의 in 쿼리로)
       final userMap = <String, Map<String, dynamic>>{};
       if (otherUserIds.isNotEmpty) {
-        final userFutures = otherUserIds.map((id) {
-          return _sb
+        try {
+          final users = await _sb
               .from('users')
-              .select('id, businessname, name')
-              .eq('id', id)
-              .maybeSingle()
-              .then((user) {
-            if (user != null) {
-              userMap[user['id']] = user;
-            }
-          }).catchError((e) {
-            debugPrint('   ⚠️ 사용자 정보 조회 실패 ($id): $e');
-          });
-        }).toList();
-        
-        await Future.wait(userFutures);
+              .select('id, businessname, name, avatar_url, role')
+              .inFilter('id', otherUserIds.toList());
+          for (final u in users) {
+            final m = Map<String, dynamic>.from(u);
+            final id = m['id']?.toString();
+            if (id != null) userMap[id] = m;
+          }
+        } catch (e) {
+          debugPrint('   ⚠️ 상대방 사용자 정보 일괄 조회 실패: $e');
+        }
       }
       
       // 4. 병렬로 최근 메시지와 읽지 않은 메시지 수 가져오기
       final futures = <Future>[];
       
       for (final room in roomMap.values) {
-        // 사용자 이름 설정
+        // 사용자 이름·아바타·역할 설정
         final otherId = room['_otherId'];
         if (otherId != null && userMap.containsKey(otherId)) {
-          final user = userMap[otherId];
-          room['displayName'] = user?['businessname']?.toString() ?? user?['name']?.toString() ?? '상대방';
+          final user = userMap[otherId]!;
+          final bn = user['businessname']?.toString();
+          final nm = user['name']?.toString();
+          room['displayName'] = (bn != null && bn.isNotEmpty) ? bn : ((nm != null && nm.isNotEmpty) ? nm : '상대방');
+          room['otherAvatarUrl'] = user['avatar_url']?.toString();
+          room['otherRole'] = user['role']?.toString();
+          room['otherBusinessName'] = bn;
+          room['otherName'] = nm;
         } else {
           room['displayName'] = room['title']?.toString() ?? '채팅';
         }
@@ -497,6 +500,72 @@ class ChatService extends ChangeNotifier {
           .eq('businessid', businessId);
     } catch (e) {
       rethrow;
+    }
+  }
+
+  /// 채팅방 + 상대방 프로필 + 오더 제목을 한 번에 (ChatScreen 진입용)
+  Future<Map<String, dynamic>?> getChatRoomWithPeer(String chatRoomId, String myUserId) async {
+    try {
+      final room = await _sb
+          .from('chat_rooms')
+          .select('id, customerid, businessid, participant_a, participant_b, title, listingid, estimateid')
+          .eq('id', chatRoomId)
+          .maybeSingle();
+      if (room == null) return null;
+
+      String? otherId;
+      if (room['participant_a']?.toString() == myUserId) {
+        otherId = room['participant_b']?.toString();
+      } else if (room['participant_b']?.toString() == myUserId) {
+        otherId = room['participant_a']?.toString();
+      } else if (room['customerid']?.toString() == myUserId) {
+        otherId = room['businessid']?.toString();
+      } else if (room['businessid']?.toString() == myUserId) {
+        otherId = room['customerid']?.toString();
+      }
+
+      Map<String, dynamic>? other;
+      if (otherId != null && otherId.isNotEmpty) {
+        other = await _sb
+            .from('users')
+            .select('id, businessname, name, avatar_url, role')
+            .eq('id', otherId)
+            .maybeSingle();
+      }
+
+      String? orderTitle;
+      final listingId = room['listingid']?.toString();
+      if (listingId != null && listingId.isNotEmpty) {
+        try {
+          final listing = await _sb
+              .from('marketplace_listings')
+              .select('title')
+              .eq('id', listingId)
+              .maybeSingle();
+          orderTitle = listing?['title']?.toString();
+        } catch (_) {}
+      }
+
+      final bn = other?['businessname']?.toString();
+      final nm = other?['name']?.toString();
+      final displayName = (bn != null && bn.isNotEmpty)
+          ? bn
+          : ((nm != null && nm.isNotEmpty) ? nm : '상대방');
+
+      return {
+        'room': room,
+        'otherId': otherId,
+        'otherAvatarUrl': other?['avatar_url']?.toString(),
+        'otherDisplayName': displayName,
+        'otherRole': other?['role']?.toString(),
+        'otherBusinessName': bn,
+        'otherName': nm,
+        'orderTitle': orderTitle,
+        'listingId': listingId,
+      };
+    } catch (e) {
+      debugPrint('❌ getChatRoomWithPeer 실패: $e');
+      return null;
     }
   }
 

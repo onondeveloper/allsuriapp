@@ -5,16 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
-import '../models/user.dart';
 import '../services/media_service.dart';
-import '../models/estimate.dart';
-import '../models/order.dart';
-import '../services/estimate_service.dart';
-import '../services/order_service.dart';
 import '../services/chat_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/common_app_bar.dart';
-import './estimate_detail_screen.dart';
 import 'business/job_management_screen.dart';
 import 'business/my_order_management_screen.dart';
 
@@ -32,142 +25,128 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
+class _ChatMessage {
+  final String id; // db id 또는 옵티미스틱용 임시 id
+  final String text;
+  final DateTime timestamp;
+  final bool isFromMe;
+  final String senderId;
+  final String? imageUrl;
+  final String? videoUrl;
+  final bool isPending; // 옵티미스틱 전송 상태
+
+  _ChatMessage({
+    required this.id,
+    required this.text,
+    required this.timestamp,
+    required this.isFromMe,
+    required this.senderId,
+    this.imageUrl,
+    this.videoUrl,
+    this.isPending = false,
+  });
+
+  _ChatMessage copyWith({bool? isPending}) => _ChatMessage(
+        id: id,
+        text: text,
+        timestamp: timestamp,
+        isFromMe: isFromMe,
+        senderId: senderId,
+        imageUrl: imageUrl,
+        videoUrl: videoUrl,
+        isPending: isPending ?? this.isPending,
+      );
+}
+
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   final ImagePicker _picker = ImagePicker();
-  List<Map<String, dynamic>> _messages = [];
-  bool _isLoading = false;
-  bool _isSending = false;
   final ScrollController _scrollController = ScrollController();
+  StreamSubscription<List<Map<String, dynamic>>>? _messagesSub;
+
+  final List<_ChatMessage> _messages = [];
+  bool _isLoading = true;
+  bool _isSending = false;
   bool _showScrollToEnd = false;
-  StreamSubscription<List<Map<String, dynamic>>>? _messagesSub; // realtime 구독
-  String? _otherUserName; // 상대방 이름
-  String? _orderTitle; // 오더 제목
-  String? _listingId; // 오더 ID (marketplace_listings id)
+
+  String? _otherUserName;
+  String? _otherAvatarUrl;
+  String? _otherRole; // business / customer
+  String? _orderTitle;
+  String? _listingId;
 
   @override
   void initState() {
     super.initState();
-    _loadChatRoomInfo(); // 채팅방 정보 로드 (상대방 이름, 오더 제목)
-    _loadMessages();
-    _subscribeRealtime();
-    _markAsRead(); // 채팅방 읽음 처리
-    _scrollController.addListener(() {
-      final atBottom = _scrollController.offset <= 100;
-      if (_showScrollToEnd == atBottom) {
-        setState(() => _showScrollToEnd = !atBottom);
-      }
-    });
-    // 화면 진입 시 입력창에 자동 포커스 -> 키보드 표시
+    _bootstrap();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _inputFocusNode.requestFocus();
-      }
+      if (mounted) _inputFocusNode.requestFocus();
     });
   }
 
-  /// 채팅방을 읽음 처리
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    // ListView가 아래쪽이 maxScrollExtent
+    final atBottom = (pos.maxScrollExtent - pos.pixels) <= 80;
+    if (_showScrollToEnd == atBottom) {
+      setState(() => _showScrollToEnd = !atBottom);
+    }
+  }
+
+  Future<void> _bootstrap() async {
+    await _loadChatRoomInfo();
+    await _loadMessages(initial: true);
+    _subscribeRealtime();
+    _markAsRead();
+  }
+
   Future<void> _markAsRead() async {
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final chatService = Provider.of<ChatService>(context, listen: false);
-      final currentUserId = authService.currentUser?.id ?? '';
-      
-      if (currentUserId.isNotEmpty) {
-        await chatService.markChatRead(widget.chatRoomId, currentUserId);
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final chat = Provider.of<ChatService>(context, listen: false);
+      final id = auth.currentUser?.id ?? '';
+      if (id.isNotEmpty) {
+        await chat.markChatRead(widget.chatRoomId, id);
       }
-    } catch (e) {
-      print('❌ 읽음 처리 실패: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadChatRoomInfo() async {
     try {
-      final myId = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
-      
-      // 채팅방 정보 가져오기
-      final chatRoom = await Supabase.instance.client
-          .from('chat_rooms')
-          .select('customerid, businessid, participant_a, participant_b, title, listingid')
-          .eq('id', widget.chatRoomId)
-          .single();
-      
-      // 상대방 ID 찾기
-      String? otherId;
-      if (chatRoom['participant_a'] == myId) {
-        otherId = chatRoom['participant_b'];
-      } else if (chatRoom['participant_b'] == myId) {
-        otherId = chatRoom['participant_a'];
-      } else if (chatRoom['customerid'] == myId) {
-        otherId = chatRoom['businessid'];
-      } else if (chatRoom['businessid'] == myId) {
-        otherId = chatRoom['customerid'];
-      }
-      
-      // 상대방 이름 가져오기
-      if (otherId != null) {
-        final user = await Supabase.instance.client
-            .from('users')
-            .select('businessname, name')
-            .eq('id', otherId)
-            .single();
-        
-        setState(() {
-          _otherUserName = user['businessname'] ?? user['name'] ?? '사업자';
-        });
-      }
-      
-      // 오더 제목 가져오기 (listingid가 있는 경우)
-      final listingId = chatRoom['listingid'];
-      if (listingId != null) {
-        try {
-          final listing = await Supabase.instance.client
-              .from('marketplace_listings')
-              .select('title')
-              .eq('id', listingId)
-              .single();
-          
-          setState(() {
-            _orderTitle = listing['title'];
-            _listingId = listingId; // listingId 저장
-          });
-        } catch (e) {
-          print('⚠️ 오더 제목 조회 실패: $e');
-        }
-      }
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final chat = Provider.of<ChatService>(context, listen: false);
+      final myId = auth.currentUser?.id ?? '';
+      final info = await chat.getChatRoomWithPeer(widget.chatRoomId, myId);
+      if (!mounted || info == null) return;
+      setState(() {
+        _otherUserName = info['otherDisplayName']?.toString();
+        _otherAvatarUrl = info['otherAvatarUrl']?.toString();
+        _otherRole = info['otherRole']?.toString();
+        _orderTitle = info['orderTitle']?.toString();
+        _listingId = info['listingId']?.toString();
+      });
     } catch (e) {
-      print('❌ 채팅방 정보 로드 실패: $e');
+      debugPrint('❌ 채팅방 정보 로드 실패: $e');
     }
   }
 
   Future<void> _navigateToOrder() async {
     if (_listingId == null) return;
-    
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final currentUserId = authService.currentUser?.id ?? '';
-      
-      print('🔍 [_navigateToOrder] 오더로 이동 시작');
-      print('   Listing ID: $_listingId');
-      print('   현재 사용자 ID: $currentUserId');
-      
-      // 1. marketplace_listings 조회 (jobid 포함)
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final myId = auth.currentUser?.id ?? '';
       final listing = await Supabase.instance.client
           .from('marketplace_listings')
           .select('posted_by, status, jobid')
           .eq('id', _listingId!)
           .single();
-      
       final postedBy = listing['posted_by'];
       final jobId = listing['jobid'];
-      print('   Posted By: $postedBy');
-      print('   Job ID: $jobId');
-      
-      // 2. 내가 발주자인지 확인
-      if (postedBy == currentUserId) {
-        // 내가 발주자 -> 내 오더 관리로 이동 (listingId 하이라이트)
-        print('   → 내 오더 관리로 이동 (listingId: $_listingId)');
+      if (!mounted) return;
+      if (postedBy == myId) {
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -175,8 +154,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         );
       } else {
-        // 내가 낙찰받은 사업자 -> 내 공사 관리로 이동 (jobId 하이라이트)
-        print('   → 내 공사 관리로 이동 (jobId: $jobId)');
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -185,7 +162,6 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     } catch (e) {
-      print('❌ [_navigateToOrder] 오더 이동 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('오더 정보를 불러올 수 없습니다.')),
@@ -194,173 +170,163 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _loadMessages() async {
-    setState(() {
-      _isLoading = true;
-    });
+  _ChatMessage _rowToMessage(Map<String, dynamic> r, String myId) {
+    final created = r['createdat'] ?? r['createdAt'] ?? r['created_at'];
+    final senderId = r['sender_id']?.toString() ??
+        r['senderid']?.toString() ??
+        r['senderId']?.toString() ??
+        '';
+    return _ChatMessage(
+      id: (r['id'] ?? '').toString(),
+      text: (r['content'] ?? r['text'] ?? '').toString(),
+      timestamp: DateTime.tryParse(created?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+      isFromMe: senderId == myId,
+      senderId: senderId,
+      imageUrl: r['image_url']?.toString(),
+      videoUrl: r['video_url']?.toString(),
+    );
+  }
 
+  Future<void> _loadMessages({bool initial = false}) async {
+    if (initial) {
+      setState(() => _isLoading = true);
+    }
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final currentUserId = authService.currentUser?.id ?? '';
-      
-      print('🔍 [_loadMessages] 메시지 로드 시작');
-      print('   현재 사용자 ID: $currentUserId');
-      
-      // chat_messages 직접 조회 (ChatService 대신)
-      final client = Supabase.instance.client;
-      final rows = await client
+      final auth = Provider.of<AuthService>(context, listen: false);
+      final myId = auth.currentUser?.id ?? '';
+      final rows = await Supabase.instance.client
           .from('chat_messages')
           .select()
           .eq('room_id', widget.chatRoomId)
           .order('createdat', ascending: true);
-      
-      final messages = rows.map((r) {
-        final m = Map<String, dynamic>.from(r);
-        final created = m['createdat'] ?? m['createdAt'] ?? m['created_at'];
-        final senderId = m['sender_id']?.toString() ?? '';
-        final isFromMe = senderId == currentUserId;
-        
-        return <String, dynamic>{
-          'text': (m['content'] ?? m['text'] ?? '').toString(),
-          'timestamp': DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now(),
-          'isFromMe': isFromMe,
-          'sender_id': senderId,
-          'image_url': m['image_url'],
-          'video_url': m['video_url'],
-        };
-      }).toList();
-      
-      print('   로드된 메시지: ${messages.length}개');
-      for (var msg in messages) {
-        print('   - sender_id: ${msg['sender_id']}, isFromMe: ${msg['isFromMe']}, text: ${msg['text']}');
-      }
-      
+      final list = rows.map<_ChatMessage>((r) => _rowToMessage(Map<String, dynamic>.from(r), myId)).toList();
+      if (!mounted) return;
       setState(() {
-        _messages = messages;
+        _messages
+          ..clear()
+          ..addAll(list);
       });
+      _jumpToBottom();
     } catch (e) {
-      print('❌ [_loadMessages] 메시지 로드 오류: $e');
+      debugPrint('❌ 메시지 로드 실패: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted && initial) setState(() => _isLoading = false);
     }
   }
 
+  /// 실시간 수신: 전체 교체 대신 id 기준 병합 → 깜빡임 제거
   void _subscribeRealtime() {
     try {
       final client = Supabase.instance.client;
-      
-      print('🔵 [ChatScreen] Realtime 구독 시작');
-
-      // chat_messages 테이블의 room_id별 스트림 구독 (createdat 기준 정렬)
       _messagesSub = client
           .from('chat_messages')
           .stream(primaryKey: ['id'])
           .eq('room_id', widget.chatRoomId)
           .order('createdat', ascending: true)
           .listen((rows) {
-        // 현재 사용자 ID를 listen 콜백 내부에서 가져오기
-        final me = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
-        
-        print('🔔 [_subscribeRealtime] 실시간 메시지 수신: ${rows.length}개');
-        print('   현재 사용자 ID: "$me" (길이: ${me.length})');
-        
-        final mapped = rows.map((r) {
-          final m = Map<String, dynamic>.from(r);
-          final created = m['createdat'] ?? m['createdAt'] ?? m['created_at'];
-          final text = (m['content'] ?? m['text'] ?? '').toString();
-          
-          // sender_id 확인 (다양한 케이스 대응)
-          final senderId = m['sender_id']?.toString() ?? m['senderid']?.toString() ?? m['senderId']?.toString() ?? '';
-          
-          print('   메시지: "$text"');
-          print('      sender_id: "$senderId" (길이: ${senderId.length})');
-          print('      me: "$me" (길이: ${me.length})');
-          print('      같은가? ${senderId == me}');
-          
-          // 내 아이디와 비교
-          final isFromMe = senderId == me;
-          
-          print('      isFromMe: $isFromMe');
-          
-          return <String, dynamic>{
-            'text': text,
-            'timestamp': DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now(),
-            'isFromMe': isFromMe,
-            'sender_id': senderId, // 디버깅용
-          };
-        }).toList();
-        
         if (!mounted) return;
-        setState(() {
-          _messages = mapped;
-        });
-
-        // 새로운 메시지가 오면 하단으로 스크롤
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          if (!_scrollController.hasClients) return;
-          final max = _scrollController.position.maxScrollExtent;
-          _scrollController.animateTo(
-            max + 60,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-          );
-        });
+        final auth = Provider.of<AuthService>(context, listen: false);
+        final myId = auth.currentUser?.id ?? '';
+        _mergeRows(rows, myId);
       });
     } catch (e) {
-      print('❌ 실시간 구독 설정 실패: $e');
+      debugPrint('❌ 실시간 구독 실패: $e');
     }
   }
 
-  Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty) return;
+  void _mergeRows(List<Map<String, dynamic>> rows, String myId) {
+    bool atBottom = true;
+    if (_scrollController.hasClients) {
+      final pos = _scrollController.position;
+      atBottom = (pos.maxScrollExtent - pos.pixels) <= 80;
+    }
 
+    // 기존 id 인덱스
+    final indexById = {for (var i = 0; i < _messages.length; i++) _messages[i].id: i};
+    bool changed = false;
+    for (final raw in rows) {
+      final m = _rowToMessage(Map<String, dynamic>.from(raw), myId);
+      final idx = indexById[m.id];
+      if (idx == null) {
+        // 옵티미스틱(temp_) 항목 중 같은 본문/시간 비슷한 것이 있으면 교체
+        final tmpIdx = _messages.indexWhere((x) =>
+            x.isPending && x.isFromMe && x.text == m.text && (x.imageUrl ?? '') == (m.imageUrl ?? '') && (x.videoUrl ?? '') == (m.videoUrl ?? ''));
+        if (tmpIdx >= 0) {
+          _messages[tmpIdx] = m;
+        } else {
+          _messages.add(m);
+        }
+        changed = true;
+      } else if (_messages[idx].isPending) {
+        _messages[idx] = m;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    // 시간순 정렬 보장
+    _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    setState(() {});
+    if (atBottom) _animateToBottom();
+  }
+
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  void _animateToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty || _isSending) return;
+
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final chat = Provider.of<ChatService>(context, listen: false);
+    final myId = auth.currentUser?.id ?? '';
+    if (myId.isEmpty) return;
+
+    // 옵티미스틱 추가
+    final tempId = 'temp_${DateTime.now().microsecondsSinceEpoch}';
+    final optimistic = _ChatMessage(
+      id: tempId,
+      text: text,
+      timestamp: DateTime.now(),
+      isFromMe: true,
+      senderId: myId,
+      isPending: true,
+    );
     setState(() {
+      _messages.add(optimistic);
       _isSending = true;
     });
+    _messageController.clear();
+    _animateToBottom();
 
     try {
-      final chatService = Provider.of<ChatService>(context, listen: false);
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final me = authService.currentUser?.id ?? '';
-      final text = _messageController.text.trim();
-      
-      print('🔵 [_sendMessage] 메시지 전송 시작');
-      print('   보내는 사람 ID: "$me" (길이: ${me.length})');
-      print('   메시지: "$text"');
-      
-      await chatService.sendMessage(widget.chatRoomId, text, me);
-      print('✅ [_sendMessage] 메시지 전송 완료');
-      
-      _messageController.clear();
-      
-      // 메시지 전송 후 즉시 화면 업데이트
-      await _loadMessages();
-      
-      // 하단으로 스크롤
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (!_scrollController.hasClients) return;
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 100,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-      
+      await chat.sendMessage(widget.chatRoomId, text, myId);
+      // realtime stream이 곧 _mergeRows 로 교체하므로 별도 작업 불필요
     } catch (e) {
-      print('❌ [ChatScreen] 메시지 전송 오류: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('메시지 전송 실패: ${e.toString()}')),
-        );
-      }
-    } finally {
+      if (!mounted) return;
+      // 실패 시 옵티미스틱 제거
       setState(() {
-        _isSending = false;
+        _messages.removeWhere((m) => m.id == tempId);
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('메시지 전송 실패: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
@@ -368,82 +334,36 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: InkWell(
-          onTap: _listingId != null ? () => _navigateToOrder() : null,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      _orderTitle ?? widget.chatRoomTitle ?? '채팅',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (_listingId != null) ...[
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_forward_ios, size: 12),
-                  ],
-                ],
-              ),
-              if (_otherUserName != null)
-                Text(
-                  _otherUserName!,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              final svc = Provider.of<ChatService>(context, listen: false);
-              if (value == 'clear') {
-                await svc.deleteMessages(widget.chatRoomId);
-                await _loadMessages();
-              } else if (value == 'delete') {
-                // 소프트 삭제
-                final me = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
-                await svc.softDeleteChatRoom(widget.chatRoomId, me);
-                if (mounted) Navigator.pop(context);
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'clear', child: Text('메시지 비우기')),
-              const PopupMenuItem(value: 'delete', child: Text('채팅방 삭제')),
-            ],
-          ),
-        ],
-      ),
+      backgroundColor: const Color(0xFFB2C7DA), // 카카오톡 채팅 배경 톤
+      appBar: _buildAppBar(),
       body: Column(
         children: [
-          _buildChatHeader(),
+          if (_orderTitle != null && _orderTitle!.isNotEmpty) _buildOrderBanner(),
           Expanded(
             child: Stack(
               children: [
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _messages.isEmpty
-                        ? const Center(child: Text('아직 메시지가 없습니다.'))
+                        ? const Center(
+                            child: Text(
+                              '아직 메시지가 없습니다.\n첫 인사를 건네 보세요.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.black54),
+                            ),
+                          )
                         : ListView.builder(
                             controller: _scrollController,
-                            padding: const EdgeInsets.all(16),
-                            reverse: false,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             itemCount: _messages.length,
                             itemBuilder: (context, index) {
-                              final message = _messages[index];
-                              final showDateHeader = _shouldShowDateHeader(index);
+                              final msg = _messages[index];
+                              final showDate = _shouldShowDateHeader(index);
+                              final groupingInfo = _groupingInfo(index);
                               return Column(
                                 children: [
-                                  if (showDateHeader) _buildDateHeader(message['timestamp'] as DateTime),
-                                  _buildMessageBubble(message),
+                                  if (showDate) _buildDateHeader(msg.timestamp),
+                                  _buildBubble(msg, groupingInfo),
                                 ],
                               );
                             },
@@ -454,13 +374,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     bottom: 16,
                     child: FloatingActionButton(
                       mini: true,
-                      onPressed: () {
-                        _scrollController.animateTo(
-                          _scrollController.position.maxScrollExtent,
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeOut,
-                        );
-                      },
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      onPressed: _animateToBottom,
                       child: const Icon(Icons.keyboard_arrow_down),
                     ),
                   ),
@@ -473,299 +389,344 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildChatHeader() {
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: Provider.of<ChatService>(context, listen: false).getChatRoom(widget.chatRoomId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data == null) return const SizedBox.shrink();
-        final room = snapshot.data!;
-        final estimateId = (room['estimateid']?.toString() ?? '');
-        if (estimateId.isEmpty) return const SizedBox.shrink();
-        return FutureBuilder<Map<String, dynamic>?>(
-          future: _loadEstimateAndOrder(estimateId),
-          builder: (context, snap) {
-            final info = snap.data;
-            if (info == null) return const SizedBox.shrink();
-            final order = info['order'] as Order?;
-            final title = order?.title ?? '견적';
-            return InkWell(
-              onTap: order == null ? null : () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EstimateDetailScreen(order: order, estimate: info['estimate'] as Estimate),
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      foregroundColor: Colors.black87,
+      elevation: 0.5,
+      leadingWidth: 40,
+      titleSpacing: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: InkWell(
+        onTap: _listingId != null ? _navigateToOrder : null,
+        child: Row(
+          children: [
+            _PeerAvatar(
+              name: _otherUserName ?? widget.chatRoomTitle ?? '?',
+              avatarUrl: _otherAvatarUrl,
+              size: 36,
+              isBusiness: _otherRole == 'business',
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _otherUserName ?? widget.chatRoomTitle ?? '채팅',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
-                );
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                color: Colors.grey.shade100,
-                child: Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                  if (_otherRole != null)
+                    Text(
+                      _otherRole == 'business' ? '사업자' : '의뢰인',
+                      style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.normal),
+                    ),
+                ],
               ),
-            );
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) async {
+            final svc = Provider.of<ChatService>(context, listen: false);
+            if (value == 'clear') {
+              await svc.deleteMessages(widget.chatRoomId);
+              await _loadMessages(initial: true);
+            } else if (value == 'delete') {
+              final me = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
+              await svc.softDeleteChatRoom(widget.chatRoomId, me);
+              if (mounted) Navigator.pop(context);
+            }
           },
-        );
-      },
+          itemBuilder: (context) => [
+            const PopupMenuItem(value: 'clear', child: Text('메시지 비우기')),
+            const PopupMenuItem(value: 'delete', child: Text('채팅방 삭제')),
+          ],
+        ),
+      ],
     );
   }
 
-  Future<Map<String, dynamic>?> _loadEstimateAndOrder(String estimateId) async {
-    try {
-      final sb = Provider.of<ChatService>(context, listen: false);
-      final estSvc = Provider.of<EstimateService>(context, listen: false);
-      final ordSvc = Provider.of<OrderService>(context, listen: false);
-      // estimate 조회
-      final estRows = await estSvc.getEstimates();
-      final estimate = estRows.firstWhere((e) => e.id == estimateId, orElse: () => Estimate.empty());
-      if (estimate.id.isEmpty) return null;
-      final order = await ordSvc.getOrder(estimate.orderId);
-      if (order == null) return null;
-      return {'estimate': estimate, 'order': order};
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final isFromMe = message['isFromMe'] as bool;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        mainAxisAlignment: isFromMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        children: [
-          if (!isFromMe) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.blue[100],
+  Widget _buildOrderBanner() {
+    return InkWell(
+      onTap: _listingId != null ? _navigateToOrder : null,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        color: const Color(0xFFFFF6D8),
+        child: Row(
+          children: [
+            const Icon(Icons.receipt_long, size: 16, color: Color(0xFF8B6F00)),
+            const SizedBox(width: 6),
+            Expanded(
               child: Text(
-                (_otherUserName ?? '업체').substring(0, 1),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.blue[700],
-                  fontWeight: FontWeight.bold,
-                ),
+                _orderTitle ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B5300), fontWeight: FontWeight.w600),
               ),
             ),
-            const SizedBox(width: 8),
+            if (_listingId != null) const Icon(Icons.arrow_forward_ios, size: 11, color: Color(0xFF8B6F00)),
           ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isFromMe ? Colors.blue[600] : Colors.grey[200],
-                borderRadius: BorderRadius.circular(18),
+        ),
+      ),
+    );
+  }
+
+  /// 같은 발신자의 연속 메시지 그룹화 정보
+  ({bool showAvatar, bool showName, bool showTime}) _groupingInfo(int index) {
+    final cur = _messages[index];
+    final prev = index > 0 ? _messages[index - 1] : null;
+    final next = index < _messages.length - 1 ? _messages[index + 1] : null;
+
+    final samePrev = prev != null &&
+        prev.senderId == cur.senderId &&
+        prev.timestamp.year == cur.timestamp.year &&
+        prev.timestamp.month == cur.timestamp.month &&
+        prev.timestamp.day == cur.timestamp.day;
+    final sameNext = next != null &&
+        next.senderId == cur.senderId &&
+        next.timestamp.year == cur.timestamp.year &&
+        next.timestamp.month == cur.timestamp.month &&
+        next.timestamp.day == cur.timestamp.day &&
+        // 1분 이내면 시간 표시 합치기
+        next.timestamp.difference(cur.timestamp).inMinutes == 0;
+
+    return (
+      showAvatar: !samePrev,
+      showName: !samePrev,
+      showTime: !sameNext,
+    );
+  }
+
+  Widget _buildBubble(_ChatMessage m, ({bool showAvatar, bool showName, bool showTime}) g) {
+    final isMe = m.isFromMe;
+    final bg = isMe ? const Color(0xFFFFEB33) : Colors.white;
+    final fg = Colors.black87;
+    final radius = BorderRadius.only(
+      topLeft: Radius.circular(isMe ? 14 : (g.showAvatar ? 4 : 14)),
+      topRight: Radius.circular(isMe ? (g.showAvatar ? 4 : 14) : 14),
+      bottomLeft: const Radius.circular(14),
+      bottomRight: const Radius.circular(14),
+    );
+
+    final timeText = '${m.timestamp.hour.toString().padLeft(2, '0')}:${m.timestamp.minute.toString().padLeft(2, '0')}';
+    final hasMedia = (m.imageUrl != null && m.imageUrl!.isNotEmpty) || (m.videoUrl != null && m.videoUrl!.isNotEmpty);
+
+    final bubble = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+      child: Container(
+        padding: hasMedia ? const EdgeInsets.all(4) : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(color: bg, borderRadius: radius),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (m.imageUrl != null && m.imageUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: GestureDetector(
+                  onTap: () => _showImageFullScreen(m.imageUrl!),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240, maxHeight: 280),
+                    child: Image.network(m.imageUrl!, fit: BoxFit.cover),
+                  ),
+                ),
               ),
+            if (m.videoUrl != null && m.videoUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: VideoPlayerWidget(videoUrl: m.videoUrl!),
+              ),
+            if (m.text.isNotEmpty && m.text != '[이미지]' && m.text != '[동영상]')
+              Padding(
+                padding: hasMedia ? const EdgeInsets.fromLTRB(8, 6, 8, 4) : EdgeInsets.zero,
+                child: Text(m.text, style: TextStyle(color: fg, fontSize: 14.5, height: 1.35)),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    final timeWidget = g.showTime
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (m.isPending)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 4),
+                    child: SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(strokeWidth: 1.4, color: Colors.black45),
+                    ),
+                  ),
+                Text(timeText, style: const TextStyle(fontSize: 10.5, color: Colors.black54)),
+              ],
+            ),
+          )
+        : const SizedBox.shrink();
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: g.showTime ? 6 : 1, left: 0, right: 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!isMe) ...[
+            SizedBox(
+              width: 36,
+              child: g.showAvatar
+                  ? _PeerAvatar(
+                      name: _otherUserName ?? '?',
+                      avatarUrl: _otherAvatarUrl,
+                      size: 36,
+                      isBusiness: _otherRole == 'business',
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 이미지가 있으면 이미지 표시
-                  if (message['image_url'] != null && message['image_url'].toString().isNotEmpty) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: GestureDetector(
-                        onTap: () {
-                          // 이미지 풀스크린 보기
-                          showDialog(
-                            context: context,
-                            builder: (context) => Dialog(
-                              backgroundColor: Colors.black,
-                              child: Stack(
-                                children: [
-                                  InteractiveViewer(
-                                    child: Image.network(
-                                      message['image_url'],
-                                      fit: BoxFit.contain,
-                                      loadingBuilder: (context, child, loadingProgress) {
-                                        if (loadingProgress == null) return child;
-                                        return Center(
-                                          child: CircularProgressIndicator(
-                                            value: loadingProgress.expectedTotalBytes != null
-                                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                                : null,
-                                          ),
-                                        );
-                                      },
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return const Center(
-                                          child: Icon(Icons.error, color: Colors.red, size: 48),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  Positioned(
-                                    top: 10,
-                                    right: 10,
-                                    child: IconButton(
-                                      icon: const Icon(Icons.close, color: Colors.white, size: 30),
-                                      onPressed: () => Navigator.pop(context),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxWidth: 250,
-                            maxHeight: 300,
-                          ),
-                          child: Image.network(
-                            message['image_url'],
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
-                                width: 250,
-                                height: 200,
-                                alignment: Alignment.center,
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 250,
-                                height: 200,
-                                color: Colors.grey[300],
-                                child: const Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                                    SizedBox(height: 8),
-                                    Text('이미지를 불러올 수 없습니다', style: TextStyle(color: Colors.grey)),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
+                  if (g.showName)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 2),
+                      child: Text(
+                        _otherUserName ?? '상대방',
+                        style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                  ],
-                  // 동영상이 있으면 동영상 표시
-                  if (message['video_url'] != null && message['video_url'].toString().isNotEmpty) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: VideoPlayerWidget(
-                        videoUrl: message['video_url'],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  // 텍스트 (이미지/동영상만 있는 경우 텍스트는 숨김)
-                  if (message['text'].toString().isNotEmpty && 
-                      message['text'] != '[이미지]' && 
-                      message['text'] != '[동영상]')
-                    Text(
-                      message['text'],
-                      style: TextStyle(
-                        color: isFromMe ? Colors.white : Colors.black87,
-                        fontSize: 14,
-                      ),
-                    ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatTimestamp(message['timestamp']),
-                    style: TextStyle(
-                      color: isFromMe ? Colors.white70 : Colors.grey[600],
-                      fontSize: 12,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Flexible(child: bubble),
+                      timeWidget,
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-          if (isFromMe) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.green[100],
-              child: Text(
-                '나',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.green[700],
-                  fontWeight: FontWeight.bold,
-                ),
+          ] else ...[
+            timeWidget,
+            Flexible(child: bubble),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showImageFullScreen(String url) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
+            ),
+            Positioned(
+              top: 30,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                onPressed: () => Navigator.pop(context),
               ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildMessageInput() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, -1),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF7F7F7),
+        border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
       ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: _isSending ? null : _pickAndSendImage,
-            icon: const Icon(Icons.photo),
-            color: Colors.blue[600],
-            tooltip: '이미지 보내기',
-          ),
-          IconButton(
-            onPressed: _isSending ? null : _pickAndSendVideo,
-            icon: const Icon(Icons.videocam),
-            color: Colors.blue[600],
-            tooltip: '동영상 보내기',
-          ),
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              focusNode: _inputFocusNode,
-              autofocus: true,
-              decoration: const InputDecoration(
-                hintText: '메시지를 입력하세요...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(24)),
-                ),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              maxLines: null,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendMessage(),
-              enabled: !_isSending,
+      child: SafeArea(
+        top: false,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            IconButton(
+              onPressed: _isSending ? null : _pickAndSendImage,
+              icon: const Icon(Icons.photo_outlined, color: Colors.black54),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              tooltip: '이미지',
             ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: _isSending ? null : _sendMessage,
-            icon: _isSending
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send),
-            color: Colors.blue[600],
-          ),
-        ],
+            IconButton(
+              onPressed: _isSending ? null : _pickAndSendVideo,
+              icon: const Icon(Icons.videocam_outlined, color: Colors.black54),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              tooltip: '동영상',
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 38, maxHeight: 120),
+                child: TextField(
+                  controller: _messageController,
+                  focusNode: _inputFocusNode,
+                  decoration: InputDecoration(
+                    hintText: '메시지 입력',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: Color(0xFFFFCC00)),
+                    ),
+                  ),
+                  minLines: 1,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendMessage(),
+                  enabled: !_isSending,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Material(
+              color: const Color(0xFFFFEB33),
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: _isSending ? null : _sendMessage,
+                child: const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(Icons.send, color: Colors.black87, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -774,172 +735,79 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
       if (x == null) return;
-      
-      // 로딩 표시
-      if (mounted) {
-        setState(() => _isSending = true);
-      }
-      
+      setState(() => _isSending = true);
       final file = File(x.path);
       final media = MediaService();
-      final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
-      
-      print('🔵 [ChatScreen] 이미지 전송 시작');
-      
-      final url = await media.uploadMessageImage(
-        roomId: widget.chatRoomId, 
-        userId: currentUserId, 
-        file: file,
-      );
-      
-      if (url == null) {
-        throw Exception('이미지 업로드 실패');
-      }
-      
-      // Save as image message
-      final nowIso = DateTime.now().toIso8601String();
-      final sb = Supabase.instance.client;
-      await sb.from('chat_messages').insert({
+      final myId = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
+      final url = await media.uploadMessageImage(roomId: widget.chatRoomId, userId: myId, file: file);
+      if (url == null) throw Exception('이미지 업로드 실패');
+
+      await Supabase.instance.client.from('chat_messages').insert({
         'room_id': widget.chatRoomId,
-        'sender_id': currentUserId,
+        'sender_id': myId,
         'content': '[이미지]',
         'image_url': url,
-        'createdat': nowIso,
+        'createdat': DateTime.now().toIso8601String(),
       });
-      
-      print('✅ [ChatScreen] 이미지 전송 완료');
-      
-      // 메시지 목록 새로고침
-      await _loadMessages();
-      
-      // 하단으로 스크롤
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (!_scrollController.hasClients) return;
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 100,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-      
+      // 실시간 stream이 받아서 _mergeRows 처리
     } catch (e) {
-      print('❌ [ChatScreen] 이미지 전송 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 전송 실패: ${e.toString()}')),
+          SnackBar(content: Text('이미지 전송 실패: $e')),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isSending = false);
-      }
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
-  /// 동영상 선택 및 전송
   Future<void> _pickAndSendVideo() async {
     try {
       final media = MediaService();
       final videoFile = await media.pickVideoFromGallery();
       if (videoFile == null) return;
-      
-      // 로딩 표시
-      if (mounted) {
-        setState(() => _isSending = true);
-      }
-      
-      final currentUserId = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
-      
-      print('🎬 [ChatScreen] 동영상 전송 시작');
-      
-      final url = await media.uploadMessageVideo(
-        roomId: widget.chatRoomId, 
-        userId: currentUserId, 
-        file: videoFile,
-      );
-      
-      if (url == null) {
-        throw Exception('동영상 업로드 실패');
-      }
-      
-      // Save as video message
-      final nowIso = DateTime.now().toIso8601String();
-      final sb = Supabase.instance.client;
-      await sb.from('chat_messages').insert({
+      setState(() => _isSending = true);
+      final myId = Provider.of<AuthService>(context, listen: false).currentUser?.id ?? '';
+      final url = await media.uploadMessageVideo(roomId: widget.chatRoomId, userId: myId, file: videoFile);
+      if (url == null) throw Exception('동영상 업로드 실패');
+
+      await Supabase.instance.client.from('chat_messages').insert({
         'room_id': widget.chatRoomId,
-        'sender_id': currentUserId,
+        'sender_id': myId,
         'content': '[동영상]',
         'video_url': url,
-        'createdat': nowIso,
+        'createdat': DateTime.now().toIso8601String(),
       });
-      
-      print('✅ [ChatScreen] 동영상 전송 완료');
-      
-      // 메시지 목록 새로고침
-      await _loadMessages();
-      
-      // 하단으로 스크롤
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (!_scrollController.hasClients) return;
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 100,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-      
     } catch (e) {
-      print('❌ [ChatScreen] 동영상 전송 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('동영상 전송 실패: ${e.toString()}')),
+          SnackBar(content: Text('동영상 전송 실패: $e')),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isSending = false);
-      }
-    }
-  }
-
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays}일 전';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}시간 전';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}분 전';
-    } else {
-      return '방금 전';
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
   bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
   bool _shouldShowDateHeader(int index) {
-    if (index == _messages.length - 1) return true; // reversed list
-    final current = _messages[index]['timestamp'] as DateTime;
-    final next = _messages[index + 1]['timestamp'] as DateTime;
-    return !_isSameDay(current, next);
+    if (index == 0) return true;
+    return !_isSameDay(_messages[index].timestamp, _messages[index - 1].timestamp);
   }
 
   Widget _buildDateHeader(DateTime date) {
-    final label = '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+    final label = '${date.year}년 ${date.month}월 ${date.day}일';
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
+            color: Colors.black.withOpacity(0.18),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          child: Text(label, style: const TextStyle(fontSize: 11, color: Colors.white)),
         ),
       ),
     );
@@ -948,9 +816,63 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _messagesSub?.cancel();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _messageController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
+  }
+}
+
+/// 상대방/사용자 아바타 — avatar_url 우선, 없으면 머리글자
+class _PeerAvatar extends StatelessWidget {
+  final String name;
+  final String? avatarUrl;
+  final double size;
+  final bool isBusiness;
+
+  const _PeerAvatar({
+    required this.name,
+    this.avatarUrl,
+    this.size = 36,
+    this.isBusiness = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty ? name.characters.first : '?';
+    final bg = isBusiness ? const Color(0xFFE3F2FD) : const Color(0xFFFFF3E0);
+    final fg = isBusiness ? const Color(0xFF1565C0) : const Color(0xFF6D4C00);
+
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          avatarUrl!,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildInitial(initial, bg, fg),
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return _buildInitial(initial, bg, fg);
+          },
+        ),
+      );
+    }
+    return _buildInitial(initial, bg, fg);
+  }
+
+  Widget _buildInitial(String initial, Color bg, Color fg) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: TextStyle(color: fg, fontSize: size * 0.42, fontWeight: FontWeight.w700),
+      ),
+    );
   }
 }
 
@@ -979,24 +901,15 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     try {
       _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       await _controller.initialize();
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-      }
+      if (mounted) setState(() => _isInitialized = true);
     } catch (e) {
-      print('❌ 동영상 초기화 실패: $e');
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-        });
-      }
+      if (mounted) setState(() => _hasError = true);
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_isInitialized) _controller.dispose();
     super.dispose();
   }
 
@@ -1004,66 +917,42 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   Widget build(BuildContext context) {
     if (_hasError) {
       return Container(
-        width: 250,
+        width: 240,
         height: 200,
         color: Colors.grey[300],
+        alignment: Alignment.center,
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.grey),
-            SizedBox(height: 8),
-            Text('동영상을 불러올 수 없습니다', style: TextStyle(color: Colors.grey)),
+            Icon(Icons.error_outline, size: 40, color: Colors.grey),
+            SizedBox(height: 6),
+            Text('동영상을 불러올 수 없습니다', style: TextStyle(color: Colors.grey, fontSize: 12)),
           ],
         ),
       );
     }
-
     if (!_isInitialized) {
       return Container(
-        width: 250,
+        width: 240,
         height: 200,
         alignment: Alignment.center,
         child: const CircularProgressIndicator(),
       );
     }
-
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (_controller.value.isPlaying) {
-            _controller.pause();
-          } else {
-            _controller.play();
-          }
-        });
-      },
+      onTap: () => setState(() => _controller.value.isPlaying ? _controller.pause() : _controller.play()),
       child: Container(
-        constraints: const BoxConstraints(
-          maxWidth: 250,
-          maxHeight: 300,
-        ),
+        constraints: const BoxConstraints(maxWidth: 240, maxHeight: 280),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            AspectRatio(
-              aspectRatio: _controller.value.aspectRatio,
-              child: VideoPlayer(_controller),
-            ),
-            // 재생/일시정지 아이콘
+            AspectRatio(aspectRatio: _controller.value.aspectRatio, child: VideoPlayer(_controller)),
             if (!_controller.value.isPlaying)
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
-                  shape: BoxShape.circle,
-                ),
-                padding: const EdgeInsets.all(12),
-                child: const Icon(
-                  Icons.play_arrow,
-                  color: Colors.white,
-                  size: 40,
-                ),
+                decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
+                padding: const EdgeInsets.all(10),
+                child: const Icon(Icons.play_arrow, color: Colors.white, size: 36),
               ),
-            // 진행 표시줄
             Positioned(
               bottom: 0,
               left: 0,
@@ -1072,8 +961,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 _controller,
                 allowScrubbing: true,
                 colors: const VideoProgressColors(
-                  playedColor: Colors.blue,
-                  backgroundColor: Colors.grey,
+                  playedColor: Colors.amber,
+                  backgroundColor: Colors.black26,
                 ),
               ),
             ),
