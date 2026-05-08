@@ -6,6 +6,7 @@ import 'package:allsuriapp/services/auth_service.dart';
 import 'package:allsuriapp/services/chat_service.dart';
 import 'package:allsuriapp/services/notification_service.dart';
 import 'package:allsuriapp/widgets/loading_indicator.dart';
+import 'package:allsuriapp/services/business_verify_service.dart';
 import '../chat_screen.dart';
 
 class OrderBiddersScreen extends StatefulWidget {
@@ -260,6 +261,35 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
 
     if (confirmed != true) return;
 
+    // ⭐ 낙찰 사전 가드: 후보 사업자가 활동 가능 상태인지 확인
+    final bidderEligible = await BusinessVerifyService.isUserEligibleAsBusiness(bidderId);
+    if (!mounted) return;
+    if (!bidderEligible) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.block, color: Colors.red),
+              SizedBox(width: 10),
+              Text('낙찰할 수 없습니다'),
+            ],
+          ),
+          content: Text(
+            '$bidderName님은 사업자등록 진위확인이 완료되지 않았거나 사업자번호가 등록되어 있지 않아 낙찰할 수 없습니다.\n\n'
+            '다른 사업자를 선택하시거나, 해당 사업자에게 사업자번호 등록·진위확인을 요청해 주세요.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     // 로딩 표시
     if (!mounted) return;
     showDialog(
@@ -284,6 +314,32 @@ class _OrderBiddersScreenState extends State<OrderBiddersScreen> {
         'bidderId': bidderId,
         'ownerId': currentUserId,
       });
+
+      // 서버(RPC)가 BIDDER_NOT_VERIFIED 등으로 차단한 경우의 표준 에러 처리
+      if (response['success'] != true) {
+        final errStr = (response['error'] ?? response['message'] ?? '').toString();
+        if (errStr.contains('BIDDER_NOT_VERIFIED') ||
+            errStr.contains('진위확인이 완료되지 않아')) {
+          if (!mounted) return;
+          Navigator.of(context, rootNavigator: true).pop(); // 로딩 닫기
+          await showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('낙찰할 수 없습니다'),
+              content: Text(
+                '$bidderName님은 사업자등록 진위확인이 완료되지 않아 낙찰할 수 없습니다.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('확인'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+      }
 
       print('✅ [OrderBiddersScreen] API 응답: $response');
 

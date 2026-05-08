@@ -288,13 +288,31 @@ function filterUsers(searchTerm) {
                                 <th>사장님 성함</th>
                                 <th>카카오 ID</th>
                                 <th>관리자</th>
-                                <th>상태</th>
+                                <th>승인 상태</th>
+                                <th>진위확인</th>
                                 <th>가입일</th>
                                 <th>작업</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${users.map(user => `
+                            ${users.map(user => {
+                                const isBusiness = user.role === 'business';
+                                let verifyBadge = '<span style="color:#999;">-</span>';
+                                if (isBusiness) {
+                                    if (user.business_verify_bypass) {
+                                        verifyBadge = '<span class="status-badge" style="background:#e0f2fe;color:#075985;">관리자 우회</span>';
+                                    } else {
+                                        const s = user.business_verify_status || 'unverified';
+                                        const cfg = {
+                                            verified: ['#15803d', '#e6f4ea', '인증 완료'],
+                                            failed: ['#b91c1c', '#fee2e2', '실패'],
+                                            closed: ['#b91c1c', '#fee2e2', '휴/폐업'],
+                                            unverified: ['#92400e', '#fef3c7', '미인증'],
+                                        }[s] || ['#92400e', '#fef3c7', '미인증'];
+                                        verifyBadge = `<span class="status-badge" style="background:${cfg[1]};color:${cfg[0]};">${cfg[2]}</span>`;
+                                    }
+                                }
+                                return `
                                 <tr>
                                     <td><strong>${user.businessName || user.businessname || '-'}</strong></td>
                                     <td>
@@ -314,6 +332,7 @@ function filterUsers(searchTerm) {
                                             ${getStatusText(user.businessStatus || user.businessstatus)}
                                         </span>
                                     </td>
+                                    <td>${verifyBadge}</td>
                                     <td>${new Date(user.createdAt || user.createdat).toLocaleDateString('ko-KR')}</td>
                                     <td>
                                         <button class="btn btn-secondary btn-sm" data-user-id="${user.id}" data-action="view" style="margin-right: 0.5rem;">
@@ -321,8 +340,8 @@ function filterUsers(searchTerm) {
                                             상세 보기
                                         </button>
                                     </td>
-                                </tr>
-                            `).join('')}
+                                </tr>`;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -644,6 +663,53 @@ async function toggleAdmin(userId) {
     }
 }
 
+// 사업자 진위확인 우회(화이트리스트) 토글
+async function toggleVerifyBypass(userId) {
+    try {
+        const user = allUsers.find(u => u.id === userId);
+        if (!user) {
+            alert('사용자를 찾을 수 없습니다.');
+            return;
+        }
+
+        const current = user.business_verify_bypass === true;
+        const next = !current;
+
+        let reason = null;
+        if (next) {
+            reason = prompt('인증 우회 사유를 입력하세요 (예: 임시 협력업체, 내부 테스트). 취소하면 진행하지 않습니다.', '');
+            if (reason === null) return;
+            if (!reason || !reason.trim()) {
+                alert('사유를 반드시 입력해 주세요.');
+                return;
+            }
+        } else {
+            const ok = confirm('이 사업자의 인증 우회를 해제하시겠습니까?\n해제 후에는 사업자번호 등록·진위확인이 완료되어야 오더 등록·입찰·낙찰이 가능합니다.');
+            if (!ok) return;
+        }
+
+        const response = await apiCall(`/users/${userId}/verify-bypass`, {
+            method: 'PATCH',
+            body: JSON.stringify({ bypass: next, reason: reason || undefined }),
+        });
+
+        if (response && response.success) {
+            alert(response.message || '변경되었습니다.');
+            await Promise.all([loadUsers(), loadDashboard?.()]);
+            if (typeof showUserDetail === 'function') showUserDetail(userId);
+        } else {
+            throw new Error(response?.message || '응답 형식 오류');
+        }
+    } catch (error) {
+        alert('인증 우회 변경에 실패했습니다: ' + (error?.message || error));
+    }
+}
+
+async function toggleVerifyBypassFromModal() {
+    if (!currentUserId) return;
+    await toggleVerifyBypass(currentUserId);
+}
+
         // 검색 기능 및 이벤트 리스너 설정
         document.addEventListener('DOMContentLoaded', () => {
             // 로그인 체크
@@ -959,10 +1025,45 @@ async function toggleAdmin(userId) {
                             ${user.is_admin ? '관리자' : '일반 사용자'}
                         </span>
                     </div>
+                    ${user.role === 'business' ? `
+                        <div style="margin-bottom: 1rem; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; background:#fafafa;">
+                            <div style="font-weight:600; margin-bottom: 8px;">사업자등록 진위확인</div>
+                            <div style="margin-bottom: 4px;">
+                                <strong>상태:</strong>
+                                ${(() => {
+                                    if (user.business_verify_bypass) return '<span class="status-badge approved" style="background:#e0f2fe;color:#075985;">관리자 우회</span>';
+                                    const s = user.business_verify_status || 'unverified';
+                                    const map = { verified: ['approved','인증 완료','#15803d','#e6f4ea'], failed: ['rejected','실패','#b91c1c','#fee2e2'], closed: ['rejected','휴/폐업','#b91c1c','#fee2e2'], unverified: ['pending','미인증','#92400e','#fef3c7'] };
+                                    const [_, label, color, bg] = map[s] || map.unverified;
+                                    return `<span class="status-badge" style="background:${bg};color:${color};">${label}</span>`;
+                                })()}
+                            </div>
+                            <div style="margin-bottom: 4px;">
+                                <strong>인증일:</strong> ${user.business_verified_at ? new Date(user.business_verified_at).toLocaleString('ko-KR') : '-'}
+                            </div>
+                            <div style="margin-bottom: 4px;">
+                                <strong>유예 만료:</strong> ${user.business_grace_until ? new Date(user.business_grace_until).toLocaleString('ko-KR') : '-'}
+                            </div>
+                            ${user.business_verify_bypass ? `
+                                <div style="margin-bottom: 4px;">
+                                    <strong>우회 사유:</strong> ${user.business_verify_bypass_reason || '-'}
+                                </div>
+                                <div style="margin-bottom: 4px;">
+                                    <strong>우회 지정 시각:</strong> ${user.business_verify_bypass_set_at ? new Date(user.business_verify_bypass_set_at).toLocaleString('ko-KR') : '-'}
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : ''}
                 `;
                 
                 // 모달 footer 버튼 조건부 표시
                 const modalFooter = document.querySelector('#userModal .modal-footer');
+                const verifyBypassBtn = user.role === 'business' ? `
+                    <button class="btn ${user.business_verify_bypass ? 'btn-warning' : 'btn-secondary'} btn-sm" onclick="toggleVerifyBypassFromModal()">
+                        <span class="material-icons" style="font-size:1rem;">${user.business_verify_bypass ? 'lock_open' : 'verified_user'}</span>
+                        ${user.business_verify_bypass ? '인증 우회 해제' : '인증 우회 지정'}
+                    </button>
+                ` : '';
                 if (userStatus === 'approved') {
                     modalFooter.innerHTML = `
                         <button class="btn btn-secondary" onclick="closeUserModal()">닫기</button>
@@ -970,6 +1071,7 @@ async function toggleAdmin(userId) {
                             <span class="material-icons" style="font-size: 1rem;">${user.is_admin ? 'remove_moderator' : 'admin_panel_settings'}</span>
                             ${user.is_admin ? '관리자 해제' : '관리자 지정'}
                         </button>
+                        ${verifyBypassBtn}
                         <button class="btn btn-info btn-sm" onclick="showEditUserForm()">
                             <span class="material-icons" style="font-size:1rem;">edit</span> 정보 수정
                         </button>

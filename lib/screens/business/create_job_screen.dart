@@ -13,6 +13,7 @@ import 'order_marketplace_screen.dart';
 import '../../widgets/interactive_card.dart';
 import 'package:flutter/services.dart';
 import '../../utils/navigation_utils.dart';
+import '../../utils/business_verify_guard.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CreateJobScreen extends StatefulWidget {
@@ -280,7 +281,11 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
       print('⚠️ [_submitJob] 이미 공사가 생성되었습니다. 중복 등록 방지');
       return;
     }
-    
+
+    // 사업자 진위확인 가드
+    final canProceed = await BusinessVerifyGuard.ensure(context, action: '공사 등록');
+    if (!canProceed) return;
+
     setState(() => _submitting = true);
     
     try {
@@ -852,7 +857,14 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                         print('⚠️ [오더 등록] 이미 오더 생성 중, 무시');
                         return;
                       }
-                      
+
+                      // 사업자 진위확인 가드
+                      final canProceed = await BusinessVerifyGuard.ensure(
+                        context,
+                        action: '오더 등록',
+                      );
+                      if (!canProceed) return;
+
                       setState(() => _creatingOrder = true);
                       Navigator.pop(sheetContext);
                       

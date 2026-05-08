@@ -9,6 +9,7 @@ import '../models/order.dart';
 import '../services/estimate_service.dart';
 import '../services/auth_service.dart';
 import '../services/media_service.dart';
+import '../utils/business_verify_guard.dart';
 
 class CreateEstimateScreen extends StatefulWidget {
   final Order order;
@@ -183,6 +184,9 @@ class _CreateEstimateScreenState extends State<CreateEstimateScreen> {
       _showError('모든 사진을 먼저 업로드해주세요');
       return;
     }
+
+    final canProceed = await BusinessVerifyGuard.ensure(context, action: '견적서 등록');
+    if (!canProceed) return;
 
     setState(() => _isSubmitting = true);
 

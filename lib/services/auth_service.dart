@@ -79,6 +79,8 @@ class AuthService extends ChangeNotifier {
         print('   - businessstatus: ${row['businessstatus']}');
         print('   - businessname: ${row['businessname']}');
         print('   - businessnumber: ${row['businessnumber']}');
+        print('   - business_verify_status: ${row['business_verify_status']}');
+        print('   - business_grace_until: ${row['business_grace_until']}');
         
         _currentUser = app_models.User.fromMap(Map<String, dynamic>.from(row));
         print('사용자 로드됨: role=$userRole');
@@ -86,6 +88,7 @@ class AuthService extends ChangeNotifier {
         print('   - businessStatus: ${_currentUser?.businessStatus}');
         print('   - businessName: ${_currentUser?.businessName}');
         print('   - businessNumber: ${_currentUser?.businessNumber}');
+        print('   - businessVerifyStatus: ${_currentUser?.businessVerifyStatus}');
         
         // FCM 토큰 저장 (실패해도 로그인은 성공)
         try {
@@ -93,7 +96,14 @@ class AuthService extends ChangeNotifier {
         } catch (e) {
           print('⚠️ FCM 토큰 저장 실패 (무시됨): $e');
         }
-        
+
+        // 사업자 진위확인 미완료 시 인앱 알림 1회/일 발송 (실패해도 무시)
+        try {
+          await _maybeNotifyBusinessVerifyRequired();
+        } catch (e) {
+          debugPrint('⚠️ [AuthService] 진위확인 알림 트리거 실패(무시): $e');
+        }
+
         return;
       }
       
@@ -658,6 +668,68 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('❌ [AuthService] 사용자 정보 새로고침 실패: $e');
+    }
+  }
+
+  /// 진위확인 성공 후 호출. 서버에서 users 테이블이 갱신되므로
+  /// 다시 읽어서 로컬 상태(verifyStatus, verifiedAt 등)를 동기화한다.
+  Future<void> refreshAfterBusinessVerify() async {
+    await refreshCurrentUser();
+  }
+
+  /// 사업자 진위확인이 안된 경우 인앱 알림(notifications 테이블)을 1일 1회 생성한다.
+  /// 동일 사용자에게 24시간 내 중복 발송되지 않도록 SELECT로 dedupe.
+  /// FCM 푸시는 Supabase webhook이 알아서 발송한다.
+  Future<void> _maybeNotifyBusinessVerifyRequired() async {
+    final user = _currentUser;
+    if (user == null) return;
+    if (user.role != 'business') return;
+    if (user.businessStatus != 'approved') return;
+    // 관리자 우회 사용자는 인증을 요구하지 않으므로 알림도 보내지 않음
+    if (user.businessVerifyBypass) return;
+    if (user.businessVerifyStatus == app_models.BusinessVerifyStatus.verified &&
+        user.hasBusinessNumber) {
+      return;
+    }
+
+    try {
+      final since = DateTime.now().subtract(const Duration(hours: 24)).toIso8601String();
+      final existing = await _sb
+          .from('notifications')
+          .select('id')
+          .eq('userid', user.id)
+          .eq('type', 'business_verify_required')
+          .gte('createdat', since)
+          .limit(1);
+      if (existing.isNotEmpty) {
+        debugPrint('ℹ️ [AuthService] 진위확인 알림 24h 내 중복 발송 차단');
+        return;
+      }
+
+      String title;
+      String body;
+      if (!user.hasBusinessNumber) {
+        title = '사업자등록번호 입력이 필요합니다';
+        body = '사업자등록번호가 없으면 오더 등록·입찰·낙찰이 모두 차단됩니다. 프로필에서 입력해 주세요.';
+      } else if (user.isInGracePeriod) {
+        final r = user.graceRemaining!;
+        final remText = r.inDays >= 1 ? '${r.inDays}일' : '${r.inHours}시간';
+        title = '사업자 인증이 필요합니다';
+        body = '인증 유예 만료까지 약 $remText 남았습니다. 지금 진위확인을 완료해 주세요.';
+      } else {
+        title = '사업자 활동이 제한되었습니다';
+        body = '사업자등록 진위확인이 완료되어야 오더 등록·입찰·낙찰이 가능합니다.';
+      }
+
+      await _sb.from('notifications').insert({
+        'userid': user.id,
+        'title': title,
+        'body': body,
+        'type': 'business_verify_required',
+      });
+      debugPrint('✅ [AuthService] 진위확인 알림 생성: ${user.id}');
+    } catch (e) {
+      debugPrint('⚠️ [AuthService] 진위확인 알림 생성 실패(무시): $e');
     }
   }
 

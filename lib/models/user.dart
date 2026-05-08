@@ -201,6 +201,40 @@ class EquipmentCategories {
   ];
 }
 
+/// 사업자 진위확인 상태
+enum BusinessVerifyStatus {
+  unverified, // 아직 인증 안함
+  verified,   // 국세청 진위확인 통과
+  failed,     // 진위확인 실패 (불일치)
+  closed,     // 휴/폐업
+}
+
+BusinessVerifyStatus parseBusinessVerifyStatus(String? raw) {
+  switch (raw) {
+    case 'verified':
+      return BusinessVerifyStatus.verified;
+    case 'failed':
+      return BusinessVerifyStatus.failed;
+    case 'closed':
+      return BusinessVerifyStatus.closed;
+    default:
+      return BusinessVerifyStatus.unverified;
+  }
+}
+
+String businessVerifyStatusToString(BusinessVerifyStatus s) {
+  switch (s) {
+    case BusinessVerifyStatus.verified:
+      return 'verified';
+    case BusinessVerifyStatus.failed:
+      return 'failed';
+    case BusinessVerifyStatus.closed:
+      return 'closed';
+    case BusinessVerifyStatus.unverified:
+      return 'unverified';
+  }
+}
+
 class User {
   final String id;
   final String email;
@@ -217,8 +251,49 @@ class User {
   final List<String> specialties;
   final String? avatarUrl;
 
-  // uid는 id의 별칭
+  // 진위확인 관련
+  final BusinessVerifyStatus businessVerifyStatus;
+  final String? businessRepName;
+  final DateTime? businessOpenDate;
+  final DateTime? businessVerifiedAt;
+  final DateTime? businessGraceUntil;
+  final bool businessVerifyBypass;
+
   String get uid => id;
+
+  /// 사업자번호 보유 여부 (정규화된 10자리 기준).
+  bool get hasBusinessNumber {
+    final n = (businessNumber ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    return n.length == 10;
+  }
+
+  /// 사업자 활동(오더 생성/입찰/낙찰 등) 가능 여부.
+  /// - 관리자 우회(bypass=TRUE)면 사업자번호가 없어도 통과
+  /// - 그 외에는 사업자번호가 있어야 하고, verified 또는 grace 중이어야 함
+  bool get canActAsBusiness {
+    if (businessVerifyBypass) return true;
+    if (!hasBusinessNumber) return false;
+    if (businessVerifyStatus == BusinessVerifyStatus.verified) return true;
+    final until = businessGraceUntil;
+    if (until != null && until.isAfter(DateTime.now())) return true;
+    return false;
+  }
+
+  /// 인증되지는 않았지만 유예 기간 중인지 (bypass는 별개로 취급)
+  bool get isInGracePeriod {
+    if (businessVerifyBypass) return false;
+    if (businessVerifyStatus == BusinessVerifyStatus.verified) return false;
+    final until = businessGraceUntil;
+    return until != null && until.isAfter(DateTime.now());
+  }
+
+  /// 유예 만료까지 남은 시간 (없거나 만료면 null)
+  Duration? get graceRemaining {
+    final until = businessGraceUntil;
+    if (until == null) return null;
+    final diff = until.difference(DateTime.now());
+    return diff.isNegative ? null : diff;
+  }
 
   User({
     required this.id,
@@ -235,9 +310,28 @@ class User {
     this.serviceAreas = const [],
     this.specialties = const [],
     this.avatarUrl,
+    this.businessVerifyStatus = BusinessVerifyStatus.unverified,
+    this.businessRepName,
+    this.businessOpenDate,
+    this.businessVerifiedAt,
+    this.businessGraceUntil,
+    this.businessVerifyBypass = false,
   });
 
   factory User.fromMap(Map<String, dynamic> map) {
+    DateTime? _parseDate(dynamic v) {
+      if (v == null) return null;
+      if (v is DateTime) return v;
+      if (v is String && v.isNotEmpty) {
+        try {
+          return DateTime.parse(v);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
+    }
+
     return User(
       id: map['id'] ?? '',
       email: map['email'] ?? '',
@@ -253,6 +347,15 @@ class User {
       serviceAreas: List<String>.from(map['serviceareas'] ?? map['serviceAreas'] ?? const []),
       specialties: List<String>.from(map['specialties'] ?? const []),
       avatarUrl: map['avatar_url'] ?? map['avatarUrl'],
+      businessVerifyStatus: parseBusinessVerifyStatus(
+        (map['business_verify_status'] ?? map['businessVerifyStatus']) as String?,
+      ),
+      businessRepName: map['business_repname'] ?? map['businessRepName'],
+      businessOpenDate: _parseDate(map['business_open_date'] ?? map['businessOpenDate']),
+      businessVerifiedAt: _parseDate(map['business_verified_at'] ?? map['businessVerifiedAt']),
+      businessGraceUntil: _parseDate(map['business_grace_until'] ?? map['businessGraceUntil']),
+      businessVerifyBypass:
+          (map['business_verify_bypass'] ?? map['businessVerifyBypass'] ?? false) as bool,
     );
   }
 
@@ -290,6 +393,12 @@ class User {
     List<String>? serviceAreas,
     List<String>? specialties,
     String? avatarUrl,
+    BusinessVerifyStatus? businessVerifyStatus,
+    String? businessRepName,
+    DateTime? businessOpenDate,
+    DateTime? businessVerifiedAt,
+    DateTime? businessGraceUntil,
+    bool? businessVerifyBypass,
   }) {
     return User(
       id: id ?? this.id,
@@ -306,6 +415,12 @@ class User {
       serviceAreas: serviceAreas ?? this.serviceAreas,
       specialties: specialties ?? this.specialties,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      businessVerifyStatus: businessVerifyStatus ?? this.businessVerifyStatus,
+      businessRepName: businessRepName ?? this.businessRepName,
+      businessOpenDate: businessOpenDate ?? this.businessOpenDate,
+      businessVerifiedAt: businessVerifiedAt ?? this.businessVerifiedAt,
+      businessGraceUntil: businessGraceUntil ?? this.businessGraceUntil,
+      businessVerifyBypass: businessVerifyBypass ?? this.businessVerifyBypass,
     );
   }
 }

@@ -204,6 +204,54 @@ export const handler = async (event: any) => { // event 타입 any로 임시 설
       };
     }
 
+    // 사업자 진위확인 우회(화이트리스트) 토글
+    // PATCH /users/:id/verify-bypass  body: { bypass: boolean, reason?: string }
+    if (event.httpMethod === 'PATCH' && path.startsWith('/users/') && path.endsWith('/verify-bypass')) {
+      const userId = path.split('/')[2]
+      const body = JSON.parse(event.body || '{}')
+      const bypass = body.bypass === true
+      const reason: string | undefined = typeof body.reason === 'string' ? body.reason : undefined
+
+      const updatePayload: Record<string, unknown> = {
+        business_verify_bypass: bypass,
+        business_verify_bypass_reason: bypass ? (reason ?? null) : null,
+        business_verify_bypass_set_at: new Date().toISOString(),
+        // 관리자 본인의 user id를 모르므로 set_by는 null로 둔다 (admin token 기반)
+        business_verify_bypass_set_by: null,
+        updatedat: new Date().toISOString(),
+      }
+
+      const upRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify(updatePayload),
+      })
+
+      if (!upRes.ok) {
+        const errText = await upRes.text()
+        console.error('❌ verify-bypass 변경 실패:', upRes.status, errText)
+        return { statusCode: 500, body: JSON.stringify({ success: false, message: '인증 우회 토글 실패', error: errText }), headers: { 'Content-Type': 'application/json' } }
+      }
+
+      const updated = await upRes.json()
+      const user = Array.isArray(updated) ? updated[0] : updated
+      console.log('✅ verify-bypass 변경 성공:', userId, '→', bypass)
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          success: true,
+          message: bypass ? '인증 우회가 활성화되었습니다' : '인증 우회가 해제되었습니다',
+          data: user,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      }
+    }
+
     // User status update
     if (event.httpMethod === 'PATCH' && path.startsWith('/users/') && path.endsWith('/status')) {
       const userId = path.split('/')[2]

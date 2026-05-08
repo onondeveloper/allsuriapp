@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/user.dart';
 import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/business_verify_service.dart';
 import '../../widgets/common_app_bar.dart';
 import 'package:go_router/go_router.dart';
 import '../../utils/navigation_utils.dart';
@@ -14,6 +15,7 @@ import '../../services/media_service.dart';
 import 'package:app_settings/app_settings.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:intl/intl.dart';
 import 'dart:convert';
 
 class BusinessProfileScreen extends StatefulWidget {
@@ -34,9 +36,12 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   List<String> _selectedServiceAreas = [];
   List<String> _selectedSpecialties = [];
   bool _isLoading = false;
+  bool _isVerifying = false;
   double _avgRating = 0;
   int _reviewCount = 0;
   String? _avatarUrl;
+  DateTime? _businessOpenDate;
+  final BusinessVerifyService _verifyService = BusinessVerifyService();
 
   @override
   void initState() {
@@ -57,6 +62,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       _selectedServiceAreas = List.from(currentUser.serviceAreas);
       _selectedSpecialties = List.from(currentUser.specialties);
       _avatarUrl = currentUser.avatarUrl;
+      _businessOpenDate = currentUser.businessOpenDate;
     }
     // 리뷰 통계 로드
     Future.microtask(_loadRatingStats);
@@ -469,6 +475,8 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
               _buildSection(
                 '사업자 정보',
                 [
+                  _buildVerifyStatusCard(),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _businessNameController,
                     decoration: const InputDecoration(
@@ -486,8 +494,52 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                   TextFormField(
                     controller: _businessNumberController,
                     decoration: const InputDecoration(
-                      labelText: '사업자 번호',
+                      labelText: '사업자 번호 *',
                       hintText: '123-45-67890',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: _pickOpenDate,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: '개업일 *',
+                        hintText: '예) 2020-01-15',
+                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                      child: Text(
+                        _businessOpenDate == null
+                            ? '개업일을 선택하세요'
+                            : DateFormat('yyyy-MM-dd').format(_businessOpenDate!),
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: _businessOpenDate == null
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                    ),
+                    onPressed: _isVerifying ? null : _verifyBusinessNumber,
+                    icon: _isVerifying
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.verified_user_outlined),
+                    label: Text(
+                      _isVerifying ? '국세청 확인 중...' : '사업자등록 진위확인',
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -699,6 +751,309 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
         ),
       ),
     ));
+  }
+
+  Future<void> _pickOpenDate() async {
+    final now = DateTime.now();
+    final initial = _businessOpenDate ?? DateTime(now.year - 5, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1970, 1, 1),
+      lastDate: DateTime(now.year, now.month, now.day),
+      helpText: '개업일을 선택하세요',
+      cancelText: '취소',
+      confirmText: '확인',
+    );
+    if (picked != null) {
+      setState(() => _businessOpenDate = picked);
+    }
+  }
+
+  Future<void> _verifyBusinessNumber() async {
+    final repName = _nameController.text.trim();
+    final bNo = _businessNumberController.text.trim();
+    final bizName = _businessNameController.text.trim();
+    if (repName.length < 2) {
+      _showSnack('대표자명(사장님 성함)을 입력해 주세요.');
+      return;
+    }
+    if (BusinessVerifyService.normalizeBusinessNumber(bNo) == null) {
+      _showSnack('사업자번호 10자리를 정확히 입력해 주세요.');
+      return;
+    }
+    if (_businessOpenDate == null) {
+      _showSnack('개업일을 선택해 주세요.');
+      return;
+    }
+
+    setState(() => _isVerifying = true);
+    try {
+      final result = await _verifyService.verify(
+        businessNumber: bNo,
+        repName: repName,
+        openDate: _businessOpenDate!,
+        businessName: bizName.isEmpty ? null : bizName,
+      );
+
+      if (!mounted) return;
+
+      if (result.success) {
+        // AuthService에서 최신 사용자 상태(verifyStatus 등)를 다시 불러옴
+        await Provider.of<AuthService>(context, listen: false)
+            .refreshAfterBusinessVerify();
+        if (!mounted) return;
+        _showVerifySuccessDialog(result);
+      } else {
+        _showVerifyFailureDialog(result);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('진위확인 중 오류가 발생했습니다: $e');
+    } finally {
+      if (mounted) setState(() => _isVerifying = false);
+    }
+  }
+
+  void _showVerifySuccessDialog(BusinessVerifyResult r) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.verified_rounded, color: Colors.green),
+            SizedBox(width: 10),
+            Text('인증 완료'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('사업자등록 진위확인이 완료되었습니다.'),
+            if ((r.taxType ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('과세유형: ${r.taxType}', style: const TextStyle(fontSize: 13)),
+            ],
+            if ((r.bStt ?? '').isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text('상태: ${r.bStt}', style: const TextStyle(fontSize: 13)),
+            ],
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVerifyFailureDialog(BusinessVerifyResult r) {
+    final isMismatch = r.code == BusinessVerifyCode.notMatched ||
+        r.code == BusinessVerifyCode.notRegistered ||
+        r.code == BusinessVerifyCode.invalidFormat;
+    final isTransient = r.code == BusinessVerifyCode.upstreamError ||
+        r.code == BusinessVerifyCode.serviceUnavailable ||
+        r.code == BusinessVerifyCode.networkError ||
+        r.code == BusinessVerifyCode.rateLimited ||
+        r.code == BusinessVerifyCode.unknownError;
+
+    String title;
+    IconData icon;
+    Color iconColor;
+    switch (r.code) {
+      case BusinessVerifyCode.duplicate:
+        title = '이미 등록된 사업자입니다';
+        icon = Icons.group_remove_outlined;
+        iconColor = Colors.orange;
+        break;
+      case BusinessVerifyCode.closed:
+        title = '휴업·폐업 상태입니다';
+        icon = Icons.do_disturb_alt_outlined;
+        iconColor = Colors.orange;
+        break;
+      case BusinessVerifyCode.notMatched:
+        title = '입력 정보가 일치하지 않습니다';
+        icon = Icons.search_off_rounded;
+        iconColor = Colors.red;
+        break;
+      case BusinessVerifyCode.notRegistered:
+        title = '등록되지 않은 사업자번호입니다';
+        icon = Icons.search_off_rounded;
+        iconColor = Colors.red;
+        break;
+      case BusinessVerifyCode.networkError:
+        title = '네트워크 오류';
+        icon = Icons.wifi_off_rounded;
+        iconColor = Colors.grey;
+        break;
+      case BusinessVerifyCode.upstreamError:
+      case BusinessVerifyCode.serviceUnavailable:
+      case BusinessVerifyCode.serverMisconfigured:
+        title = '잠시 후 다시 시도해 주세요';
+        icon = Icons.cloud_off_rounded;
+        iconColor = Colors.grey;
+        break;
+      case BusinessVerifyCode.rateLimited:
+        title = '요청이 너무 잦습니다';
+        icon = Icons.hourglass_bottom_rounded;
+        iconColor = Colors.orange;
+        break;
+      case BusinessVerifyCode.unauthorized:
+      case BusinessVerifyCode.forbidden:
+        title = '권한 확인이 필요합니다';
+        icon = Icons.lock_outline_rounded;
+        iconColor = Colors.orange;
+        break;
+      default:
+        title = '진위확인 실패';
+        icon = Icons.error_outline;
+        iconColor = Colors.red;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(icon, color: iconColor),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Text(
+            BusinessVerifyService.friendlyMessage(r),
+            style: const TextStyle(height: 1.5),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('닫기'),
+          ),
+          if (isMismatch)
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                FocusScope.of(context).requestFocus(FocusNode());
+              },
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('정보 수정'),
+            )
+          else if (isTransient)
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _verifyBusinessNumber();
+              },
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('다시 시도'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Widget _buildVerifyStatusCard() {
+    final user = Provider.of<AuthService>(context).currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    Color bg;
+    Color fg;
+    IconData icon;
+    String title;
+    String subtitle;
+
+    switch (user.businessVerifyStatus) {
+      case BusinessVerifyStatus.verified:
+        bg = Colors.green.shade50;
+        fg = Colors.green.shade800;
+        icon = Icons.verified_rounded;
+        title = '사업자등록 진위확인 완료';
+        subtitle = user.businessVerifiedAt != null
+            ? '인증일: ${DateFormat('yyyy-MM-dd HH:mm').format(user.businessVerifiedAt!.toLocal())}'
+            : '국세청 진위확인이 완료되었습니다.';
+        break;
+      case BusinessVerifyStatus.failed:
+        bg = Colors.red.shade50;
+        fg = Colors.red.shade800;
+        icon = Icons.error_outline;
+        title = '진위확인 실패';
+        subtitle = '대표자명/개업일/사업자번호를 다시 확인해 주세요.';
+        break;
+      case BusinessVerifyStatus.closed:
+        bg = Colors.red.shade50;
+        fg = Colors.red.shade800;
+        icon = Icons.block;
+        title = '휴/폐업 상태로 조회되었습니다';
+        subtitle = '현재 상태에서는 사업자 활동이 제한됩니다.';
+        break;
+      case BusinessVerifyStatus.unverified:
+        if (user.isInGracePeriod) {
+          final remaining = user.graceRemaining;
+          final remText = remaining == null
+              ? ''
+              : (remaining.inDays >= 1
+                  ? '${remaining.inDays}일'
+                  : '${remaining.inHours}시간');
+          bg = Colors.orange.shade50;
+          fg = Colors.orange.shade800;
+          icon = Icons.access_time_rounded;
+          title = '진위확인이 필요합니다 (유예 ${remText.isEmpty ? '진행 중' : '$remText 남음'})';
+          subtitle = '유예 기간이 지나면 오더 등록·입찰이 차단됩니다.';
+        } else {
+          bg = Colors.red.shade50;
+          fg = Colors.red.shade800;
+          icon = Icons.warning_amber_rounded;
+          title = '사업자 인증이 필요합니다';
+          subtitle = '오더 등록·입찰이 차단된 상태입니다. 진위확인을 완료해 주세요.';
+        }
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: fg.withOpacity(0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: fg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: fg,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: fg, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _onChangeAvatar() async {

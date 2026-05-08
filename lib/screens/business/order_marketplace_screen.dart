@@ -22,6 +22,7 @@ import 'package:allsuriapp/services/auth_service.dart';
 import 'package:allsuriapp/screens/business/order_bidders_screen.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:allsuriapp/widgets/empty_state_widget.dart';
+import 'package:allsuriapp/utils/business_verify_guard.dart';
 
 class OrderMarketplaceScreen extends StatefulWidget {
   final bool showSuccessMessage;
@@ -40,13 +41,22 @@ class OrderMarketplaceScreen extends StatefulWidget {
 class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
   final MarketplaceService _market = MarketplaceService();
   final ApiService _api = ApiService();
-  late Future<List<Map<String, dynamic>>> _future;
   String _status = 'all';
   RealtimeChannel? _channel;
   Set<String> _myActiveBidListingIds = {}; // 'pending' 상태 입찰
   Map<String, String> _myBidStatusByListing = {}; // listingId -> status
   bool _isCancelling = false; // 입찰 취소 중 플래그
   bool _isClaiming = false; // 입찰 중 플래그
+
+  // 리스트 상태 (FutureBuilder 대신 직접 관리)
+  final List<Map<String, dynamic>> _items = [];
+  final ScrollController _scrollController = ScrollController();
+  static const int _pageSize = 30;
+  bool _isInitialLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  Object? _error;
+  int _newOrderBadge = 0; // realtime 으로 새 오더가 도착한 누적 수
 
   @override
   void initState() {
@@ -67,9 +77,11 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     });
     
     // 내가 입찰한 오더 목록과 전체 목록을 동시에 로드
-    _future = _loadInitialData();
-    print('OrderMarketplaceScreen: _future 설정됨');
-    
+    _loadFirstPage();
+
+    // 스크롤 끝 도달 시 다음 페이지 로드
+    _scrollController.addListener(_onScroll);
+
     _channel = Supabase.instance.client
         .channel('public:marketplace_listings')
         .onPostgresChanges(
@@ -77,52 +89,64 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           schema: 'public',
           table: 'marketplace_listings',
           callback: (payload) {
-            print('🔄 [OrderMarketplaceScreen] Realtime 이벤트: ${payload.eventType}');
-            print('   - Old: ${payload.oldRecord}');
-            print('   - New: ${payload.newRecord}');
-            
             if (!mounted) return;
-            
-            // INSERT 이벤트: 새로운 오더
-            if (payload.eventType == 'INSERT') {
-              final newListing = payload.newRecord;
-              final title = newListing['title'] ?? '오더';
-              final region = newListing['region'] ?? '지역 미정';
-              
-              print('🔔 새로운 오더 추가: $title in $region');
-              
-              // 로컬 알림 표시
-              try {
-                NotificationService().showNewJobNotification(
-                  title: '새로운 오더!',
-                  body: '$title - $region',
-                  jobId: newListing['id']?.toString() ?? 'unknown',
-                );
-              } catch (e) {
-                print('알림 표시 실패: $e');
+            // 화면 깜빡임을 막기 위해 전체 reload 대신 부분 패치만 수행한다.
+            // - INSERT: 본인이 등록한 오더가 아니면 상단에 "새 오더 N개" 배지로 표시
+            //   (사용자가 스크롤 내리면 페이지네이션으로 이어짐)
+            // - UPDATE: 동일 id 항목을 교체하거나, 표시 조건에서 벗어나면 제거
+            // - DELETE: 동일 id 항목 제거
+            try {
+              switch (payload.eventType) {
+                case PostgresChangeEvent.insert:
+                  final r = payload.newRecord;
+                  final authService = Provider.of<AuthService>(context, listen: false);
+                  final myId = authService.currentUser?.id;
+                  final postedBy = r['posted_by']?.toString();
+                  // 본인이 등록한 오더는 마켓플레이스에서 제외 대상이므로 무시
+                  if (postedBy != null && postedBy == myId) break;
+                  final status = (r['status'] ?? '').toString();
+                  if (status != 'open' && status != 'withdrawn' && status != 'created') break;
+                  // 이미 리스트에 있으면 무시 (서버가 INSERT/UPDATE를 둘 다 보내는 경우)
+                  final id = r['id']?.toString();
+                  if (id == null || _items.any((x) => x['id']?.toString() == id)) break;
+                  setState(() => _newOrderBadge += 1);
+                  // 로컬 알림 표시
+                  try {
+                    NotificationService().showNewJobNotification(
+                      title: '새로운 오더!',
+                      body: '${r['title'] ?? '오더'} - ${r['region'] ?? '지역 미정'}',
+                      jobId: id,
+                    );
+                  } catch (_) {}
+                  break;
+                case PostgresChangeEvent.update:
+                  final r = payload.newRecord;
+                  final id = r['id']?.toString();
+                  if (id == null) break;
+                  final idx = _items.indexWhere((x) => x['id']?.toString() == id);
+                  if (idx < 0) break;
+                  final newStatus = (r['status'] ?? '').toString();
+                  // 상태가 표시 조건에서 벗어나면 부드럽게 제거
+                  if (newStatus != 'open' && newStatus != 'withdrawn' && newStatus != 'created') {
+                    setState(() => _items.removeAt(idx));
+                  } else {
+                    // 기존 owner_* 보강 정보를 유지하면서 서버 컬럼만 머지
+                    final merged = Map<String, dynamic>.from(_items[idx])..addAll(Map<String, dynamic>.from(r));
+                    setState(() => _items[idx] = merged);
+                  }
+                  break;
+                case PostgresChangeEvent.delete:
+                  final r = payload.oldRecord;
+                  final id = r['id']?.toString();
+                  if (id == null) break;
+                  setState(() => _items.removeWhere((x) => x['id']?.toString() == id));
+                  break;
+                default:
+                  break;
               }
+            } catch (e) {
+              debugPrint('⚠️ realtime 처리 실패: $e');
             }
-            
-            // UPDATE 이벤트: 오더 상태 변경 (claimed, assigned 등)
-            if (payload.eventType == 'UPDATE') {
-              final oldRecord = payload.oldRecord;
-              final newRecord = payload.newRecord;
-              print('📝 오더 업데이트: ${newRecord['id']}');
-              print('   - Old Status: ${oldRecord['status']} -> New Status: ${newRecord['status']}');
-              
-              if (oldRecord['status'] != newRecord['status']) {
-                print('   ⚠️ 상태 변경 감지! 리스트 새로고침 필요');
-              }
-            }
-            
-            // DELETE 이벤트: 오더 삭제
-            if (payload.eventType == 'DELETE') {
-              final deletedListing = payload.oldRecord;
-              print('🗑️ 오더 삭제: ${deletedListing['title']}');
-            }
-            
-            print('   → 리스트 새로고침 시작');
-            _reload();
           },
         )
         .subscribe();
@@ -143,12 +167,7 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       });
     }
 
-    // 화면 진입 직후 한번 더 새로고침하여 데이터 보장
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _reload();
-      }
-    });
+    // 첫 진입 시 _loadFirstPage가 이미 호출되었으므로 추가 reload 불필요
   }
 
   /// 🔒 사업자 승인 상태 확인
@@ -191,59 +210,107 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _loadInitialData() async {
+  /// 첫 페이지 로드 (입찰 정보 + 오더 첫 페이지 병렬)
+  Future<void> _loadFirstPage() async {
+    if (!mounted) return;
+    setState(() {
+      _isInitialLoading = true;
+      _error = null;
+      _hasMore = true;
+      _newOrderBadge = 0;
+      _items.clear();
+    });
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
       final currentUserId = authService.currentUser?.id;
-      
-      print('🚀 [_loadInitialData] 병렬 로딩 시작...');
-      
-      // ⚡ 성능 개선: 병렬 실행으로 50% 속도 향상 + 페이지네이션
+
       final results = await Future.wait([
-        // 1. 내 입찰 목록 로드
         _loadMyBidsData(currentUserId),
-        // 2. 전체 오더 목록 로드 (초기 50개만)
         _market.listListings(
-          status: _status, 
-          throwOnError: true, 
+          status: _status,
+          throwOnError: true,
           postedBy: widget.createdByUserId,
-          limit: 50, // 초기 로딩 최적화
+          limit: _pageSize,
+          offset: 0,
         ),
       ]);
-      
-      // 입찰 데이터 처리
+
       final bidsData = results[0] as Map<String, dynamic>?;
       if (bidsData != null) {
         _myBidStatusByListing = bidsData['statusMap'] as Map<String, String>;
         _myActiveBidListingIds = bidsData['activeIds'] as Set<String>;
-        print('✅ [_loadInitialData] ${_myActiveBidListingIds.length}개 진행중 입찰');
       } else {
         _myBidStatusByListing = {};
         _myActiveBidListingIds = {};
       }
-      
-      // 오더 목록 처리
-      final allListings = results[1] as List<Map<String, dynamic>>;
-      print('✅ [_loadInitialData] ${allListings.length}개 오더 로드 완료');
-      
-      // 3. 자신이 등록한 오더 제외 (오더 마켓플레이스에서는 다른 사람이 등록한 오더만 표시)
-      print('🔍 [_loadInitialData] 필터링 중 - currentUserId: $currentUserId');
-      
-      final filteredListings = allListings.where((listing) {
-        final postedBy = listing['posted_by']?.toString() ?? '';
-        final shouldShow = postedBy != currentUserId;
-        if (!shouldShow) {
-          print('   ⏭️ 제외: ${listing['title']} (posted_by: $postedBy)');
-        }
-        return shouldShow;
-      }).toList();
-      
-      print('✅ [_loadInitialData] ${allListings.length}개 오더 중 ${filteredListings.length}개 표시 (자신이 등록한 오더 ${allListings.length - filteredListings.length}개 제외)');
-      
-      return filteredListings;
+
+      final firstPage = results[1] as List<Map<String, dynamic>>;
+      final filtered = _filterListings(firstPage, currentUserId);
+      if (!mounted) return;
+      setState(() {
+        _items.addAll(filtered);
+        _hasMore = firstPage.length >= _pageSize;
+      });
     } catch (e) {
-      print('❌ [_loadInitialData] 실패: $e');
-      rethrow;
+      if (mounted) setState(() => _error = e);
+    } finally {
+      if (mounted) setState(() => _isInitialLoading = false);
+    }
+  }
+
+  /// 다음 페이지 로드 (스크롤 끝에서 호출)
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || !_hasMore || _isInitialLoading) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUserId = authService.currentUser?.id;
+      final next = await _market.listListings(
+        status: _status,
+        postedBy: widget.createdByUserId,
+        limit: _pageSize,
+        offset: _items.length,
+      );
+      if (!mounted) return;
+      final filtered = _filterListings(next, currentUserId);
+      // 중복 방지 (realtime 으로 이미 들어온 항목 제외)
+      final existingIds = _items.map((e) => e['id']?.toString()).toSet();
+      final dedup = filtered.where((e) => !existingIds.contains(e['id']?.toString())).toList();
+      setState(() {
+        _items.addAll(dedup);
+        _hasMore = next.length >= _pageSize;
+      });
+    } catch (e) {
+      debugPrint('⚠️ _loadMore 실패: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingMore = false);
+    }
+  }
+
+  List<Map<String, dynamic>> _filterListings(
+      List<Map<String, dynamic>> rows, String? currentUserId) {
+    return rows.where((listing) {
+      final postedBy = listing['posted_by']?.toString() ?? '';
+      final s = (listing['status'] ?? '').toString();
+      if (postedBy == currentUserId) return false;
+      if (s != 'open' && s != 'withdrawn' && s != 'created') return false;
+      return true;
+    }).toList();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.maxScrollExtent - pos.pixels < 240 && _hasMore && !_isLoadingMore) {
+      _loadMore();
+    }
+  }
+
+  /// pull-to-refresh 또는 새 오더 배지 탭 시
+  Future<void> _refresh() async {
+    await _loadFirstPage();
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
     }
   }
 
@@ -304,16 +371,13 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
     }
   }
 
-  Future<void> _reload() async {
-    print('OrderMarketplaceScreen _reload 시작: status=$_status');
-    setState(() {
-      _future = _loadInitialData();
-    });
-    print('OrderMarketplaceScreen _reload 완료');
-  }
+  /// 외부에서 호출되는 reload 별칭 (호환성)
+  Future<void> _reload() => _refresh();
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     if (_channel != null) {
       Supabase.instance.client.removeChannel(_channel!);
     }
@@ -353,64 +417,54 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
           // 필터 제거: 항상 오픈(또는 withdrawn) 항목만 표시
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _reload,
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: _future,
-                builder: (context, snapshot) {
-                  print('OrderMarketplaceScreen FutureBuilder: connectionState=${snapshot.connectionState}, hasError=${snapshot.hasError}, data=${snapshot.data?.length ?? 0}');
-                  
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    print('OrderMarketplaceScreen: 로딩 중...');
+              onRefresh: _refresh,
+              child: Builder(
+                builder: (context) {
+                  if (_isInitialLoading) {
                     return const LoadingIndicator(
                       message: '공사 목록을 불러오는 중...',
                       subtitle: '잠시만 기다려주세요',
                     );
                   }
-                  if (snapshot.hasError) {
-                    print('OrderMarketplaceScreen: 에러 발생 - ${snapshot.error}');
+                  if (_error != null) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
                         const SizedBox(height: 120),
-                        Center(child: Text('불러오기 실패: ')),
+                        const Center(child: Text('불러오기 실패')),
                         Padding(
                           padding: const EdgeInsets.all(16.0),
-                          child: Text('${snapshot.error}'),
+                          child: Text('${_error}'),
                         ),
                       ],
                     );
                   }
-                  final items = snapshot.data ?? [];
-                  final authService = Provider.of<AuthService>(context, listen: false);
-                  final currentUserId = authService.currentUser?.id;
-                  
-                  final visibleItems = items.where((row) {
-                    final s = (row['status'] ?? '').toString();
-                    final listingId = row['id']?.toString() ?? '';
-                    final postedBy = row['posted_by']?.toString() ?? '';
-                    
-                    // 상태 필터: open, withdrawn, created만
-                    if (s != 'open' && s != 'withdrawn' && s != 'created') return false;
-                    
-                    // 내가 올린 오더는 제외
-                    if (postedBy == currentUserId) return false;
-                    
-                    return true;
-                  }).toList();
-                  print('OrderMarketplaceScreen: 데이터 로드 완료 - ${visibleItems.length}개 항목(오픈/철회/생성됨)');
+                  final visibleItems = _items;
                   if (visibleItems.isEmpty) {
-                    print('OrderMarketplaceScreen: 빈 목록 표시');
-                    return const EmptyOrdersWidget();
-                  }
-                  return AnimationLimiter(
-                    child: ListView.separated(
+                    // pull-to-refresh 가능하도록 스크롤 가능한 빈 상태
+                    return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: visibleItems.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      padding: const EdgeInsets.all(16),
-                      itemBuilder: (context, index) {
-                        try {
-                          final e = visibleItems[index];
+                      children: const [
+                        SizedBox(height: 60),
+                        EmptyOrdersWidget(),
+                      ],
+                    );
+                  }
+                  return Stack(
+                    children: [
+                      AnimationLimiter(
+                        child: ListView.separated(
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: visibleItems.length + 1, // 마지막은 footer
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          padding: const EdgeInsets.all(16),
+                          itemBuilder: (context, index) {
+                            if (index == visibleItems.length) {
+                              return _buildListFooter();
+                            }
+                            try {
+                              final e = visibleItems[index];
                       final String id = (e['id'] ?? '').toString();
                       final String title = (e['title'] ?? e['description'] ?? '-') as String;
                       final String description = (e['description'] ?? '-') as String;
@@ -809,8 +863,41 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
                           ),
                         );
                       }
-                      },
-                    ),
+                          },
+                        ),
+                      ),
+                      if (_newOrderBadge > 0)
+                        Positioned(
+                          top: 8,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: Material(
+                              color: const Color(0xFF1E3A8A),
+                              borderRadius: BorderRadius.circular(20),
+                              elevation: 4,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: _refresh,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.arrow_upward_rounded, size: 16, color: Colors.white),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '새 오더 $_newOrderBadge개 보기',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12.5),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),
@@ -819,6 +906,33 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildListFooter() {
+    if (_isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.2),
+          ),
+        ),
+      );
+    }
+    if (!_hasMore && _items.isNotEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            '모두 불러왔습니다',
+            style: TextStyle(color: Colors.black45, fontSize: 12),
+          ),
+        ),
+      );
+    }
+    return const SizedBox(height: 8);
   }
 
   Future<void> _cancelBid(String listingId) async {
@@ -1120,7 +1234,11 @@ class _OrderMarketplaceScreenState extends State<OrderMarketplaceScreen> {
       print('⚠️ [_claimListing] 이미 잡기 작업 진행 중, 무시');
       return;
     }
-    
+
+    // 사업자 진위확인 가드 (인증 또는 유예 기간 중에만 통과)
+    final canProceed = await BusinessVerifyGuard.ensure(context, action: '입찰');
+    if (!canProceed) return;
+
     try {
       setState(() => _isClaiming = true);
       print('🔍 [_claimListing] 오더 잡기 시작: $id');

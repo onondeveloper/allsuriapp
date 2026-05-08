@@ -62,6 +62,13 @@
   force = true
 
 [[redirects]]
+  # 사업자등록정보 진위확인 (국세청 공공데이터 API)
+  from = "/api/business/verify"
+  to = "/.netlify/functions/business-verify"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/market/*"
   to = "/.netlify/functions/market/:splat"
   status = 200
