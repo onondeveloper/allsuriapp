@@ -268,15 +268,16 @@ class User {
   }
 
   /// 사업자 활동(오더 생성/입찰/낙찰 등) 가능 여부.
-  /// - 관리자 우회(bypass=TRUE)면 사업자번호가 없어도 통과
-  /// - 그 외에는 사업자번호가 있어야 하고, verified 또는 grace 중이어야 함
+  ///
+  /// 2026-05 정책 완화:
+  /// - 관리자 우회(bypass=TRUE)는 그대로 통과
+  /// - 그 외에는 **사업자번호 보유 여부**만 본다.
+  ///   진위확인 실패/미완료 상태여도, 10자리 사업자번호가 있으면 통과.
+  ///   (국세청 API false negative 대응)
+  /// - 사업자번호가 없으면 차단.
   bool get canActAsBusiness {
     if (businessVerifyBypass) return true;
-    if (!hasBusinessNumber) return false;
-    if (businessVerifyStatus == BusinessVerifyStatus.verified) return true;
-    final until = businessGraceUntil;
-    if (until != null && until.isAfter(DateTime.now())) return true;
-    return false;
+    return hasBusinessNumber;
   }
 
   /// 인증되지는 않았지만 유예 기간 중인지 (bypass는 별개로 취급)

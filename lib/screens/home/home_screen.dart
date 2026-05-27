@@ -401,35 +401,15 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, snapshot) {
         final ads = snapshot.data ?? [];
         
-        // 광고가 없으면 광고 문의 표시
+        // 광고가 없으면 빈 placeholder만 노출 — 연락처 표시 금지
         if (ads.isEmpty) {
-          return GestureDetector(
-            onTap: () {
-              _showAdvertisingInquiry(context);
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.campaign_rounded, size: 48, color: Colors.blue[400]),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '광고 문의: 010-8345-1912',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.grey[300]!),
             ),
           );
         }
@@ -440,8 +420,6 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: () {
             if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
               _launchAdUrl(ad.linkUrl!);
-            } else {
-              _showAdvertisingInquiry(context);
             }
           },
           child: Container(
@@ -513,109 +491,6 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
-  }
-
-  void _showAdvertisingInquiry(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.phone_in_talk_rounded,
-                    size: 48,
-                    color: Colors.blue[600],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  '광고 문의',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF222B45),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.phone_android,
-                        color: Colors.grey[700],
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '010-8345-1912',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey[800],
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  '광고 문의는 위 번호로\n연락 주시기 바랍니다',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1E3A8A),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      '확인',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildFeatureItem(IconData icon, String text) {

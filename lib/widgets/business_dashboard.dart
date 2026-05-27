@@ -607,35 +607,15 @@ class _BusinessDashboardState extends State<BusinessDashboard> with TickerProvid
         // 광고 데이터 로드
         final ads = snapshot.data ?? [];
         
-        // 광고가 없으면 기본 메시지 표시
+        // 광고가 없으면 빈 자리(placeholder)만 표시 — 연락처 노출 금지
         if (ads.isEmpty) {
-          return GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('광고 문의: 010-8345-1912'),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            },
-            child: Container(
-              height: 80,
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: const Center(
-                child: Text(
-                  '광고 문의: 010-8345-1912',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
+          return Container(
+            height: 80,
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[300]!),
             ),
           );
         }
@@ -724,16 +704,8 @@ class _DashboardAdCarouselState extends State<_DashboardAdCarousel> {
   }
 
   void _handleAdTap(Ad ad) {
-    // 링크가 있으면 열기, 없으면 광고 문의 메시지 표시
     if (ad.linkUrl != null && ad.linkUrl!.isNotEmpty) {
       _launchUrl(ad.linkUrl!);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('광고 문의: 010-8345-1912'),
-          duration: Duration(seconds: 3),
-        ),
-      );
     }
   }
 

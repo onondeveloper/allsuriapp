@@ -249,13 +249,12 @@ class BusinessVerifyService {
   }
 
   /// 임의 사용자(주로 낙찰 후보 사업자)가 사업자 활동 가능 상태인지 조회.
-  /// Supabase에서 직접 SELECT 한 뒤, fn_business_can_act 와 동일한 로직을 적용한다.
+  /// 2026-05 완화: 관리자 우회 또는 사업자번호 보유만 확인 (fn_business_can_act 와 동일).
   static Future<bool> isUserEligibleAsBusiness(String userId) async {
     try {
       final row = await Supabase.instance.client
           .from('users')
-          .select('role, businessstatus, businessnumber, '
-              'business_verify_status, business_verify_bypass, business_grace_until')
+          .select('role, businessstatus, businessnumber, business_verify_bypass')
           .eq('id', userId)
           .maybeSingle();
       if (row == null) return false;
@@ -265,21 +264,9 @@ class BusinessVerifyService {
 
       final bNo = (row['businessnumber'] ?? '').toString();
       final hasBNo = bNo.replaceAll(RegExp(r'[^0-9]'), '').length == 10;
-      if (!hasBNo) return false;
-
-      if (row['business_verify_status'] == 'verified') return true;
-
-      final graceRaw = row['business_grace_until']?.toString();
-      if (graceRaw != null && graceRaw.isNotEmpty) {
-        try {
-          final until = DateTime.parse(graceRaw);
-          if (until.isAfter(DateTime.now())) return true;
-        } catch (_) {}
-      }
-      return false;
+      return hasBNo;
     } catch (e) {
       debugPrint('[BusinessVerifyService] isUserEligibleAsBusiness error: $e');
-      // 조회 실패 시 보수적으로 false (낙찰 차단)
       return false;
     }
   }
@@ -296,15 +283,20 @@ class BusinessVerifyService {
             '아래 항목을 다시 확인해 주세요.\n'
             '• 사업자등록번호 10자리\n'
             '• 대표자(사장님) 성함\n'
-            '• 개업일자 (사업자등록증 기준)';
+            '• 개업일자 (사업자등록증 기준)\n\n'
+            '※ 신규 사업자는 국세청 DB 반영까지 며칠 걸릴 수 있습니다.\n'
+            '   인증이 완료되지 않아도 사업자번호만 등록되어 있으면 '
+            '오더 등록·입찰·낙찰은 정상적으로 사용하실 수 있습니다.';
       case BusinessVerifyCode.closed:
         return r.message.isNotEmpty
             ? r.message
             : '국세청 조회 결과 휴업 또는 폐업 상태로 등록된 사업자입니다.\n'
                 '계속 사업 중이시라면 사업자등록 변경 후 다시 시도해 주세요.';
       case BusinessVerifyCode.notRegistered:
-        return '국세청에 등록되지 않은 사업자번호입니다.\n'
-            '사업자등록번호 10자리를 다시 확인해 주세요.';
+        return '국세청에 등록되지 않은 사업자번호로 조회됩니다.\n'
+            '사업자등록번호 10자리를 다시 확인해 주세요.\n\n'
+            '※ 신규 사업자는 국세청 DB 반영까지 며칠 걸릴 수 있습니다.\n'
+            '   사업자번호가 정확하다면 그대로 두셔도 오더 등록·입찰·낙찰은 사용 가능합니다.';
       case BusinessVerifyCode.invalidFormat:
         return r.message.isNotEmpty ? r.message : '입력 형식을 확인해 주세요.';
       case BusinessVerifyCode.rateLimited:

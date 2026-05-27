@@ -677,20 +677,16 @@ class AuthService extends ChangeNotifier {
     await refreshCurrentUser();
   }
 
-  /// 사업자 진위확인이 안된 경우 인앱 알림(notifications 테이블)을 1일 1회 생성한다.
-  /// 동일 사용자에게 24시간 내 중복 발송되지 않도록 SELECT로 dedupe.
+  /// 사업자번호가 등록되어 있지 않은 사업자 회원에게 1일 1회 알림을 생성한다.
+  /// 2026-05 완화: 사업자번호 보유만 검사 (진위확인 결과는 활동을 제한하지 않음).
   /// FCM 푸시는 Supabase webhook이 알아서 발송한다.
   Future<void> _maybeNotifyBusinessVerifyRequired() async {
     final user = _currentUser;
     if (user == null) return;
     if (user.role != 'business') return;
     if (user.businessStatus != 'approved') return;
-    // 관리자 우회 사용자는 인증을 요구하지 않으므로 알림도 보내지 않음
     if (user.businessVerifyBypass) return;
-    if (user.businessVerifyStatus == app_models.BusinessVerifyStatus.verified &&
-        user.hasBusinessNumber) {
-      return;
-    }
+    if (user.hasBusinessNumber) return;
 
     try {
       final since = DateTime.now().subtract(const Duration(hours: 24)).toIso8601String();
@@ -702,34 +698,20 @@ class AuthService extends ChangeNotifier {
           .gte('createdat', since)
           .limit(1);
       if (existing.isNotEmpty) {
-        debugPrint('ℹ️ [AuthService] 진위확인 알림 24h 내 중복 발송 차단');
+        debugPrint('ℹ️ [AuthService] 사업자번호 알림 24h 내 중복 발송 차단');
         return;
-      }
-
-      String title;
-      String body;
-      if (!user.hasBusinessNumber) {
-        title = '사업자등록번호 입력이 필요합니다';
-        body = '사업자등록번호가 없으면 오더 등록·입찰·낙찰이 모두 차단됩니다. 프로필에서 입력해 주세요.';
-      } else if (user.isInGracePeriod) {
-        final r = user.graceRemaining!;
-        final remText = r.inDays >= 1 ? '${r.inDays}일' : '${r.inHours}시간';
-        title = '사업자 인증이 필요합니다';
-        body = '인증 유예 만료까지 약 $remText 남았습니다. 지금 진위확인을 완료해 주세요.';
-      } else {
-        title = '사업자 활동이 제한되었습니다';
-        body = '사업자등록 진위확인이 완료되어야 오더 등록·입찰·낙찰이 가능합니다.';
       }
 
       await _sb.from('notifications').insert({
         'userid': user.id,
-        'title': title,
-        'body': body,
+        'title': '사업자등록번호 입력이 필요합니다',
+        'body': '사업자등록번호가 없으면 오더 등록·입찰·낙찰이 모두 차단됩니다. '
+            '프로필에서 10자리 사업자등록번호를 입력해 주세요.',
         'type': 'business_verify_required',
       });
-      debugPrint('✅ [AuthService] 진위확인 알림 생성: ${user.id}');
+      debugPrint('✅ [AuthService] 사업자번호 입력 안내 알림 생성: ${user.id}');
     } catch (e) {
-      debugPrint('⚠️ [AuthService] 진위확인 알림 생성 실패(무시): $e');
+      debugPrint('⚠️ [AuthService] 알림 생성 실패(무시): $e');
     }
   }
 

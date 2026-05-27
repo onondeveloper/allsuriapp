@@ -5,13 +5,13 @@ import '../models/user.dart' as app_models;
 import '../screens/business/business_profile_screen.dart';
 import '../services/auth_service.dart';
 
-/// 사업자 활동(오더 생성, 입찰, 견적, 공사 등록) 전 진위확인 상태를 점검한다.
+/// 사업자 활동(오더 생성, 입찰, 견적, 공사 등록) 전 자격 점검.
 ///
-/// 분기:
-/// - 인증 완료(verified): 그대로 통과
-/// - 유예 기간 중: 1회성 안내 다이얼로그 표시 후 통과 (남은 시간 표시)
-/// - 유예 만료/실패/휴폐업: 차단 다이얼로그 + 프로필 이동 옵션
-/// - 비사업자: false 반환 (호출 측에서 별도 처리)
+/// 2026-05 정책 완화:
+/// - 관리자 우회(bypass=TRUE): 즉시 통과
+/// - 사업자번호 보유: 진위확인 결과 무관하게 통과
+///   (국세청 API의 false negative 이슈 대응; verified 가 아니어도 활동 허용)
+/// - 사업자번호 미등록: 안내 다이얼로그 + 프로필 이동 후 차단
 class BusinessVerifyGuard {
   /// 현재 사용자가 사업자 활동을 수행 가능한지 확인한다.
   /// 통과 가능하면 true, 차단되었으면 false를 반환한다.
@@ -27,21 +27,8 @@ class BusinessVerifyGuard {
       return false;
     }
 
-    // 관리자 화이트리스트 우회 (사업자번호 보유 여부와 무관)
     if (user.businessVerifyBypass) return true;
-
-    if (user.businessVerifyStatus == app_models.BusinessVerifyStatus.verified &&
-        user.hasBusinessNumber) {
-      return true;
-    }
-
-    // 사업자번호가 등록되어 있어야 grace 통과 가능
-    if (user.isInGracePeriod && user.hasBusinessNumber) {
-      final remaining = user.graceRemaining;
-      final remainingText = _humanizeRemaining(remaining);
-      final continueAnyway = await _showGraceDialog(context, action, remainingText);
-      return continueAnyway;
-    }
+    if (user.hasBusinessNumber) return true;
 
     await _showBlockedDialog(context, user, action);
     return false;
@@ -55,93 +42,34 @@ class BusinessVerifyGuard {
     await _showBlockedDialog(context, user, '사업자 활동');
   }
 
-  static String _humanizeRemaining(Duration? d) {
-    if (d == null) return '';
-    if (d.inDays >= 1) return '${d.inDays}일';
-    if (d.inHours >= 1) return '${d.inHours}시간';
-    if (d.inMinutes >= 1) return '${d.inMinutes}분';
-    return '잠시';
-  }
-
-  static Future<bool> _showGraceDialog(
-    BuildContext context,
-    String action,
-    String remainingText,
-  ) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.access_time_rounded, color: Colors.orange),
-            SizedBox(width: 10),
-            Text('사업자 인증 유예 안내'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              remainingText.isNotEmpty
-                  ? '인증 만료까지 약 $remainingText 남았습니다.'
-                  : '곧 사업자 인증이 필요합니다.',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '유예 기간이 지나면 $action을(를) 진행할 수 없게 됩니다.\n'
-              '지금 사업자등록 진위확인을 완료해 주세요.',
-              style: const TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('나중에 하기'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop(false);
-              _goToBusinessProfile(context);
-            },
-            child: const Text('지금 인증하기'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
-  }
-
   static Future<void> _showBlockedDialog(
     BuildContext context,
     app_models.User user,
     String action,
   ) async {
-    final reason = _reasonText(user);
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.verified_user_outlined, color: Colors.red),
+            Icon(Icons.business_outlined, color: Colors.red),
             SizedBox(width: 10),
-            Text('사업자 인증이 필요합니다'),
+            Text('사업자등록번호가 필요합니다'),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: const [
             Text(
-              reason,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              '사업자등록번호가 등록되어 있지 않습니다.',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
-              '국세청 사업자등록 진위확인을 완료해야 $action이(가) 가능합니다.',
-              style: const TextStyle(fontSize: 14),
+              '사업자 프로필에서 10자리 사업자등록번호를 입력해 주시면 '
+              '오더 등록·입찰·낙찰 기능을 바로 사용하실 수 있습니다.',
+              style: TextStyle(fontSize: 14),
             ),
           ],
         ),
@@ -151,8 +79,8 @@ class BusinessVerifyGuard {
             child: const Text('닫기'),
           ),
           FilledButton.icon(
-            icon: const Icon(Icons.verified_outlined),
-            label: const Text('인증하러 가기'),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('사업자번호 입력하기'),
             onPressed: () {
               Navigator.of(ctx).pop();
               _goToBusinessProfile(context);
@@ -161,21 +89,6 @@ class BusinessVerifyGuard {
         ],
       ),
     );
-  }
-
-  static String _reasonText(app_models.User user) {
-    if (!user.hasBusinessNumber) {
-      return '사업자등록번호가 등록되어 있지 않습니다.';
-    }
-    switch (user.businessVerifyStatus) {
-      case app_models.BusinessVerifyStatus.failed:
-        return '진위확인에 실패한 이력이 있습니다.';
-      case app_models.BusinessVerifyStatus.closed:
-        return '사업자 상태가 휴/폐업으로 조회되었습니다.';
-      case app_models.BusinessVerifyStatus.unverified:
-      case app_models.BusinessVerifyStatus.verified:
-        return '아직 사업자등록 진위확인이 완료되지 않았습니다.';
-    }
   }
 
   static void _goToBusinessProfile(BuildContext context) {
